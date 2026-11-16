@@ -141,3 +141,8 @@ Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet p
 ## Version 1.10.1
 - Logo : l’épingle passe devant les calques.
 - Animation de lancement plus courte (environ 1,5 s) : les calques s’empilent, l’épingle tombe dessus, une onde part de sa pointe, puis le nom apparaît.
+
+## Version 1.11.0
+- Nouveau logo plus net (épingle avec reflet, calques, nom en dégradé) appliqué partout : en-tête, accueil, icônes, écran de lancement.
+- Animation de lancement complète d’environ 4,5 s qui utilise tout le logo (calques, routes, épingle, bâtiments, nom). Un clic ou une touche la passe ; `?nosplash` dans l’adresse la désactive.
+- Tuto guidé en 13 étapes : chaque étape entoure le vrai bouton ou la vraie zone, avec des aperçus des boutons de la vue 3D.

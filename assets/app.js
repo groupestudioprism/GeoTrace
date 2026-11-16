@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.10.1';
+const VERSION = '1.11.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1345,11 +1345,88 @@ async function restoreModel() {
   if (rec && rec.buffer && !modelTouched) await openModel(rec.buffer, rec.name, null, { quiet: true, noSave: true });
 }
 
-{ const sp = $('splash'); if (sp) { const end = () => sp.remove(); sp.addEventListener('animationend', e => { if (e.animationName === 'sp-out') end(); }); sp.addEventListener('click', end); setTimeout(end, 7000); } }
+{ const sp = $('splash'); if (sp) { const end = () => { sp.remove(); removeEventListener('keydown', end); }; if (/[?&]nosplash\b/.test(location.search)) end(); else { sp.addEventListener('animationend', e => { if (e.animationName === 'sp-out') end(); }); sp.addEventListener('click', end); addEventListener('keydown', end); setTimeout(end, 9000); } } }
 window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour les tests et la console
 
+
+/* ================= Tuto guidé ================= */
+(() => {
+  const demoPip = (btns, note) => `<div class="row pip-acts">${btns}</div>${note ? `<small>${note}</small>` : ''}`;
+  const S = [
+    { sel: '#sourceBtn', t: 'Ouvrir des photos', x: 'Ce bouton charge vos photos : un dossier, des photos choisies ou un ZIP. Vous pouvez aussi les glisser sur la page. Seules celles qui contiennent une position GPS apparaissent sur la carte.' },
+    { sel: '#map', t: 'La carte', x: 'Chaque photo est un repère sur la carte. Cliquez un repère pour la voir en grand. Le cône indique la direction de prise de vue quand l’appareil l’a enregistrée. Les photos proches sont regroupées : zoomez pour les séparer.' },
+    { sel: '#panel', t: 'La liste des photos', x: 'Toutes les photos sont ici, avec leur date et leur direction. Cliquez une ligne pour centrer la carte dessus. La touche L affiche ou masque cette liste.' },
+    { sel: '#panel .p-head', t: 'Chercher et filtrer', x: 'Tapez un nom, un dossier ou une note dans la zone de recherche (touche /). Les pastilles Téléphone, Tablette et Drone masquent un type d’appareil ; Favoris garde les photos marquées d’une étoile ; Du / au limite la période.' },
+    { sel: '#timeline', t: 'La chronologie', x: 'Les barres comptent les photos par heure. Faites glisser sur la frise pour ne garder qu’une période. « Tout afficher » rétablit la liste complète.', note: 'Elle apparaît dès que les photos sont datées.' },
+    { sel: '.tools', t: 'Les outils de la carte', x: 'De haut en bas : « Tout voir » (F) cadre toutes les photos, « Mesurer » (M) trace une longueur puis une surface dès trois points, « Ma position » centre la carte sur vous.' },
+    { sel: ['#layersBtn', '#layersMenu'], t: 'Fond de carte et calques', x: 'Choisissez entre la photo aérienne et le plan de l’IGN. En dessous : parcelles cadastrales, vignettes sur les repères, direction de prise de vue, parcours dans l’ordre des prises.', pre: () => { closeMenus(); $('layersMenu').hidden = false; $('layersBtn').setAttribute('aria-expanded', 'true'); }, post: () => closeMenus() },
+    { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
+    { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
+      demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },
+    { sel: '#vue3dBtn', t: 'Se placer et superposer', x: 'Dans la vue 3D, « Se placer ici » met la caméra à la position de la photo. « Superposer » fond ensuite la photo et la maquette pour les comparer : réglez l’opacité avec le curseur. Échap ou ✕ revient à la 3D.',
+      demo: demoPip('<button type="button">Se placer ici</button><button type="button" class="on">Superposer</button>', 'Boutons en bas à droite de la vue 3D, sous la photo.') },
+    { sel: '#vue3dBtn', t: 'Régler une fois pour toute l’équipe', x: 'Si l’alignement n’est pas parfait, décalez la maquette avec les flèches du clavier ou la souris. « Appliquer à toutes » reprend ce réglage pour les photos du même type d’appareil ; « Enregistrer pour l’équipe » l’écrit dans le fichier de calage à déposer à côté de la maquette. Collègues et clients n’ont plus rien à régler.',
+      demo: demoPip('<button type="button">Appliquer à toutes</button><button type="button">Enregistrer pour l’équipe</button><button type="button">Tout annuler</button>', 'Ils apparaissent dès que vous modifiez le réglage.') },
+    { sel: '#exportBtn', t: 'Exporter', x: 'Exportez les photos affichées en GeoJSON (QGIS, ArcGIS), KML (Google Earth), CSV avec coordonnées Lambert-93, ou ZIP avec les photos. Le bouton s’active quand des photos sont ouvertes.' },
+    { sel: ['#themeBtn', '#helpBtn'], t: 'Thème et aide', x: 'La lune ou le soleil bascule entre mode clair et mode sombre. Le point d’interrogation liste les raccourcis clavier. Ce tuto se rouvre avec le bouton « Tuto ».' },
+  ];
+  const tourOpened = {}; let i = 0, open = false;
+  const el = id => document.getElementById(id);
+  const rectOf = sel => {
+    const rs = (Array.isArray(sel) ? sel : [sel]).map(s => document.querySelector(s)).filter(Boolean).map(n => n.getBoundingClientRect()).filter(r => r.width > 2 && r.height > 2);
+    if (!rs.length) return null;
+    const l = Math.min(...rs.map(r => r.left)), t = Math.min(...rs.map(r => r.top)), r2 = Math.max(...rs.map(r => r.right)), b = Math.max(...rs.map(r => r.bottom));
+    return { left: l, top: t, right: r2, bottom: b, width: r2 - l, height: b - t };
+  };
+  function place() {
+    const s = S[i], hole = el('tourHole'), card = el('tourCard'), vw = innerWidth, vh = innerHeight, pad = 6;
+    const r = rectOf(s.sel);
+    if (!r) { hole.classList.add('none'); }
+    else { hole.classList.remove('none'); Object.assign(hole.style, { left: r.left - pad + 'px', top: r.top - pad + 'px', width: r.width + pad * 2 + 'px', height: r.height + pad * 2 + 'px' }); }
+    const cw = card.offsetWidth, ch = card.offsetHeight, g = 16;
+    let x = (vw - cw) / 2, y = (vh - ch) / 2;
+    if (r) {
+      const tries = [
+        [Math.min(Math.max(12, r.left), vw - cw - 12), r.bottom + pad + g],
+        [Math.min(Math.max(12, r.left), vw - cw - 12), r.top - pad - g - ch],
+        [r.right + pad + g, Math.min(Math.max(12, r.top), vh - ch - 12)],
+        [r.left - pad - g - cw, Math.min(Math.max(12, r.top), vh - ch - 12)],
+      ];
+      const fit = tries.find(([a, b]) => a >= 12 && b >= 12 && a + cw <= vw - 12 && b + ch <= vh - 12);
+      if (fit) [x, y] = fit; else { x = Math.min(Math.max(12, r.left + 16), vw - cw - 12); y = vh - ch - 24; }
+    }
+    card.style.left = Math.max(12, x) + 'px'; card.style.top = Math.max(12, y) + 'px';
+  }
+  function show(n) {
+    const prev = S[i]; if (open && prev && prev.post) prev.post();
+    i = Math.max(0, Math.min(S.length - 1, n)); const s = S[i];
+    if (s.pre) s.pre();
+    el('tourCount').textContent = `${i + 1} sur ${S.length}`;
+    el('tourTitle').textContent = s.t; el('tourText').textContent = s.x + (s.note ? ' ' + s.note : '');
+    const d = el('tourDemo'); d.hidden = !s.demo; d.innerHTML = s.demo || '';
+    el('tourPrev').hidden = i === 0; el('tourNext').textContent = i === S.length - 1 ? 'Terminer' : 'Suivant';
+    const target = document.querySelector(Array.isArray(s.sel) ? s.sel[0] : s.sel);
+    if (target && target.scrollIntoView) target.scrollIntoView({ block: 'nearest' });
+    requestAnimationFrame(() => { place(); el('tourNext').focus({ preventScroll: true }); });
+  }
+  function close() { if (!open) return; const s = S[i]; if (s && s.post) s.post(); open = false; el('tour').hidden = true; }
+  function start() { closeMenus(); open = true; el('tour').hidden = false; i = 0; show(0); }
+  el('tutoBtn').addEventListener('click', e => { e.stopPropagation(); start(); });
+  el('tourNext').addEventListener('click', () => { if (i === S.length - 1) close(); else show(i + 1); });
+  el('tourPrev').addEventListener('click', () => show(i - 1));
+  el('tourClose').addEventListener('click', close);
+  el('tour').addEventListener('click', e => e.stopPropagation());
+  addEventListener('resize', () => { if (open) place(); });
+  addEventListener('keydown', e => {
+    if (!open) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); if (i < S.length - 1) show(i + 1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopImmediatePropagation(); show(i - 1); }
+  }, true);
+  window.GeoTraceTour = { start, close, steps: S.length };
+})();
+
 /* ================= Aide et raccourcis ================= */
-$('tutoBtn').addEventListener('click', () => $('tuto').showModal());
 $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace version ${VERSION}`; $('help').showModal(); });
 addEventListener('keydown', e => {
   if (!$('v3d').hidden) {

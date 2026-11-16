@@ -76,11 +76,12 @@ svg.ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor
 /* ---------- En-tête ---------- */
 #top { position: relative; z-index: 1200; display: flex; align-items: center; gap: 10px; height: var(--head-h); padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left)); background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--brand-ink); margin-right: 6px; }
-.brand img { display: block; height: 34px; width: auto; }
-.wordmark { font-family: var(--display); font-size: 1.05rem; letter-spacing: .02em; }
-.w-geo { color: var(--brand-ink); }
-.w-trace { color: var(--bleu); }
-[data-theme="dark"] .w-trace { color: var(--cyan); }
+.brand img { display: block; width: auto; }
+.brand .sym { height: 36px; }
+.brand .wm { height: 19px; }
+.wm-d { display: none !important; }
+[data-theme="dark"] .wm-l { display: none !important; }
+[data-theme="dark"] .wm-d { display: block !important; }
 .sub { font-size: .82rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .si { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); display: grid; pointer-events: none; }
@@ -356,7 +357,7 @@ dialog .hint { color: var(--muted); }
   :root { --head-h: 52px; }
   .icon-btn.only-mobile { display: inline-grid; }
   #top { gap: 6px; }
-  .wordmark { display: none; }
+  .brand .wm { display: none !important; }
   .sturno b { display: none; }
   .sturno { padding-left: 8px; }
   #top .grow, #top #helpBtn, .btn .lbl, #exportBtn, #layersBtn { }
@@ -446,10 +447,6 @@ dialog[open] { animation: gt-pop .18s ease-out both; }
 /* Accueil : seuls les boutons utiles avant d'ouvrir des photos restent visibles */
 body.on-welcome #layersBtn, body.on-welcome #maqBtn, body.on-welcome #vue3dBtn, body.on-welcome #exportBtn, body.on-welcome #tutoBtn, body.on-welcome #sourceBtn, body.on-welcome #sub, body.on-welcome #layersBtn + .menu, body.on-welcome #panelToggle { display: none !important; }
 body.on-welcome .pop-wrap { display: none; }
-/* Tuto */
-.tuto { width: min(560px, calc(100% - 32px)); max-height: calc(100% - 40px); overflow: auto; }
-.tuto-steps { margin: 0 0 12px; padding-left: 1.3em; display: grid; gap: 9px; font-size: .92rem; line-height: 1.45; }
-.tuto-steps li::marker { color: var(--accent, #0585c6); font-weight: 700; }
 
 /* Mode sombre : accueil, fenêtres et fiches */
 [data-theme="dark"] #welcome { background: #08131f; color: var(--ink); }
@@ -473,27 +470,73 @@ body.on-welcome .pop-wrap { display: none; }
 [data-theme="dark"] .leaflet-container a { color: var(--cyan); }
 
 [data-theme="dark"] .w-logo { background: #f6f9fc; border-radius: 18px; padding: 10px 14px; margin-left: -4px; }
-[data-theme="dark"] .brand img { background: #f6f9fc; border-radius: 8px; padding: 2px 4px; height: 36px; }
+[data-theme="dark"] .brand .sym { background: #f6f9fc; border-radius: 9px; padding: 3px 5px; height: 38px; }
 
-/* Écran de lancement : les calques s'empilent, l'épingle tombe dessus, le nom apparaît */
-#splash { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: #f3f7fc; }
+/* Écran de lancement (environ 4,5 s) : calques, routes, épingle, bâtiments, nom */
+#splash { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: #f3f7fc; cursor: pointer; }
 [data-theme="dark"] #splash { background: #08131f; }
-.sp-card { width: min(210px, 50vw); }
-[data-theme="dark"] .sp-card { background: #f6f9fc; border-radius: 22px; padding: 14px 18px; box-sizing: content-box; }
+.sp-card { width: min(300px, 62vw); }
+[data-theme="dark"] .sp-card { background: #f6f9fc; border-radius: 26px; padding: 20px 24px; box-sizing: content-box; }
 .sp-svg { display: block; width: 100%; height: auto; overflow: visible; }
-.sp-svg > g, .sp-svg .sp-w, .sp-svg .sp-r { transform-box: fill-box; transform-origin: center; opacity: 0; }
-.sp-svg .sp-p { transform-origin: 50% 100%; }
-#splash.go { animation: sp-out .3s ease 1.25s forwards; }
-#splash.go .sp-b, #splash.go .sp-m, #splash.go .sp-t { animation: sp-layer .38s cubic-bezier(.2,.8,.25,1) both; }
-#splash.go .sp-b { animation-delay: .0s; }
-#splash.go .sp-m { animation-delay: .1s; }
-#splash.go .sp-t { animation-delay: .2s; }
-#splash.go .sp-p { animation: sp-drop .5s cubic-bezier(.3,1.4,.5,1) .38s both; }
-#splash.go .sp-r { animation: sp-ripple .55s ease-out .78s both; }
-#splash.go .sp-w { animation: sp-word .35s ease-out .72s both; }
-@keyframes sp-layer { from { opacity: 0; transform: translateY(34px) scale(.92); } to { opacity: 1; transform: none; } }
-@keyframes sp-drop { 0% { opacity: 0; transform: translateY(-90px) scaleY(1.08); } 40% { opacity: 1; } 100% { opacity: 1; transform: none; } }
-@keyframes sp-ripple { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(3.2); } }
-@keyframes sp-word { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.sp-svg .sp-b, .sp-svg .sp-m, .sp-svg .sp-t, .sp-svg .sp-sh, .sp-svg .sp-r, .sp-svg .sp-drop, .sp-svg .sp-l, .sp-svg .sp-bar0, .sp-svg .sp-bar1, .sp-svg .sp-bar2, .sp-svg .sp-win { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.sp-svg .sp-road { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.sp-svg .sp-bar0, .sp-svg .sp-bar1, .sp-svg .sp-bar2 { transform-origin: 50% 100%; }
+#splash.go { animation: sp-out .35s ease 4.35s forwards; }
+#splash.go .sp-b, #splash.go .sp-m, #splash.go .sp-t { animation: sp-layer .6s cubic-bezier(.2,.8,.25,1) both; }
+#splash.go .sp-b { animation-delay: .2s; }
+#splash.go .sp-m { animation-delay: .5s; }
+#splash.go .sp-t { animation-delay: .8s; }
+#splash.go .sp-road { animation: sp-road .7s ease-in-out both; }
+#splash.go .sp-road:nth-child(1) { animation-delay: 1.45s; }
+#splash.go .sp-road:nth-child(2) { animation-delay: 1.6s; }
+#splash.go .sp-road:nth-child(3) { animation-delay: 1.75s; }
+#splash.go .sp-road:nth-child(4) { animation-delay: 1.9s; }
+#splash.go .sp-drop { animation: sp-drop .7s cubic-bezier(.3,1.25,.5,1) 2s both; }
+#splash.go .sp-sh { animation: sp-shadow .5s ease-out 2.35s both; }
+#splash.go .sp-r { animation: sp-ripple .9s ease-out 2.6s both; }
+#splash.go .sp-bar0, #splash.go .sp-bar1, #splash.go .sp-bar2 { animation: sp-bar .5s cubic-bezier(.2,.9,.3,1.15) both; }
+#splash.go .sp-bar0 { animation-delay: 2.85s; }
+#splash.go .sp-bar1 { animation-delay: 3s; }
+#splash.go .sp-bar2 { animation-delay: 3.15s; }
+#splash.go .sp-win { animation: sp-win .5s steps(1, end) 3.35s both; }
+#splash.go .sp-l { animation: sp-letter .45s cubic-bezier(.2,.8,.3,1) both; }
+#splash.go .sp-l:nth-child(1) { animation-delay: 3.2s; } #splash.go .sp-l:nth-child(2) { animation-delay: 3.27s; }
+#splash.go .sp-l:nth-child(3) { animation-delay: 3.34s; } #splash.go .sp-l:nth-child(4) { animation-delay: 3.41s; }
+#splash.go .sp-l:nth-child(5) { animation-delay: 3.48s; } #splash.go .sp-l:nth-child(6) { animation-delay: 3.55s; }
+#splash.go .sp-l:nth-child(7) { animation-delay: 3.62s; } #splash.go .sp-l:nth-child(8) { animation-delay: 3.69s; }
+@keyframes sp-layer { from { opacity: 0; transform: translate(46px, 34px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes sp-road { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes sp-drop { 0% { opacity: 0; transform: translateY(-170px); } 35% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes sp-shadow { from { opacity: 0; transform: scale(.2); } to { opacity: .3; transform: none; } }
+@keyframes sp-ripple { 0% { opacity: .9; transform: scale(.4); } 100% { opacity: 0; transform: scale(3.6); } }
+@keyframes sp-bar { from { opacity: 1; transform: scaleY(0); } to { opacity: 1; transform: none; } }
+@keyframes sp-win { 0% { opacity: 0; } 30% { opacity: .92; } 45% { opacity: .25; } 60% { opacity: .92; } 100% { opacity: .92; } }
+@keyframes sp-letter { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
 @keyframes sp-out { to { opacity: 0; visibility: hidden; } }
-@media (prefers-reduced-motion: reduce) { #splash { display: none; } }
+/* Mouvement réduit : le logo complet reste affiché sans bouger, puis disparaît */
+@media (prefers-reduced-motion: reduce) {
+  #splash.go { animation: sp-out .35s ease 1.5s forwards; }
+  #splash.go .sp-svg * { animation: none !important; }
+  .sp-svg .sp-b, .sp-svg .sp-m, .sp-svg .sp-t, .sp-svg .sp-drop, .sp-svg .sp-l, .sp-svg .sp-bar0, .sp-svg .sp-bar1, .sp-svg .sp-bar2, .sp-svg .sp-win { opacity: 1; }
+  .sp-svg .sp-sh { opacity: .3; } .sp-svg .sp-road { stroke-dashoffset: 0; }
+}
+
+/* Tuto guidé : le vrai bouton ou la vraie zone est entouré, avec une explication */
+#tour { position: fixed; inset: 0; z-index: 8000; }
+#tourHole { position: fixed; border-radius: 12px; box-shadow: 0 0 0 100vmax rgba(4,20,40,.66); outline: 3px solid var(--cyan); outline-offset: 0; transition: left .28s, top .28s, width .28s, height .28s; pointer-events: none; animation: tour-pulse 1.6s ease-in-out infinite; }
+#tourHole.none { width: 0 !important; height: 0 !important; outline: 0; animation: none; }
+@keyframes tour-pulse { 50% { outline-color: rgba(18,181,240,.35); outline-offset: 4px; } }
+#tourCard { position: fixed; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px 16px; transition: left .28s, top .28s; }
+.tc-top { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: .78rem; font-weight: 600; margin-bottom: 2px; }
+#tourCard h3 { margin: 2px 0 6px; font-size: 1.05rem; }
+#tourCard p { margin: 0 0 10px; font-size: .9rem; line-height: 1.45; }
+.tc-demo { margin: 0 0 12px; padding: 10px; border-radius: 10px; background: #0a1a2c; color: #fff; display: flex; flex-direction: column; gap: 8px; font-size: .78rem; }
+.tc-demo .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tc-demo .pip-acts button, .tc-demo .fake { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 7px; padding: 4px 10px; font-size: .78rem; font-weight: 600; cursor: default; }
+.tc-demo .on { background: rgba(18,181,240,.35) !important; border-color: var(--cyan) !important; }
+.tc-demo .th { width: 54px; height: 40px; border-radius: 6px; background: linear-gradient(135deg, #1d5f95, #12b5f0); border: 2px solid rgba(255,255,255,.35); }
+.tc-demo .th.sel { border-color: #fff; }
+.tc-demo .tb { width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 9px; border: 1px solid rgba(255,255,255,.3); font-size: 1.1rem; }
+.tc-demo small { color: rgba(255,255,255,.7); }
+.tc-nav { display: flex; justify-content: space-between; gap: 8px; }
+.tc-nav .btn[hidden] { display: none; }
