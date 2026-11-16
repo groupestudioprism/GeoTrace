@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1011,6 +1011,7 @@ $('pickZip').addEventListener('click', () => $('zipInput').click());
 $('addBtn').addEventListener('click', () => $('filesInput').click());
 $('sourceBtn').addEventListener('click', () => { $('welErr').hidden = true; showWelcome(true); });
 $('welClose').addEventListener('click', () => showWelcome(false));
+document.querySelector('.brand').addEventListener('click', e => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); $('welErr').hidden = true; showWelcome(true); });
 $('demoBtn').addEventListener('click', loadDemo);
 $('folderInput').addEventListener('change', e => { const fl = e.target.files, f = fl[0]; loadFileList(fl, f && f.webkitRelativePath ? 'Dossier : ' + f.webkitRelativePath.split('/')[0] : 'Dossier du PC'); e.target.value = ''; });
 $('zipInput').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadFileList([f], 'ZIP : ' + f.name); e.target.value = ''; });
