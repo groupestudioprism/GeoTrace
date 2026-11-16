@@ -110,13 +110,26 @@ export function unloadModel() {
   closePlan(); close3D();
   if (ovl) { if (ovl.holder) ovl.scene.remove(ovl.holder); ovl.holder = null; renderOverlay(); }
 }
+const typeCache = new Map();
+function typeOf(id) {
+  const m = state.model; if (!m || !m.api || id == null) return null;
+  if (!typeCache.has(m.id + ':' + id)) { let t = null; try { t = String(m.api.GetNameFromTypeCode(m.api.GetLineType(m.id, id)) || '').replace(/^IFC/i, 'Ifc'); } catch (e) { /* inconnu */ } typeCache.set(m.id + ':' + id, t); }
+  return typeCache.get(m.id + ':' + id);
+}
+/* Catégories IFC de la maquette (murs, dalles, poutres…) avec leur nombre d'éléments. */
+export function modelCategories() {
+  const m = state.model; if (!m || !m.api) return [];
+  const seen = new Set(), n = new Map();
+  m.group.traverse(o => { const id = o.userData && o.userData.expressID; if (!o.isMesh || id == null || seen.has(id)) return; seen.add(id); const t = typeOf(id) || 'IfcAutre'; n.set(t, (n.get(t) || 0) + 1); });
+  return [...n].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
+}
 export function describe(expressID) {
   const m = state.model; if (!m || !m.api) return null;
   try {
     const line = m.api.GetLine(m.id, expressID, false);
     const type = m.api.GetNameFromTypeCode(m.api.GetLineType(m.id, expressID));
     const val = v => v && v.value != null ? v.value : null;
-    return { type: String(type || '').replace(/^IFC/i, 'Ifc'), name: val(line.Name), tag: val(line.Tag) || val(line.ObjectType) };
+    return { id: expressID, type: String(type || '').replace(/^IFC/i, 'Ifc'), name: val(line.Name), tag: val(line.Tag) || val(line.ObjectType) };
   } catch (e) { return null; }
 }
 
@@ -473,7 +486,7 @@ function shareAdj(lk, photos) {
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
@@ -493,6 +506,9 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const markers = new THREE.Group(); scene.add(markers);
   if (zones.length) { try { const z = buildZones(zones, (la, lo) => state.frame.toEN(la, lo), zoneColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('installations', e); } }
   if (devs.length) { try { const z = buildDevs(devs, (la, lo) => state.frame.toEN(la, lo), devColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('déviations', e); } }
+  v3.chantierItems = new Map(); [...scene.children].forEach(g => { if (g.name === 'chantier' || g.name === 'deviations') g.children.forEach(r => { if (r.userData.itemId) v3.chantierItems.set(r.userData.itemId, [r]); }); });
+  markers.children.forEach(g => g.children.forEach(sp => { const l = v3.chantierItems.get(sp.userData.itemId); if (l) l.push(sp); }));
+  v3.phases = phases; v3.phaseId = phaseId; applyPhase();
   const far = Math.max(radius * 10, 2500);
   const dist = Math.max(3, radius / 12), K = .35;
   const build = (p, aspect) => {
@@ -732,3 +748,32 @@ export function close3D() {
   v3.scene.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && (o.userData.photoId || o.userData.dispose || o === v3.ground || o === v3.ground2)) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
   v3.renderer.dispose(); v3.renderer.domElement.remove(); if (v3.marks) v3.marks.remove(); v3 = null;
 }
+
+
+/* ================= Phases : 4D (éléments de la maquette, installations, déviations) ================= */
+const sortPhases = list => list.map((p, i) => [p, i]).sort((a, b) => (a[0].start || '9999').localeCompare(b[0].start || '9999') || a[1] - b[1]).map(x => x[0]);
+export function phaseIndexOf(p, list) { return sortPhases(list).findIndex(q => q.id === p.id); }
+function applyPhase() {
+  const v = v3; if (!v) return;
+  const P = sortPhases(v.phases || []), cur = v.phaseId ? P.findIndex(p => p.id === v.phaseId) : -1;
+  // installations et déviations : présentes dans les phases où elles sont cochées (toujours là si non cochées)
+  (v.chantierItems || new Map()).forEach((objs, id) => {
+    const key = id[0] === 'z' ? 'zones' : 'devs', owners = P.map((p, i) => (p[key] || []).includes(id) ? i : -1).filter(i => i >= 0);
+    const vis = cur < 0 || !owners.length || owners.includes(cur);
+    objs.forEach(o => { o.visible = vis; });
+  });
+  // maquette : un élément apparaît à la première phase où il est choisi (par élément ou par catégorie), puis reste
+  const first = (fn) => { for (let i = 0; i < P.length; i++) if (fn(P[i])) return i; return -1; };
+  const cache = new Map();
+  v.holder.traverse(o => {
+    const id = o.userData && o.userData.expressID; if (!o.isMesh || id == null) return;
+    if (!cache.has(id)) { const t = typeOf(id); let i = first(p => (p.els || []).includes(id)); if (i < 0) i = first(p => (p.cats || []).includes(t)); cache.set(id, i); }
+    const idx = cache.get(id);
+    if (!o.userData.ownMat) { o.material = o.material.clone(); o.userData.ownMat = true; o.userData.baseEm = o.material.emissive ? o.material.emissive.clone() : null; }
+    o.visible = cur < 0 || idx < 0 || idx <= cur;
+    const em = o.material.emissive;
+    if (em) { if (cur >= 0 && idx === cur) { em.set(P[cur].color || '#ff8a00'); em.multiplyScalar(.55); } else em.copy(o.userData.baseEm); }
+  });
+}
+export function setPhase(id) { if (!v3) return; v3.phaseId = id || null; applyPhase(); }
+export function setPhasesData(list) { if (!v3) return; v3.phases = list; applyPhase(); }

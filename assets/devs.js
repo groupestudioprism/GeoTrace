@@ -12,6 +12,7 @@ export const TYPES = {
 };
 export const COLORS = Object.fromEntries(Object.entries(TYPES).map(([k, v]) => [k, v.color]));
 
+let vis = () => true;
 let map = null, status = () => {}, stopOthers = () => {}, onChange = () => {};
 let devs = [], proj = null, layer = null, show = true, draw = null, edit = null, sel = null, handles = null;
 const uid = () => 'd' + Math.random().toString(36).slice(2, 8);
@@ -41,7 +42,7 @@ function render() {
   layer.clearLayers();
   if (!show) { map.removeLayer(layer); return; }
   layer.addTo(map);
-  getDevs().forEach(d => {
+  getDevs().filter(d => vis(d.id)).forEach(d => {
     const t = TYPES[d.type], on = d.id === sel;
     layer.addLayer(L.polyline(d.pts, { color: '#fff', weight: (on ? 9 : 7), opacity: .9, interactive: false }));
     const line = L.polyline(d.pts, { color: t.color, weight: on ? 6 : 4.5, dashArray: d.type === 'ferme' ? '2 9' : d.type === 'pieton' ? '1 8' : null, lineCap: d.type === 'pieton' || d.type === 'ferme' ? 'round' : 'butt', bubblingMouseEvents: false });
@@ -59,7 +60,7 @@ function select(id, openPanel) {
   if (openPanel) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); tab('d'); const li = document.querySelector(`#dvList li[data-id="${id}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
 }
 export function tab(k) {
-  $('chTabZ').hidden = k !== 'z'; $('chTabD').hidden = k !== 'd';
+  $('chTabZ').hidden = k !== 'z'; $('chTabD').hidden = k !== 'd'; $('chTabP').hidden = k !== 'p';
   document.querySelectorAll('#chTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === k)));
   if (k !== 'd') { cancelDraw(); stopEdit(); }
 }
@@ -134,7 +135,7 @@ function list() {
 
 export function init(ctx) {
   map = ctx.map; status = ctx.status; stopOthers = ctx.stopOthers || stopOthers; onChange = ctx.onChange || onChange;
-  show = ctx.show !== false;
+  show = ctx.show !== false; if (ctx.visible) vis = ctx.visible;
   devs = readLocal() || (proj ? proj.filter(clean) : []);
   $('dvTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type dv-type" data-type="${k}" aria-pressed="false"><i style="background:${v.color}"></i><b>${v.label}</b><small>${v.note}</small></button>`).join('');
   $('dvTypes').addEventListener('click', e => { const b = e.target.closest('.dv-type'); if (b) startDraw(b.dataset.type); });
@@ -165,5 +166,6 @@ export function init(ctx) {
   }, true);
   render(); list();
 }
+export const refresh = () => render();
 export const setShow = v => { show = v; render(); };
 export const stop = () => { cancelDraw(); stopEdit(); };

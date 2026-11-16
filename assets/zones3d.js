@@ -186,9 +186,9 @@ export function buildZones(zones, toEN, colors) {
     groundPatch(root, pts, z.type);
     try { BUILD[z.type](root, F, rnd, pts); } catch (e) { console.warn('zone', z.type, e); }
     fences(root, pts, null);
-    group.add(root);
+    root.userData.itemId = z.id; group.add(root);
     const col = (colors && colors[z.type]) || '#0585c6', s = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(z.name || z.type, col), sizeAttenuation: false, depthTest: false, transparent: true }));
-    s.scale.set(.19, .19 * 80 / 384, 1); s.center.set(.5, 0); s.position.set(F.cx, F.cy, (ZONE_HEIGHT[z.type] || 3) + 1.5); s.renderOrder = 18; labels.add(s);
+    s.scale.set(.19, .19 * 80 / 384, 1); s.center.set(.5, 0); s.position.set(F.cx, F.cy, (ZONE_HEIGHT[z.type] || 3) + 1.5); s.renderOrder = 18; s.userData.itemId = z.id; labels.add(s);
   });
   [group, labels].forEach(g => g.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.userData.dispose = true; }));
   return { group, labels };
@@ -283,11 +283,11 @@ export function buildDevs(devs, toEN, colors) {
       if (d.type === 'ferme') { place(barrier(w), 0, a0, 0); const e = barrier(w); place(e, P.length - 1, a1, 0); }
       if (d.type === 'alternat') { place(trafficLight(false), 0, a0 + Math.PI, w / 2 + .9); place(trafficLight(true), P.length - 1, a1, -(w / 2 + .9)); }
     } catch (e) { console.warn('déviation', d.type, e); }
-    group.add(root);
+    root.userData.itemId = d.id; group.add(root);
     const mid = walk(P, 1e9, 0)[0] || [P[0][0], P[0][1]]; let tot = 0; for (let i = 1; i < P.length; i++) tot += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
     const m = walk(P, tot * 2, tot / 2)[0] || mid, col = (colors && colors[d.type]) || '#0585c6';
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(d.name || d.type, col), sizeAttenuation: false, depthTest: false, transparent: true }));
-    s.scale.set(.19, .19 * 80 / 384, 1); s.center.set(.5, 0); s.position.set(m[0], m[1], DEV_HEIGHT + 1.2); s.renderOrder = 18; labels.add(s);
+    s.scale.set(.19, .19 * 80 / 384, 1); s.center.set(.5, 0); s.position.set(m[0], m[1], DEV_HEIGHT + 1.2); s.renderOrder = 18; s.userData.itemId = d.id; labels.add(s);
   });
   [group, labels].forEach(g => g.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.userData.dispose = true; }));
   return { group, labels };

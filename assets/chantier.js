@@ -1,6 +1,7 @@
 /* GeoTrace – installations de chantier sur la carte 2D : dessin, modification, liste, enregistrement.
    Les zones sont gardées dans le navigateur et ajoutées au fichier de calage de l'équipe (.geotrace.json). */
 import * as Dev from './devs.js';
+import * as Ph from './phases.js';
 const L = window.L;
 const $ = id => document.getElementById(id);
 const KEY = 'geotrace:chantier', SHOW = 'geotrace:chantier:show';
@@ -23,11 +24,12 @@ const readLocal = () => { try { const j = JSON.parse(localStorage.getItem(KEY) |
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, zones })); } catch (e) { /* stockage indisponible */ } onChange(); };
 const clean = z => z && TYPES[z.type] && Array.isArray(z.pts) && z.pts.length >= 3 && z.pts.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 export const getZones = () => zones.filter(clean);
-export const exportData = () => { const dv = Dev.exportData(); return zones.length || dv ? { v: 1, zones: getZones(), devs: dv || [] } : null; };
+export const exportData = () => { const dv = Dev.exportData(), ph = Ph.exportData(); return zones.length || dv || ph ? { v: 1, zones: getZones(), devs: dv || [], phases: ph } : null; };
+export const getPhases = Ph.getPhases, getPhase = Ph.getCurrent, setPhase = Ph.setCurrent, onPhase = Ph.onCurrent, addToPhase = Ph.addElement, setPlanning = Ph.setPlanning, refreshPhases = Ph.refresh;
 export const getDevs = Dev.getDevs;
 export const DEV_COLORS = Dev.COLORS;
 export function setProject(p) {
-  Dev.setProject(p);
+  Dev.setProject(p); Ph.setProject(p && p.phases);
   proj = p && Array.isArray(p.zones) ? p : null;
   const loc = readLocal();
   zones = loc || (proj ? proj.zones.filter(clean) : []);
@@ -52,7 +54,7 @@ function render() {
   layer.clearLayers();
   if (!show) { map.removeLayer(layer); return; }
   layer.addTo(map);
-  getZones().forEach(z => {
+  getZones().filter(z => Ph.visible(z.id)).forEach(z => {
     const t = TYPES[z.type], on = z.id === sel;
     const poly = L.polygon(z.pts, { color: t.color, weight: on ? 4 : 2.5, dashArray: on ? null : '7 5', fillColor: t.color, fillOpacity: on ? .4 : .26, bubblingMouseEvents: false });
     poly.on('click', e => { if (draw) return; L.DomEvent.stop(e); if (edit === z.id) addVertex(z, e.latlng); else select(z.id, true); });
@@ -185,6 +187,7 @@ export function init(ctx) {
     else if (edit && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); stopEdit(); }
   }, true);
   render(); list();
-  Dev.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show });
+  Dev.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show, visible: Ph.visible });
+  Ph.init({ onChange, getZones, getDevs: Dev.getDevs, categories: ctx.categories || (() => []), setPhase3d: ctx.setPhase3d, applyFilter: () => { render(); Dev.refresh(); } });
   document.querySelectorAll('#chTabs button').forEach(b => b.addEventListener('click', () => Dev.tab(b.dataset.tab)));
 }

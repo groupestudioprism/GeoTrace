@@ -145,7 +145,7 @@
 
     <section id="chPanel" hidden aria-label="Chantier">
       <div class="mq-head"><b>Chantier</b><button class="icon-btn" id="chClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
-      <div class="ch-tabs" id="chTabs" role="tablist"><button type="button" role="tab" data-tab="z" aria-selected="true">Installations</button><button type="button" role="tab" data-tab="d" aria-selected="false">Déviations</button></div>
+      <div class="ch-tabs" id="chTabs" role="tablist"><button type="button" role="tab" data-tab="z" aria-selected="true">Installations</button><button type="button" role="tab" data-tab="d" aria-selected="false">Déviations</button><button type="button" role="tab" data-tab="p" aria-selected="false">Phases</button></div>
       <div id="chTabZ">
       <p class="hint">Choisissez une installation, puis dessinez sa zone sur la carte. En 3D, elle devient des objets réels : cabines, conteneurs, bennes, tuyaux, véhicules et clôture.</p>
       <div class="ch-types" id="chTypes"></div>
@@ -160,6 +160,14 @@
         <h3>Déviations tracées</h3>
         <ul id="dvList"></ul>
         <p class="hint" id="dvEmpty">Aucune déviation pour l’instant.</p>
+      </div>
+      <div id="chTabP" hidden>
+        <p class="hint">Découpez le chantier en phases (dates, installations, déviations, éléments de la maquette). Choisissez une phase pour n’afficher qu’elle, sur la carte comme en 3D.</p>
+        <label class="mq-row ph-curl">Phase affichée <select id="phCur" aria-label="Phase affichée"></select></label>
+        <div id="phPlan" class="ph-plan"></div>
+        <div class="mq-acts"><button type="button" class="btn" id="phAdd">Ajouter une phase</button><label class="btn ph-pick">Choisir le PDF du planning<input type="file" id="phPick" accept="application/pdf,.pdf" hidden></label></div>
+        <ul id="phList"></ul>
+        <p class="hint" id="phEmpty">Aucune phase pour l’instant.</p>
       </div>
       <label class="mq-row"><input type="checkbox" id="chShow" checked> Afficher sur la carte</label>
       <p class="hint">Pour que l’équipe les voie : « Enregistrer pour l’équipe » en vue 3D, ou « Exporter le calage » dans Maquette 3D.</p>
@@ -312,9 +320,11 @@
   </div>
 </div>
 
+<div id="plView" hidden role="dialog" aria-modal="true" aria-label="Planning"><div class="pl-box"><div class="pl-head"><b id="plTitle">Planning</b><a id="plOpen" class="link" target="_blank" rel="noopener">Ouvrir dans un onglet</a><button class="icon-btn" id="plClose" type="button" aria-label="Fermer" data-ic="close"></button></div><iframe id="plFrame" title="Planning PDF"></iframe></div></div>
 <div id="v3d" hidden role="dialog" aria-modal="true" aria-label="Maquette en 3D">
   <div class="v-bar">
     <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoom · Cliquez un repère photo pour entrer dans la photo.</small></div>
+    <label class="vb wide chk" id="v3PhaseL" hidden>Phase <select id="v3Phase" aria-label="Phase affichée en 3D"></select></label>
     <button class="vb wide" id="v3Over" type="button">Vue d’ensemble</button>
     <label class="vb wide chk"><input type="checkbox" id="v3Ground" checked> Photo aérienne</label>
     <button class="vb" id="v3Close" type="button" aria-label="Fermer" data-ic="close"></button>

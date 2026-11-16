@@ -157,3 +157,12 @@ Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet p
 Dans **Chantier**, l'onglet **Déviations** permet de tracer une déviation simple sur la carte : choisir le type (déviation véhicules, cheminement piétons, alternat, route barrée), cliquer les points du parcours, double-clic pour finir. Chaque déviation peut être renommée, changée de type, réglée en largeur, inversée de sens, modifiée point par point ou supprimée.
 
 En vue 3D, elle devient une chaussée provisoire avec marquages, flèches de sens, panneaux de déviation, cônes, barrières rouges et blanches (route barrée) ou feux aux extrémités (alternat). Les déviations sont enregistrées avec le fichier de calage (`chantier.devs`).
+
+## Version 1.14.0 : phases
+
+Dans **Chantier**, l'onglet **Phases** découpe le chantier. Chaque phase a un nom, une couleur, des dates, et son contenu : installations et déviations présentes pendant la phase, catégories IFC de la maquette construites pendant la phase (murs, dalles, etc.), et éléments choisis un à un dans la vue 3D (clic sur un élément, puis « Ajouter à la phase »).
+
+- **Carte 2D** : « Afficher cette phase » n'affiche que les installations et déviations de la phase.
+- **Vue 3D** : le sélecteur **Phase** montre l'avancement. Les éléments de la maquette apparaissent à leur phase et restent ensuite, ceux de la phase en cours sont teintés de sa couleur.
+- **Planning PDF** : un PDF placé dans le dossier ouvert (local, ZIP ou lien Nextcloud) est repéré tout seul (de préférence un nom contenant « planning »). Sinon, « Choisir le PDF du planning ». Chaque phase peut indiquer sa page du planning, ouverte par « Voir au planning ».
+- Les phases sont enregistrées avec le calage (`chantier.phases`). Les dates ne sont pas lues dans le PDF : elles se saisissent à la main.
