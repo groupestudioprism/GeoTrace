@@ -141,6 +141,10 @@ const plausible = ll => !!ll && ll[0] > 40 && ll[0] < 52 && ll[1] > -6 && ll[1] 
 function readGeoref(model) {
   const g = readMapGeoref(model), at0 = g && g.crs && g.fn ? projToLatLon(g.crs, ...g.fn([0, 0])) : null;
   if (g && plausible(at0)) return g;
+  if (g && g.fn) { // le système écrit par Revit (souvent Web Mercator par défaut) ne colle pas aux valeurs : on cherche un système français qui convient
+    const cands = guessCrs(...g.fn([0, 0])).map(c => c.code);
+    if (cands.length) return Object.assign(g, { crs: cands[0], candidates: cands, corrected: g.crsName });
+  }
   const site = readSiteGeoref(model);   // pas de position utilisable dans IfcMapConversion : lieu du projet défini dans Revit
   return site || g;
 }

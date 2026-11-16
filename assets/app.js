@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.2';
+const VERSION = '1.2.4';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1110,7 +1110,7 @@ function maqUi(info) {
       : gr.source === 'IfcSite' ? (g.auto ? 'Placée d’après le lieu du projet défini dans Revit. Position approximative (quelques dizaines de mètres) : pour la précision, donnez à Revit les coordonnées du géomètre.'
         : siteFar ? `Revit place ce projet à ${siteFar.ll[0].toFixed(3)}, ${siteFar.ll[1].toFixed(3)}, à ${siteFar.km} km de vos photos : c’est sans doute le lieu par défaut. Dans Revit, Gérer, Emplacement : indiquez l’adresse du chantier puis ré-exportez.` : 'Placez la maquette avec des points de calage.')
       : !usable && !g.auto ? `Le fichier indique un système (${M.crsLabel(gr.crs)}) mais pas de vraie position : la maquette est à l’origine (0 ; 0). Dans Revit, donnez au projet les coordonnées du géomètre puis ré-exportez, ou placez la maquette avec des points de calage.`
-      : g.auto ? `Placée d’après les coordonnées enregistrées dans Revit (${M.crsLabel(g.auto)}).`
+      : g.auto ? `Placée d’après les coordonnées enregistrées dans Revit (${M.crsLabel(g.auto)}${gr.corrected ? `, le fichier annonçait ${gr.corrected} mais les valeurs sont celles de ce système` : ''}). Position du centre : ${(() => { const b = M.state.model.box, c = M.modelToLatLon([(b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2]); return c ? c[0].toFixed(5) + ', ' + c[1].toFixed(5) : ''; })()}.`
       : `Ce fichier contient des coordonnées géographiques (${lab}). Vous pouvez y placer la maquette automatiquement.`;
     $('maqUseGeo').hidden = !usable || !!g.auto || !!siteFar;
     const sel = $('maqCrs'), multi = gr.candidates.length > 1;
