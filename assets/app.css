@@ -395,3 +395,37 @@ dialog .hint { color: var(--muted); }
 .search { flex-shrink: 0; }
 @media (max-width: 1500px) { .sub { display: none; } .search { width: 230px; } }
 @media (max-width: 1500px) { .sturno b { display: none; } .search { width: 236px; } }
+
+/* Transitions et animations (désactivées si l'utilisateur préfère moins de mouvement) */
+@keyframes gt-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gt-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes gt-pop { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes gt-slide-r { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes gt-slide-u { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes gt-zoom { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+#welcome:not([hidden]) { animation: gt-fade .3s ease both; }
+#welcome:not([hidden]) .w-in > * { animation: gt-rise .5s cubic-bezier(.2,.7,.2,1) both; }
+#welcome:not([hidden]) .w-in > :nth-child(2) { animation-delay: .05s; }
+#welcome:not([hidden]) .w-in > :nth-child(3) { animation-delay: .1s; }
+#welcome:not([hidden]) .w-in > :nth-child(4) { animation-delay: .15s; }
+#welcome:not([hidden]) .w-in > :nth-child(5) { animation-delay: .2s; }
+#welcome:not([hidden]) .w-in > :nth-child(n+6) { animation-delay: .25s; }
+.menu:not([hidden]) { animation: gt-pop .15s ease-out both; }
+#maqPanel:not([hidden]) { animation: gt-slide-r .22s ease-out both; }
+#v3d:not([hidden]) { animation: gt-fade .28s ease both; }
+#v3Pip:not([hidden]):not(.blend) { animation: gt-slide-u .25s cubic-bezier(.2,.7,.2,1) both; }
+#v3Strip:not([hidden]) { animation: gt-slide-u .3s ease-out both; }
+#viewer:not([hidden]) .v-stage img { animation: gt-zoom .22s ease-out both; }
+#viewer:not([hidden]) { animation: gt-fade .18s ease both; }
+#toast:not([hidden]) { animation: gt-slide-u .22s ease-out both; }
+#timeline:not([hidden]), #measure:not([hidden]), #maqPlan:not([hidden]) { animation: gt-slide-u .25s ease-out both; }
+dialog[open] { animation: gt-pop .18s ease-out both; }
+.btn, .icon-btn, .tool, .chip, .vb { transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .12s; }
+.btn:not(:disabled):active, .icon-btn:active, .tool:active, .chip:active, .vb:active { transform: scale(.96); }
+.btn:not(:disabled):hover { box-shadow: 0 2px 8px rgba(4,38,75,.14); }
+#list .it { transition: background-color .15s, box-shadow .15s; }
+.leaflet-marker-icon { transition: opacity .2s; }
+@media (prefers-reduced-motion: reduce) {
+  #welcome, #welcome .w-in > *, .menu, #maqPanel, #v3d, #v3Pip, #v3Strip, #viewer, #viewer .v-stage img, #toast, #timeline, #measure, #maqPlan, dialog { animation: none !important; }
+  .btn, .icon-btn, .tool, .chip, .vb { transition: none; }
+}

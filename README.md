@@ -97,3 +97,10 @@ Reprise après un rafraîchissement : les photos ouvertes depuis un dossier, des
 - Accueil : trois étapes (ouvrir, repérer, cliquer), précision « aucun compte, aucune installation », rappel que seules les photos avec GPS apparaissent.
 - Infobulles sur les boutons de la barre du haut, aide complétée.
 - Barre du haut qui tient sur les écrans de 1366 px (champ de recherche lisible, nom STURNO masqué si l'écran est étroit).
+
+## Version 1.7.0 : vue 3D et animations
+
+- Vue 3D : la photo aérienne couvre toute la zone (environ 5 km autour), plus seulement un carré autour de la maquette. Un second fond, moins détaillé, est chargé sous le fond précis.
+- Repères photo en 3D : pastille d'appareil photo à la couleur de l'appareil (téléphone, tablette, drone), taille constante à l'écran, pied vertical jusqu'au sol, agrandie au survol. Toutes les photos de la zone sont affichées.
+- Entrée en douceur dans la vue 3D (la caméra descend vers la vue d'ensemble).
+- Animations : accueil, menus, panneau maquette, vue 3D, visionneuse, messages, boutons. Elles sont coupées si le système demande moins de mouvement.
