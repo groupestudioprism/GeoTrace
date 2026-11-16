@@ -247,7 +247,7 @@ let ovl = null;
 export function attachMap(map) {
   if (ovl) return;
   map.createPane('maquette'); const pane = map.getPane('maquette'); pane.style.zIndex = 450; pane.style.pointerEvents = 'none';
-  const canvas = document.createElement('canvas'); canvas.style.position = 'absolute'; canvas.style.pointerEvents = 'none'; pane.appendChild(canvas);
+  const canvas = document.createElement('canvas'); canvas.style.position = 'absolute'; canvas.style.pointerEvents = 'none'; canvas.classList.add('leaflet-zoom-animated'); pane.appendChild(canvas);
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: true });
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
@@ -256,6 +256,12 @@ export function attachMap(map) {
   ovl = { map, canvas, renderer, scene, camera, holder: null, raf: 0 };
   const sched = () => { if (!ovl.raf) ovl.raf = requestAnimationFrame(() => { ovl.raf = 0; renderOverlay(); }); };
   map.on('move zoom viewreset resize zoomend moveend', sched);
+  // Pendant le zoom animé de la carte, la maquette suit l'animation comme les tuiles (sinon elle reste collée à l'écran).
+  map.on('zoomanim', e => {
+    if (!ovl.drawn) return;
+    const scale = map.getZoomScale(e.zoom, ovl.drawn.zoom), off = map._latLngToNewLayerPoint(map.layerPointToLatLng(ovl.drawn.topLeft), e.zoom, e.center);
+    L.DomUtil.setTransform(canvas, off, scale);
+  });
   ovl.sched = sched;
 }
 export function refreshOverlay() {
@@ -276,7 +282,9 @@ export function renderOverlay() {
   const size = map.getSize(), dpr = Math.min(window.devicePixelRatio || 1, 2);
   if (canvas.width !== Math.round(size.x * dpr) || canvas.height !== Math.round(size.y * dpr)) { renderer.setPixelRatio(dpr); renderer.setSize(size.x, size.y, false); }
   canvas.style.width = size.x + 'px'; canvas.style.height = size.y + 'px';
-  L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
+  const topLeft = map.containerPointToLayerPoint([0, 0]);
+  L.DomUtil.setPosition(canvas, topLeft);
+  ovl.drawn = { zoom: map.getZoom(), topLeft };
   canvas.style.opacity = state.opacity;
   const f = state.frame, tl = f.toEN(...llArr(map.containerPointToLatLng([0, 0]))), br = f.toEN(...llArr(map.containerPointToLatLng([size.x, size.y])));
   camera.left = tl[0]; camera.right = br[0]; camera.top = tl[1]; camera.bottom = br[1];
