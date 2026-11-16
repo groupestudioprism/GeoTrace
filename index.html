@@ -40,7 +40,7 @@
 
   <div class="search" role="search">
     <span class="si" data-ic="search"></span>
-    <input id="geoSearch" type="search" placeholder="Aller à une adresse ou une commune" autocomplete="off" spellcheck="false" aria-label="Aller à une adresse ou une commune" aria-controls="geoResults" aria-expanded="false" role="combobox">
+    <input id="geoSearch" type="search" placeholder="Rechercher une adresse" autocomplete="off" spellcheck="false" aria-label="Rechercher une adresse ou une commune" aria-controls="geoResults" aria-expanded="false" role="combobox">
     <ul id="geoResults" role="listbox" hidden></ul>
   </div>
 
@@ -48,7 +48,7 @@
   <span class="sub" id="sub" aria-live="polite"></span>
 
   <div class="pop-wrap">
-    <button class="btn" id="layersBtn" type="button" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Carte</button>
+    <button class="btn" id="layersBtn" type="button" title="Changer le fond de carte et les calques" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Fond de carte</button>
     <div class="menu" id="layersMenu" hidden>
       <fieldset>
         <legend>Fond de carte</legend>
@@ -72,11 +72,11 @@
     </div>
   </div>
 
-  <button class="btn" id="maqBtn" type="button" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette</button>
-  <button class="btn" id="vue3dBtn" type="button" title="Ouvrir la maquette en 3D avec les photos"><span data-ic="eye"></span>Vue 3D</button>
+  <button class="btn" id="maqBtn" type="button" title="Placer une maquette Revit (IFC) sur la carte" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette 3D</button>
+  <button class="btn" id="vue3dBtn" type="button" title="Voir les photos dans la maquette en 3D"><span data-ic="eye"></span>Photos en 3D</button>
 
   <div class="pop-wrap">
-    <button class="btn" id="exportBtn" type="button" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
+    <button class="btn" id="exportBtn" type="button" title="Exporter les photos affichées (ouvrez d’abord des photos)" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
     <div class="menu right" id="exportMenu" hidden>
       <button type="button" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS, outils web</small></button>
       <button type="button" data-export="kml"><b>KML</b><small>Google Earth</small></button>
@@ -87,14 +87,14 @@
 
   <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
   <button class="icon-btn" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
-  <button class="btn primary" id="sourceBtn" type="button"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
+  <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
 </header>
 
 <main id="app">
   <aside id="panel" aria-label="Liste des photos">
     <div class="p-head">
       <div class="src-row">
-        <span class="src" id="srcName">Aucune source</span>
+        <span class="src" id="srcName">Aucune photo ouverte</span>
         <button class="btn small" id="addBtn" type="button" disabled>Ajouter</button>
       </div>
       <div class="filter">
@@ -108,8 +108,8 @@
         <button type="button" class="chip fav" id="favOnly" aria-pressed="false"><span data-ic="star"></span>Favoris<b>0</b></button>
       </div>
       <div class="dates">
-        <label>Du <input type="date" id="dFrom"></label>
-        <label>au <input type="date" id="dTo"></label>
+        <label>Du <input type="date" id="dFrom" aria-label="Photos prises à partir du"></label>
+        <label>au <input type="date" id="dTo" aria-label="Photos prises jusqu’au"></label>
         <button type="button" class="link" id="dReset" hidden>Effacer</button>
       </div>
     </div>
@@ -139,7 +139,7 @@
       <div class="mq-head"><b>Maquette 3D</b><button class="icon-btn" id="maqClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
 
       <div id="maqEmpty">
-        <p>Placez sur la carte la maquette exportée de Revit, puis calez-la avec des points GPS.</p>
+        <p>Affichez sur la carte la maquette exportée de Revit. Elle se place d’après Revit, ou avec des points GPS.</p>
         <div class="mq-acts">
           <button class="btn primary" type="button" id="maqPick"><span data-ic="cube"></span>Choisir un fichier IFC ou GLB</button>
         </div>
@@ -160,7 +160,7 @@
         <label class="mq-row"><input type="checkbox" id="maqShow" checked> Afficher sur la carte</label>
         <label class="mq-row">Opacité <input type="range" id="maqOpacity" min="10" max="100" value="75" aria-label="Opacité de la maquette"></label>
 
-        <h3>Calage GPS</h3>
+        <h3>Position sur la carte</h3>
         <p id="maqState" class="mq-state"></p>
         <div id="maqGeo" class="mq-geo" hidden>
           <p id="maqGeoTxt" class="mq-state"></p>
@@ -173,7 +173,7 @@
           <label><input type="checkbox" id="maqScale" checked> Garder l’échelle réelle (1:1)</label>
         </div>
         <div class="mq-acts">
-          <button class="btn primary" type="button" id="maqAdd">Ajouter un point de calage</button>
+          <button class="btn primary" type="button" id="maqAdd">Ajouter un point GPS</button>
           <button class="btn" type="button" id="maq3d" disabled><span data-ic="cube"></span>Vue 3D</button>
           <button class="btn" type="button" id="maqZoom" disabled>Zoomer dessus</button>
         </div>
@@ -209,7 +209,12 @@
     <div class="w-in">
       <img class="w-logo" src="assets/logo-geotrace.png" alt="GeoTrace" width="320" height="174">
       <h1>Vos photos de chantier, replacées sur la carte.</h1>
-      <p class="lead">GeoTrace lit la position et la direction de chaque photo, puis la dessine là où elle a été prise.</p>
+      <p class="lead">GeoTrace lit la position et la direction de chaque photo, puis la dessine là où elle a été prise. Aucun compte, aucune installation.</p>
+      <ol class="steps" aria-label="Comment ça marche">
+        <li><b>1</b>Ouvrez vos photos</li>
+        <li><b>2</b>Repérez-les sur la carte</li>
+        <li><b>3</b>Cliquez pour les voir en grand</li>
+      </ol>
 
       <div class="drop" id="dropzone">
         <div class="drop-title">Déposez ici un dossier, des photos ou un ZIP</div>
@@ -218,17 +223,17 @@
           <button class="btn" type="button" id="pickFiles"><span data-ic="image"></span>Choisir des photos</button>
           <button class="btn" type="button" id="pickZip"><span data-ic="zip"></span>Choisir un ZIP</button>
         </div>
-        <div class="drop-note">Dossier du PC, dossier Nextcloud synchronisé ou ZIP téléchargé depuis Nextcloud. Les sous-dossiers sont lus.</div>
+        <div class="drop-note">Un dossier de votre ordinateur (y compris synchronisé avec Nextcloud) ou un ZIP. Les sous-dossiers sont lus. Seules les photos qui contiennent une position GPS apparaissent sur la carte.</div>
       </div>
 
       <details class="nc">
-        <summary>Ouvrir un lien de partage Nextcloud</summary>
+        <summary>J’ai un lien de partage Nextcloud</summary>
         <form id="linkForm">
           <input id="linkInput" type="url" placeholder="https://buildingnext.sturno.fr/s/…" required aria-label="Lien de partage Nextcloud">
           <input id="pwdInput" type="password" placeholder="Mot de passe du lien" hidden autocomplete="off" aria-label="Mot de passe du lien">
           <button class="btn" type="submit">Ouvrir le lien</button>
         </form>
-        <p class="hint">Fonctionne quand GeoTrace est installé sur le serveur Nextcloud ou autorisé par celui-ci. Sinon, utilisez le dossier synchronisé ou le ZIP.</p>
+        <p class="hint">Si le lien ne s’ouvre pas, téléchargez le dossier en ZIP depuis Nextcloud puis déposez-le ici.</p>
         <span class="err" id="linkErr" hidden></span>
       </details>
 
@@ -239,7 +244,7 @@
 
       <div class="w-foot">
         <button class="link" type="button" id="demoBtn">Essayer avec des photos d’exemple</button>
-        <span>Les photos restent sur votre ordinateur.</span>
+        <span>Vos photos ne sont pas envoyées : elles restent sur votre ordinateur.</span>
       </div>
       <span class="err" id="welErr" hidden></span>
       <button class="btn small" id="welClose" type="button" hidden>Revenir à la carte</button>
@@ -299,6 +304,7 @@
 <dialog id="help">
   <form method="dialog">
     <h2>Aide</h2>
+    <p><b>Pour commencer :</b> ouvrez un dossier de photos. Elles apparaissent sur la carte ; cliquez un repère pour voir la photo.</p>
     <p>Chaque photo apparaît sur la carte à l’endroit de la prise de vue. Le cône indique la direction visée quand l’appareil l’a enregistrée.</p>
     <dl class="keys">
       <dt>F</dt><dd>Tout voir</dd>
@@ -309,6 +315,7 @@
       <dt>← →</dt><dd>Photo précédente ou suivante (visionneuse)</dd>
       <dt>Échap</dt><dd>Fermer</dd>
     </dl>
+    <p class="hint">Photos en 3D : ouvrez d’abord une maquette, puis cliquez une photo. « Superposer » compare la photo et la maquette.</p>
     <p class="hint">Les favoris et les notes sont gardés dans ce navigateur, pour cet ordinateur. Ils sont aussi ajoutés aux exports.</p>
     <p class="hint" id="ver"></p>
     <button class="btn primary">Fermer</button>

@@ -384,3 +384,14 @@ dialog .hint { color: var(--muted); }
 .mq-geo p { margin: 0; }
 .mq-geo label { display: grid; gap: 4px; font-size: 13px; }
 .mq-geo select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line, #c9d3de); background: var(--panel, #fff); color: inherit; font: inherit; }
+
+/* Accueil : étapes */
+.steps { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; margin: 0 0 18px; padding: 0; font-size: .9rem; color: #2a3b52; }
+.steps li { display: flex; align-items: center; gap: 8px; }
+.steps b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #0b3a6e; color: #fff; font-size: .78rem; }
+[data-theme="dark"] .steps { color: #c9d6e6; }
+[data-theme="dark"] .steps b { background: #1a9bd7; color: #04264b; }
+@media (max-width: 1100px) { #layersBtn, #maqBtn, #vue3dBtn, #exportBtn { padding-inline: 10px; } }
+.search { flex-shrink: 0; }
+@media (max-width: 1500px) { .sub { display: none; } .search { width: 230px; } }
+@media (max-width: 1500px) { .sturno b { display: none; } .search { width: 236px; } }

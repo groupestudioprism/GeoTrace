@@ -90,3 +90,10 @@ Puis ouvrez http://localhost:8000. Après une modification, changez la version d
 Leaflet et Leaflet.markercluster (BSD-2 et MIT), exifr (MIT), JSZip (MIT ou GPLv3), heic2any (MIT), three.js (MIT), web-ifc (MPL-2.0), polices Public Sans et Michroma (SIL OFL). Fonds de carte © IGN, © OpenStreetMap, © CARTO.
 
 Reprise après un rafraîchissement : les photos ouvertes depuis un dossier, des fichiers ou un ZIP sont gardées dans le navigateur (IndexedDB), avec la maquette et son calage. Un lien Nextcloud est repris par l'adresse de la page. Ouvrir une autre source remplace la précédente. Le navigateur peut refuser de garder un très gros dossier s'il manque de place : dans ce cas la page revient à l'accueil au rafraîchissement.
+
+## Version 1.6.0 : simplification pour tous les utilisateurs
+
+- Textes plus clairs : « Fond de carte », « Maquette 3D », « Photos en 3D », « Position sur la carte », « Ajouter un point GPS ».
+- Accueil : trois étapes (ouvrir, repérer, cliquer), précision « aucun compte, aucune installation », rappel que seules les photos avec GPS apparaissent.
+- Infobulles sur les boutons de la barre du haut, aide complétée.
+- Barre du haut qui tient sur les écrans de 1366 px (champ de recherche lisible, nom STURNO masqué si l'écran est étroit).
