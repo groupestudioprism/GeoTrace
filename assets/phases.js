@@ -1,7 +1,8 @@
 /* GeoTrace – phases de chantier : dates, installations et déviations présentes, éléments de la maquette, page du planning PDF.
    Une phase choisie filtre la carte 2D et la vue 3D (apparition progressive des éléments de la maquette). */
 const $ = id => document.getElementById(id);
-const KEY = 'geotrace:phases';
+const BASE = 'geotrace:phases';
+let KEY = BASE;
 const PALETTE = ['#1f6fb5', '#e0922b', '#2f8f63', '#8a5fd0', '#d6402b', '#0aa5b8', '#c2549e', '#6b7480'];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const uid = () => 'p' + Math.random().toString(36).slice(2, 8);
@@ -20,6 +21,12 @@ export const getPhases = () => phases.map(norm);
 export const exportData = () => phases.length ? { planning: planName || null, list: getPhases() } : null;
 export const getCurrent = () => cur;
 export const onCurrent = f => listeners.push(f);
+/* Les données locales sont gardées par projet (nom de la maquette) : un autre projet n'hérite pas des phases du précédent. */
+export function setScope(name, hasProject) {
+  const next = BASE + (name ? ':' + name : '');
+  if (next !== BASE) { try { if (localStorage.getItem(next) == null && !hasProject && localStorage.getItem(BASE) != null) { localStorage.setItem(next, localStorage.getItem(BASE)); localStorage.removeItem(BASE); } } catch (e) { /* ignoré */ } }
+  KEY = next;
+}
 export function setProject(p) {
   proj = p && Array.isArray(p.list) ? p : null;
   phases = (readLocal() || (proj ? proj.list : []) || []).filter(clean).map(norm);

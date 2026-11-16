@@ -188,3 +188,7 @@ La lecture suppose un planning en tableau (colonnes N°, Nom, Durée, Début, Fi
 ## Version 1.16.1 : panneau Chantier refait
 
 Le panneau « Chantier » a une hauteur stable et reste au-dessus du bandeau des heures. Quatre onglets alignés (Zones, Déviations, Réseaux, Phases), choix de types compacts, textes d'aide raccourcis, états vides explicites. L'option « Afficher sur la carte » reste visible en bas. Sur téléphone, le panneau se pose en bas de l'écran pour laisser la carte visible pendant le tracé.
+
+## Version 1.16.2 : un projet, ses propres données
+
+Les zones, déviations, réseaux et phases gardées dans le navigateur sont maintenant rangées par projet (nom de la maquette). Ouvrir une autre maquette ne ramène plus les phases du projet précédent, et les retrouver en rouvrant le premier. Si l'équipe a enregistré un calage avec ses phases, elles s'affichent à l'ouverture.

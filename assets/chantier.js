@@ -5,8 +5,9 @@ import * as Ph from './phases.js';
 import * as Net from './nets.js';
 const L = window.L;
 const $ = id => document.getElementById(id);
-const KEY = 'geotrace:chantier', SHOW = 'geotrace:chantier:show';
+const BASE = 'geotrace:chantier', SHOW = 'geotrace:chantier:show';
 
+let KEY = BASE;
 export const TYPES = {
   base:     { label: 'Base vie',   color: '#1f6fb5', note: 'Cabines modulaires' },
   depot:    { label: 'Dépôt',      color: '#e0922b', note: 'Conteneurs et palettes' },
@@ -31,7 +32,15 @@ export const NET_COLORS = Net.COLORS;
 export const getPhases = Ph.getPhases, getPhase = Ph.getCurrent, setPhase = Ph.setCurrent, onPhase = Ph.onCurrent, addToPhase = Ph.addElement, setPlanning = Ph.setPlanning, refreshPhases = Ph.refresh;
 export const getDevs = Dev.getDevs;
 export const DEV_COLORS = Dev.COLORS;
-export function setProject(p) {
+/* Les données locales sont gardées par projet (nom de la maquette) : un autre projet n'hérite pas des phases du précédent. */
+export function setScope(name, hasProject) {
+  const next = BASE + (name ? ':' + name : '');
+  if (next !== BASE) { try { if (localStorage.getItem(next) == null && !hasProject && localStorage.getItem(BASE) != null) { localStorage.setItem(next, localStorage.getItem(BASE)); localStorage.removeItem(BASE); } } catch (e) { /* ignoré */ } }
+  KEY = next;
+}
+export function setProject(p, name) {
+  const has = !!(p && (p.zones && p.zones.length || p.devs && p.devs.length || p.nets && p.nets.length || p.phases));
+  setScope(name, has); Dev.setScope(name, has); Net.setScope(name, has); Ph.setScope(name, has);
   Dev.setProject(p); Net.setProject(p && p.nets); Ph.setProject(p && p.phases);
   proj = p && Array.isArray(p.zones) ? p : null;
   const loc = readLocal();

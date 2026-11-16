@@ -89,7 +89,7 @@ function readGlb(buffer) {
 
 /* Charge la maquette, la recentre sur son emprise (x, y) et garde z d'origine. */
 export async function loadModel(buffer, name) {
-  unloadModel();
+  unloadModel(); projChantier = null;
   const isGlb = /\.(glb|gltf)$/i.test(name);
   const { group, api, id, coord } = isGlb ? await readGlb(buffer) : await readIfc(buffer);
   const stats = summarize(group);

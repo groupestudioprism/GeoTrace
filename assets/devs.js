@@ -2,7 +2,8 @@
    Enregistrées dans le navigateur et ajoutées au fichier de calage (chantier.devs). */
 const L = window.L;
 const $ = id => document.getElementById(id);
-const KEY = 'geotrace:devs';
+const BASE = 'geotrace:devs';
+let KEY = BASE;
 
 export const TYPES = {
   vehicule: { label: 'Déviation véhicules', color: '#e0922b', note: 'Chaussée provisoire, flèches, cônes', width: 6 },
@@ -22,6 +23,12 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, devs
 const clean = d => d && TYPES[d.type] && Array.isArray(d.pts) && d.pts.length >= 2 && d.pts.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 export const getDevs = () => devs.filter(clean);
 export const exportData = () => devs.length ? getDevs() : null;
+/* Les données locales sont gardées par projet (nom de la maquette) : un autre projet n'hérite pas des phases du précédent. */
+export function setScope(name, hasProject) {
+  const next = BASE + (name ? ':' + name : '');
+  if (next !== BASE) { try { if (localStorage.getItem(next) == null && !hasProject && localStorage.getItem(BASE) != null) { localStorage.setItem(next, localStorage.getItem(BASE)); localStorage.removeItem(BASE); } } catch (e) { /* ignoré */ } }
+  KEY = next;
+}
 export function setProject(p) {
   proj = p && Array.isArray(p.devs) ? p.devs : null;
   devs = readLocal() || (proj ? proj.filter(clean) : []);

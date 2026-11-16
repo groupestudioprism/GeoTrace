@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.16.1';
+const VERSION = '1.16.2';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1063,6 +1063,7 @@ async function openModel(buffer, name, calText, opts = {}) {
   let saved = store.get('geotrace:calage:' + name, null);
   if (saved && saved.fp !== modelFp && (saved.fp || M.state.georef)) saved = null; // fichier ré-exporté depuis Revit : on relit sa position plutôt qu'un ancien calage
   for (const text of [calText, saved && JSON.stringify(saved)]) { if (!text) continue; try { M.importCalage(text); break; } catch (e) { /* calage illisible : suivant */ } }
+  if (Chantier) Chantier.setProject(M.getProjChantier(), name);
   const fromCal = M.state.geo.pairs.length > 0;
   siteFar = null;
   if (!fromCal && M.state.georef) { // rien d'enregistré : on lit la position dans les coordonnées de Revit
@@ -1131,7 +1132,7 @@ function maqUi(info) {
   $('maq3d').disabled = !placed; $('maqZoom').disabled = !placed;
   $('maqBtn').classList.toggle('on', !!m);
 }
-function afterCal() { if (Chantier) Chantier.setProject(Maq.getProjChantier()); Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
+function afterCal() { if (Chantier) Chantier.setProject(Maq.getProjChantier(), Maq.state.model ? Maq.state.model.name : ''); Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
 const zoomModel = () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); };
 $('maqUseGeo').addEventListener('click', () => { if (Maq && Maq.applyGeoref($('maqCrs').value || null)) { afterCal(); zoomModel(); } });
 $('maqCrs').addEventListener('change', e => { if (Maq && Maq.applyGeoref(e.target.value)) { afterCal(); zoomModel(); } });
@@ -1185,7 +1186,7 @@ map.on('click', e => {
 /* Vue 3D */
 let Chantier = null, pendingPlan = null;
 const setPlan = (blob, name) => { pendingPlan = { blob, name }; if (Chantier) Chantier.setPlanning(blob, name); };
-import('./chantier.js').then(m => { Chantier = m; m.init({ map, status, stopOthers: () => measureOn(false), categories: () => Maq ? Maq.modelCategories() : [], setPhase3d: (list, cur) => { if (Maq) { Maq.setPhasesData(list); Maq.setPhase(cur); } fillPhase3d(); } }); m.onPhase(() => fillPhase3d()); if (pendingPlan) m.setPlanning(pendingPlan.blob, pendingPlan.name); if (Maq) m.setProject(Maq.getProjChantier()); }).catch(e => console.warn('chantier', e));
+import('./chantier.js').then(m => { Chantier = m; m.init({ map, status, stopOthers: () => measureOn(false), categories: () => Maq ? Maq.modelCategories() : [], setPhase3d: (list, cur) => { if (Maq) { Maq.setPhasesData(list); Maq.setPhase(cur); } fillPhase3d(); } }); m.onPhase(() => fillPhase3d()); if (pendingPlan) m.setPlanning(pendingPlan.blob, pendingPlan.name); if (Maq) m.setProject(Maq.getProjChantier(), Maq.state.model ? Maq.state.model.name : ''); }).catch(e => console.warn('chantier', e));
 async function open3d(focusId) {
   const M = await maq();
   if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
