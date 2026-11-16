@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.14.0';
+const VERSION = '1.15.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1197,10 +1197,10 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
-  fillPhase3d();
+  fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; }
   buildStrip();
   $('v3Ground').checked = true;
   if (focusId) alignPhoto(focusId);
@@ -1289,6 +1289,7 @@ $('v3Out').addEventListener('click', () => Maq && Maq.v3Zoom(1 / 1.4));
 $('v3Top').addEventListener('click', () => Maq && Maq.v3Top());
 $('maq3d').addEventListener('click', () => open3d(null));
 $('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); $('v3List').querySelectorAll('.on').forEach(b => b.classList.remove('on')); });
+$('v3Nets').addEventListener('change', e => Maq && Maq.v3Nets(e.target.checked));
 $('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
 $('v3Here').addEventListener('click', () => alignPhoto($('v3Pip').dataset.pid));
 $('v3Blend').addEventListener('click', e => {
@@ -1382,6 +1383,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: ['#chBtn', '#chPanel'], t: 'Installations de chantier', x: 'Dessinez sur la carte les zones d’installation : base vie, dépôt, décharge, stockage, parking, accès. Choisissez un type, puis tracez un rectangle (deux clics) ou un polygone. Vous pouvez les renommer, les modifier ou les supprimer dans la liste. En vue 3D, chaque zone devient un ensemble d’objets réels : cabines, conteneurs, bennes, tuyaux, véhicules, clôture.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } }, post: () => { if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Déviations', x: 'Dans « Chantier », l’onglet Déviations : choisissez le type (véhicules, piétons, alternat, route barrée), cliquez les points du parcours, double-clic pour finir. Réglez la largeur, inversez le sens ou déplacez les points. En 3D : chaussée provisoire, flèches, panneaux, cônes, barrières ou feux.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=d]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Phases', x: 'L’onglet Phases découpe le chantier : dates, installations et déviations présentes, éléments de la maquette construits pendant la phase, et page du planning PDF (trouvé dans le dossier ou choisi à la main). « Afficher cette phase » filtre la carte ; en vue 3D, le sélecteur Phase montre l’avancement, et un clic sur un élément permet de l’ajouter à une phase.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=p]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
+    { sel: ['#chBtn', '#chPanel'], t: 'Réseaux existants', x: 'L’onglet Réseaux : « Récupérer les données ouvertes de la vue » charge les canalisations et lignes électriques de l’IGN et d’OpenStreetMap ; « Importer un fichier » lit un GeoJSON ou KML (WGS 84 ou Lambert-93) ; ou tracez-les d’après un plan DT-DICT, avec profondeur et diamètre. En 3D, la case « Réseaux enterrés » les montre sous le sol.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=n]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
     { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
       demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },

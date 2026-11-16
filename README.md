@@ -166,3 +166,15 @@ Dans **Chantier**, l'onglet **Phases** découpe le chantier. Chaque phase a un n
 - **Vue 3D** : le sélecteur **Phase** montre l'avancement. Les éléments de la maquette apparaissent à leur phase et restent ensuite, ceux de la phase en cours sont teintés de sa couleur.
 - **Planning PDF** : un PDF placé dans le dossier ouvert (local, ZIP ou lien Nextcloud) est repéré tout seul (de préférence un nom contenant « planning »). Sinon, « Choisir le PDF du planning ». Chaque phase peut indiquer sa page du planning, ouverte par « Voir au planning ».
 - Les phases sont enregistrées avec le calage (`chantier.phases`). Les dates ne sont pas lues dans le PDF : elles se saisissent à la main.
+
+## Version 1.15.0 : réseaux existants
+
+Dans **Chantier**, l'onglet **Réseaux** fait apparaître les réseaux existants sur la carte et en 3D, sous le sol.
+
+- **Données ouvertes** : « Récupérer les données ouvertes de la vue » charge, pour la zone affichée (zoom 15 ou plus), les canalisations et lignes électriques de la BD TOPO de l'IGN, et les conduites, câbles et lignes télécom d'OpenStreetMap.
+- **Import** : un fichier GeoJSON ou KML, en WGS 84 ou en Lambert-93 (reconnu tout seul). Le type (eau, assainissement, gaz…) est deviné d'après les attributs, ou imposé par le sélecteur.
+- **Tracé à la main** : d'après un plan reçu en réponse à la DT-DICT, avec type, profondeur et diamètre. Une profondeur négative indique un réseau aérien (hauteur).
+- **3D** : tuyaux colorés par type (eau bleu, assainissement marron, gaz jaune, électricité rouge, télécom vert). La case « Réseaux enterrés » les montre sous un sol rendu transparent.
+- Chaque réseau peut être rattaché à des phases. Les réseaux sont enregistrés avec le calage (`chantier.nets`).
+
+Les réseaux de distribution des villes (eau, assainissement, gaz, électricité) ne sont pas en données ouvertes : ils ne sont fournis que par les exploitants, via la DT-DICT, en plans PDF ou DWG. Ces plans se retracent ici ou s'importent s'ils sont fournis en GeoJSON ou KML.

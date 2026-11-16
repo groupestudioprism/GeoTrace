@@ -12,7 +12,7 @@ const listeners = [];
 const readLocal = () => { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); return j && Array.isArray(j.phases) ? j.phases : null; } catch (e) { return null; } };
 const clean = p => p && typeof p.id === 'string' && typeof p.name === 'string';
 const norm = p => ({ id: p.id, name: p.name, start: p.start || '', end: p.end || '', color: p.color || PALETTE[0], page: +p.page > 0 ? Math.round(+p.page) : 0,
-  zones: Array.isArray(p.zones) ? p.zones : [], devs: Array.isArray(p.devs) ? p.devs : [], cats: Array.isArray(p.cats) ? p.cats : [], els: Array.isArray(p.els) ? p.els.filter(Number.isFinite) : [] });
+  zones: Array.isArray(p.zones) ? p.zones : [], devs: Array.isArray(p.devs) ? p.devs : [], nets: Array.isArray(p.nets) ? p.nets : [], cats: Array.isArray(p.cats) ? p.cats : [], els: Array.isArray(p.els) ? p.els.filter(Number.isFinite) : [] });
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, phases })); } catch (e) { /* stockage indisponible */ } ctx.onChange && ctx.onChange(); };
 const sorted = () => phases.map((p, i) => [p, i]).sort((a, b) => (a[0].start || '9999').localeCompare(b[0].start || '9999') || a[1] - b[1]).map(x => x[0]);
 
@@ -30,7 +30,7 @@ export function setProject(p) {
 /* Qui est visible dans la phase affichée (zones, déviations de la carte 2D). */
 export function visible(id) {
   if (!cur) return true;
-  const key = id[0] === 'z' ? 'zones' : 'devs', owners = phases.filter(p => p[key].includes(id));
+  const key = id[0] === 'z' ? 'zones' : id[0] === 'n' ? 'nets' : 'devs', owners = phases.filter(p => p[key].includes(id));
   return !owners.length || owners.some(p => p.id === cur);
 }
 function apply() {
@@ -73,7 +73,7 @@ function render() {
     ? `<b>Planning</b> ${esc(planName)} <button type="button" class="link" id="phSee">Voir</button>`
     : '<b>Planning</b> Aucun PDF trouvé dans le dossier.';
   const sel = $('phCur'); sel.innerHTML = '<option value="">Toutes les phases</option>' + sorted().map(p => `<option value="${p.id}"${p.id === cur ? ' selected' : ''}>${esc(p.name)}${p.start ? ' · ' + fmtDate(p.start) : ''}</option>`).join('');
-  const zones = ctx.getZones ? ctx.getZones() : [], devs = ctx.getDevs ? ctx.getDevs() : [];
+  const zones = ctx.getZones ? ctx.getZones() : [], devs = ctx.getDevs ? ctx.getDevs() : [], nets = ctx.getNets ? ctx.getNets() : [];
   ul.innerHTML = sorted().map(p => {
     const open = p.id === openId, cats = open && ctx.categories ? ctx.categories() : [];
     return `<li data-id="${p.id}" class="${p.id === cur ? 'on' : ''}"><div class="ch-row"><input type="color" class="ph-col" value="${p.color}" aria-label="Couleur de la phase"><input class="ch-name" value="${esc(p.name)}" aria-label="Nom de la phase" maxlength="40"></div>
@@ -83,6 +83,7 @@ function render() {
       ${open ? `<div class="ph-det">
         <b>Installations présentes</b>${zones.length ? zones.map(z => `<label><input type="checkbox" data-k="zones" value="${z.id}"${p.zones.includes(z.id) ? ' checked' : ''}> ${esc(z.name)}</label>`).join('') : '<small>Aucune installation dessinée.</small>'}
         <b>Déviations présentes</b>${devs.length ? devs.map(d => `<label><input type="checkbox" data-k="devs" value="${d.id}"${p.devs.includes(d.id) ? ' checked' : ''}> ${esc(d.name)}</label>`).join('') : '<small>Aucune déviation tracée.</small>'}
+        <b>Réseaux existants</b>${nets.length ? nets.slice(0, 60).map(d => `<label><input type="checkbox" data-k="nets" value="${d.id}"${p.nets.includes(d.id) ? ' checked' : ''}> ${esc(d.name)}</label>`).join('') + (nets.length > 60 ? `<small>${nets.length - 60} autres réseaux restent visibles dans toutes les phases.</small>` : '') : '<small>Aucun réseau ajouté.</small>'}
         <b>Maquette : construit pendant cette phase</b>${cats.length ? cats.map(c => `<label><input type="checkbox" data-k="cats" value="${esc(c.type)}"${p.cats.includes(c.type) ? ' checked' : ''}> ${esc(c.type.replace(/^Ifc/, ''))} <small>${c.count}</small></label>`).join('') : '<small>Chargez une maquette IFC pour choisir ses éléments.</small>'}
         <small>${p.els.length ? p.els.length + ' élément(s) choisi(s) dans la vue 3D. ' : 'Dans la vue 3D, cliquez un élément pour l’ajouter à une phase. '}${p.els.length ? '<button type="button" class="link" data-a="clr">Vider</button>' : ''}</small></div>` : ''}</li>`;
   }).join('');

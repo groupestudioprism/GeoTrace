@@ -145,7 +145,7 @@
 
     <section id="chPanel" hidden aria-label="Chantier">
       <div class="mq-head"><b>Chantier</b><button class="icon-btn" id="chClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
-      <div class="ch-tabs" id="chTabs" role="tablist"><button type="button" role="tab" data-tab="z" aria-selected="true">Installations</button><button type="button" role="tab" data-tab="d" aria-selected="false">Déviations</button><button type="button" role="tab" data-tab="p" aria-selected="false">Phases</button></div>
+      <div class="ch-tabs" id="chTabs" role="tablist"><button type="button" role="tab" data-tab="z" aria-selected="true">Installations</button><button type="button" role="tab" data-tab="d" aria-selected="false">Déviations</button><button type="button" role="tab" data-tab="p" aria-selected="false">Phases</button><button type="button" role="tab" data-tab="n" aria-selected="false">Réseaux</button></div>
       <div id="chTabZ">
       <p class="hint">Choisissez une installation, puis dessinez sa zone sur la carte. En 3D, elle devient des objets réels : cabines, conteneurs, bennes, tuyaux, véhicules et clôture.</p>
       <div class="ch-types" id="chTypes"></div>
@@ -161,6 +161,18 @@
         <ul id="dvList"></ul>
         <p class="hint" id="dvEmpty">Aucune déviation pour l’instant.</p>
       </div>
+      <div id="chTabN" hidden>
+        <p class="hint">Réseaux existants : tracez-les d’après un plan DT-DICT, importez un fichier, ou récupérez les données ouvertes de la vue. En 3D, ils apparaissent sous le sol.</p>
+        <button type="button" class="btn" id="ntFetch">Récupérer les données ouvertes de la vue</button>
+        <p class="hint">IGN (canalisations, lignes électriques) et OpenStreetMap. Les réseaux de distribution des villes ne sont pas publics : ils se tracent d’après les plans reçus en réponse à la DT-DICT.</p>
+        <div class="mq-acts"><label class="btn ph-pick">Importer un fichier<input type="file" id="ntFile" accept=".geojson,.json,.kml,application/json,application/geo+json,application/vnd.google-earth.kml+xml" hidden></label><select id="ntImpType" class="ch-ty" aria-label="Type des réseaux importés"></select></div>
+        <h3>Tracer un réseau</h3>
+        <div class="ch-types" id="ntTypes"></div>
+        <h3>Réseaux</h3>
+        <ul id="ntList"></ul>
+        <p class="hint" id="ntEmpty">Aucun réseau pour l’instant.</p>
+        <button type="button" class="link danger" id="ntClear" hidden>Tout supprimer</button>
+      </div>
       <div id="chTabP" hidden>
         <p class="hint">Découpez le chantier en phases (dates, installations, déviations, éléments de la maquette). Choisissez une phase pour n’afficher qu’elle, sur la carte comme en 3D.</p>
         <label class="mq-row ph-curl">Phase affichée <select id="phCur" aria-label="Phase affichée"></select></label>
@@ -172,6 +184,7 @@
       <label class="mq-row"><input type="checkbox" id="chShow" checked> Afficher sur la carte</label>
       <p class="hint">Pour que l’équipe les voie : « Enregistrer pour l’équipe » en vue 3D, ou « Exporter le calage » dans Maquette 3D.</p>
     </section>
+    <div id="ntDraw" class="ch-draw" hidden><span id="ntDrawTxt"></span><button type="button" class="link" id="ntDrawBack">Retirer le dernier point</button><button type="button" class="link" id="ntDrawOk">Terminer</button><button type="button" class="link" id="ntDrawNo">Annuler</button></div>
     <div id="dvDraw" class="ch-draw" hidden><span id="dvDrawTxt"></span><button type="button" class="link" id="dvDrawBack">Retirer le dernier point</button><button type="button" class="link" id="dvDrawOk">Terminer</button><button type="button" class="link" id="dvDrawNo">Annuler</button></div>
     <div id="chDraw" class="ch-draw" hidden><span id="chDrawTxt"></span><button type="button" class="link" id="chDrawBack">Retirer le dernier point</button><button type="button" class="link" id="chDrawOk">Terminer</button><button type="button" class="link" id="chDrawNo">Annuler</button></div>
 
@@ -324,6 +337,7 @@
 <div id="v3d" hidden role="dialog" aria-modal="true" aria-label="Maquette en 3D">
   <div class="v-bar">
     <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoom · Cliquez un repère photo pour entrer dans la photo.</small></div>
+    <label class="vb wide chk" id="v3NetsL" hidden><input type="checkbox" id="v3Nets" checked> Réseaux enterrés</label>
     <label class="vb wide chk" id="v3PhaseL" hidden>Phase <select id="v3Phase" aria-label="Phase affichée en 3D"></select></label>
     <button class="vb wide" id="v3Over" type="button">Vue d’ensemble</button>
     <label class="vb wide chk"><input type="checkbox" id="v3Ground" checked> Photo aérienne</label>

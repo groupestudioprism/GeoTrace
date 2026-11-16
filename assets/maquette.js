@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT, IFCSITE, IFCGEOMETRICREPRESENTATIONCONTEXT } from '../vendor/web-ifc/web-ifc-api.js';
-import { buildZones, buildDevs } from './zones3d.js';
+import { buildZones, buildDevs, buildNets } from './zones3d.js';
 import { makeFrame, solveSimilarity, applyTo, CRS_LIST, latLonToProj, projToLatLon, crsFromName, guessCrs } from './geo.js';
 
 export const crsLabel = code => code === 'SITE' ? 'lieu du projet' : (CRS_LIST.find(c => c.code === code) || { label: code }).label;
@@ -486,7 +486,7 @@ function shareAdj(lk, photos) {
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
@@ -506,7 +506,9 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const markers = new THREE.Group(); scene.add(markers);
   if (zones.length) { try { const z = buildZones(zones, (la, lo) => state.frame.toEN(la, lo), zoneColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('installations', e); } }
   if (devs.length) { try { const z = buildDevs(devs, (la, lo) => state.frame.toEN(la, lo), devColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('déviations', e); } }
-  v3.chantierItems = new Map(); [...scene.children].forEach(g => { if (g.name === 'chantier' || g.name === 'deviations') g.children.forEach(r => { if (r.userData.itemId) v3.chantierItems.set(r.userData.itemId, [r]); }); });
+  v3.netsOn = true; v3.hasNets = nets.length > 0;
+  if (nets.length) { try { const z = buildNets(nets, (la, lo) => state.frame.toEN(la, lo), netColors); z.group.name = 'reseaux'; scene.add(z.group); v3.netsGroup = z.group; } catch (e) { console.warn('réseaux', e); } }
+  v3.chantierItems = new Map(); [...scene.children].forEach(g => { if (g.name === 'chantier' || g.name === 'deviations' || g.name === 'reseaux') g.children.forEach(r => { if (r.userData.itemId) v3.chantierItems.set(r.userData.itemId, [r]); }); });
   markers.children.forEach(g => g.children.forEach(sp => { const l = v3.chantierItems.get(sp.userData.itemId); if (l) l.push(sp); }));
   v3.phases = phases; v3.phaseId = phaseId; applyPhase();
   const far = Math.max(radius * 10, 2500);
@@ -562,9 +564,9 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
   const syncVis = () => {
     const on = v3.groundOn !== false, gs = [v3.ground, v3.ground2];
-    if (!v3.lock) { scene.background = new THREE.Color(0xbcd3e6); markers.visible = true; gs.forEach(g => { if (g) { g.visible = on; if (g.material.transparent) { g.material.transparent = false; g.material.opacity = 1; g.material.needsUpdate = true; } } }); return; }
+    if (!v3.lock) { scene.background = new THREE.Color(0xbcd3e6); markers.visible = true; const ug = v3.hasNets && v3.netsOn; if (v3.netsGroup) v3.netsGroup.visible = v3.netsOn; gs.forEach(g => { if (g) { g.visible = on; const want = ug ? .32 : 1; if (ug) { g.material.transparent = true; g.material.depthWrite = false; } else { g.material.transparent = false; g.material.depthWrite = true; } g.material.opacity = want; g.material.needsUpdate = true; } }); return; }
     // superposition : le fond aérien et les repères s'effacent en fondu pendant que la photo apparaît dessous
-    const k = v3.k == null ? 1 : v3.k, a = 1 - k; scene.background = null; renderer.setClearColor(0xbcd3e6, a); markers.visible = k < .4;
+    const k = v3.k == null ? 1 : v3.k, a = 1 - k; if (v3.netsGroup) v3.netsGroup.visible = false; scene.background = null; renderer.setClearColor(0xbcd3e6, a); markers.visible = k < .4;
     gs.forEach(g => { if (!g) return; const vis = a > .01 && on; g.visible = vis; if (vis && !g.material.transparent) { g.material.transparent = true; g.material.needsUpdate = true; } g.material.opacity = a; });
   };
   const setXf = k => { v3.k = k; syncVis(); fitSize(); if (v3.lock) applyLock(); };
@@ -729,6 +731,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   buildGround(state.frame, [c.x - far, c.y - far, c.x + far, c.y + far], { maxTiles: 64, zMin: 13, zOff: -0.3 }).then(g => { if (!v3 || v3.dead) return; g.mesh.renderOrder = -1; v3.ground2 = g.mesh; scene.add(g.mesh); v3.syncVis(); }).catch(e => { console.log('fond large', e && e.message); });
   return v3;
 }
+export function v3Nets(on) { if (!v3) return; v3.netsOn = on; v3.syncVis(); }
 export function v3Ground(on) { if (!v3) return; v3.groundOn = on; v3.syncVis(); }
 export function v3Cancel() { return v3 ? v3.cancel() : false; }
 export function v3Overview() { if (v3) v3.overview(); }
@@ -758,7 +761,7 @@ function applyPhase() {
   const P = sortPhases(v.phases || []), cur = v.phaseId ? P.findIndex(p => p.id === v.phaseId) : -1;
   // installations et déviations : présentes dans les phases où elles sont cochées (toujours là si non cochées)
   (v.chantierItems || new Map()).forEach((objs, id) => {
-    const key = id[0] === 'z' ? 'zones' : 'devs', owners = P.map((p, i) => (p[key] || []).includes(id) ? i : -1).filter(i => i >= 0);
+    const key = id[0] === 'z' ? 'zones' : id[0] === 'n' ? 'nets' : 'devs', owners = P.map((p, i) => (p[key] || []).includes(id) ? i : -1).filter(i => i >= 0);
     const vis = cur < 0 || !owners.length || owners.includes(cur);
     objs.forEach(o => { o.visible = vis; });
   });

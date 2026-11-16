@@ -292,3 +292,22 @@ export function buildDevs(devs, toEN, colors) {
   [group, labels].forEach(g => g.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.userData.dispose = true; }));
   return { group, labels };
 }
+
+/* ---------- réseaux existants : tuyaux enterrés (z négatif) ou aériens (profondeur négative) ---------- */
+export function buildNets(nets, toEN, colors) {
+  const group = new THREE.Group(); group.name = 'reseaux'; let segs = 0;
+  const geo = new THREE.CylinderGeometry(1, 1, 1, 10), ball = new THREE.SphereGeometry(1, 10, 8), up = new THREE.Vector3(0, 1, 0);
+  nets.forEach(n => {
+    if (!n.pts || n.pts.length < 2 || segs > 9000) return;
+    const col = (colors && colors[n.type]) || '#6b7480', m = mat(col), z = n.depth > 0 ? -n.depth : n.depth < 0 ? -n.depth : .15, r = Math.max(.12, Math.min(1.5, (+n.diam || 100) / 1500));
+    const P = n.pts.map(p => { const e = toEN(p[0], p[1]); return new THREE.Vector3(e[0], e[1], z); }), root = new THREE.Group();
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i], d = new THREE.Vector3().subVectors(b, a), L = d.length(); if (L < .02) continue;
+      const c = new THREE.Mesh(geo, m); c.scale.set(r, L, r); c.position.copy(a).addScaledVector(d, .5); c.quaternion.setFromUnitVectors(up, d.normalize()); root.add(c); segs++;
+    }
+    P.forEach((p, i) => { if (i === 0 || i === P.length - 1 || n.pts.length < 40) { const s = new THREE.Mesh(ball, m); s.scale.setScalar(r * 1.05); s.position.copy(p); root.add(s); } });
+    root.userData.itemId = n.id; group.add(root);
+  });
+  group.traverse(o => { if (o.isMesh) o.userData.keepGeo = true; });
+  return { group };
+}

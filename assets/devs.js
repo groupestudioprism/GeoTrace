@@ -60,7 +60,7 @@ function select(id, openPanel) {
   if (openPanel) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); tab('d'); const li = document.querySelector(`#dvList li[data-id="${id}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
 }
 export function tab(k) {
-  $('chTabZ').hidden = k !== 'z'; $('chTabD').hidden = k !== 'd'; $('chTabP').hidden = k !== 'p';
+  $('chTabZ').hidden = k !== 'z'; $('chTabD').hidden = k !== 'd'; $('chTabP').hidden = k !== 'p'; $('chTabN').hidden = k !== 'n';
   document.querySelectorAll('#chTabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === k)));
   if (k !== 'd') { cancelDraw(); stopEdit(); }
 }
