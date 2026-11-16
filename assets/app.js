@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.7';
+const VERSION = '1.3.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -196,7 +196,7 @@ async function readMeta(input) {
   const date = m.DateTimeOriginal instanceof Date ? m.DateTimeOriginal : (m.CreateDate instanceof Date ? m.CreateDate : null);
   return {
     lat: num(m.latitude), lon: num(m.longitude), alt: num(m.GPSAltitude), rel: num(m.RelativeAltitude),
-    heading: heading != null ? ((heading % 360) + 360) % 360 : null, headingSrc, pitch: gimbal, date,
+    heading: heading != null ? ((heading % 360) + 360) % 360 : null, headingSrc, pitch: gimbal, f35: num(m.FocalLengthIn35mmFilm), date,
     dev: drone ? 'drone' : tab ? 'tab' : 'phone', model: [make, model].filter(Boolean).join(' '),
   };
 }
@@ -351,7 +351,7 @@ async function loadDemo() {
     const heading = i % 9 === 8 ? null : (((Math.atan2(way[s + 1][1] - way[s][1], way[s + 1][0] - way[s][0]) * 180 / Math.PI) + (i % 2 ? 90 : -90) + 360) % 360);
     const blob = await demoImage(`${label} n° ${i + 1}`, dev);
     const p = { id: '', name: `exemple-${String(i + 1).padStart(2, '0')}-${label.toLowerCase().replace(/[^a-z]+/g, '-')}.jpg`, folder: 'Exemple/' + fmtDay(date).replace(' ', '-'), kind: 'local', blob,
-      lat, lon, alt: 12 + i * .3, rel: dev === 'drone' ? 40 : null, heading, headingSrc: heading != null ? (dev === 'drone' ? 'nacelle du drone' : 'nord vrai') : null, pitch: dev === 'drone' ? -45 : null,
+      lat, lon, alt: 12 + i * .3, rel: dev === 'drone' ? 40 : null, heading, headingSrc: heading != null ? (dev === 'drone' ? 'nacelle du drone' : 'nord vrai') : null, pitch: dev === 'drone' ? -45 : null, f35: dev === 'drone' ? 24 : 26,
       date, dev, model: dev === 'drone' ? 'DJI Mavic 3' : dev === 'tab' ? 'Tablette durcie' : 'Smartphone', demo: true };
     entries.push(p);
   }
@@ -1188,15 +1188,17 @@ async function open3d(focusId) {
   if (!M.isPlaced()) { setMaqPanel(true); maqError('Placez d’abord la maquette avec au moins 2 points de calage.'); return; }
   if (!$('viewer').hidden) closeViewer();
   map.closePopup();
-  const list = placedOf(visible()).map(p => ({ id: p.id, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, dev: p.dev, rel: p.rel }));
+  const ph = placedOf(visible());
+  await Promise.all(ph.slice(0, 80).map(p => ensureThumb(p).catch(() => {})));
+  const list = ph.map(p => ({ id: p.id, name: p.name, key: p.key, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, tex: p.kind === 'local' ? p.thumb : null }));
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
-  $('v3Pip').hidden = true; $('v3Elem').hidden = true; $('v3Pip').classList.remove('blend');
+  $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: focusId, onPhoto: showPip, onElement: showElem }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, onPhoto: alignPhoto, onElement: showElem }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   $('v3Ground').checked = true;
-  if (focusId) showPip(focusId);
+  if (focusId) alignPhoto(focusId);
   $('v3Close').focus();
 }
 function close3d() { if (Maq) Maq.close3D(); $('v3d').hidden = true; document.body.style.overflow = ''; }
@@ -1204,24 +1206,42 @@ function showElem(info) {
   const el = $('v3Elem'); el.hidden = !info;
   if (info) el.innerHTML = `<b>${esc(info.name || 'Élément sans nom')}</b>${esc(info.type || '')}${info.tag ? ', ' + esc(info.tag) : ''}`;
 }
+const HINT_FREE = $('v3Hint').textContent;
+const HINT_LOCK = 'Caméra placée comme à la prise de vue. Glissez pour affiner l’orientation, Maj + glisser pour déplacer l’appareil, molette pour zoomer, double-clic pour revenir au réglage d’origine, ← → pour changer de photo.';
+function setBlend(on) {
+  $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE;
+}
+/* Affiche la photo et renvoie son rapport largeur / hauteur tel qu'elle apparaît (orientation EXIF comprise). */
 async function showPip(id) {
-  const p = photos.find(x => x.id === id); if (!p) return;
+  const p = photos.find(x => x.id === id); if (!p) return null;
   const fig = $('v3Pip'); fig.hidden = false; fig.dataset.pid = id;
   $('v3PipName').textContent = p.name;
   const u = await displayUrl(p);
-  if (fig.dataset.pid === id) $('v3PipImg').src = u || '';
+  if (fig.dataset.pid !== id) return null;
+  const img = $('v3PipImg'); img.src = u || '';
+  try { await img.decode(); } catch (e) { /* image illisible */ }
+  return img.naturalWidth ? img.naturalWidth / img.naturalHeight : null;
+}
+/* Clic sur une photo : on reste en 3D, la caméra se place comme à la prise de vue et la photo se superpose à la maquette. */
+async function alignPhoto(id) {
+  const asp = await showPip(id); if (!Maq || $('v3d').hidden || $('v3Pip').dataset.pid !== id) return;
+  setBlend(true); Maq.v3FromPhoto(id, asp);
 }
 $('v3Close').addEventListener('click', close3d);
 $('maq3d').addEventListener('click', () => open3d(null));
-$('v3Over').addEventListener('click', () => Maq && Maq.v3Overview());
+$('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); });
 $('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
-$('v3Here').addEventListener('click', () => Maq && Maq.v3FromPhoto($('v3Pip').dataset.pid));
+$('v3Here').addEventListener('click', () => alignPhoto($('v3Pip').dataset.pid));
 $('v3Blend').addEventListener('click', e => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
-  e.currentTarget.setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
-  if (on) Maq.v3FromPhoto($('v3Pip').dataset.pid);
+  if (on) alignPhoto($('v3Pip').dataset.pid); else { if (Maq) Maq.v3Release(); setBlend(false); }
 });
 $('v3Alpha').addEventListener('input', e => $('v3Pip').style.setProperty('--a', e.target.value / 100));
+document.addEventListener('keydown', e => {
+  if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+  const id = Maq.v3Step(e.key === 'ArrowRight' ? 1 : -1); if (id) { e.preventDefault(); alignPhoto(id); }
+});
 
 /* Maquette sur Nextcloud : lien d'un fichier .ifc/.glb ou d'un dossier. Un fichier « nom.geotrace.json » à côté donne le calage. */
 /* Trouve la maquette dans le dossier ou le lien partagé en cours (`share`) et la télécharge, avec son calage s'il y en a un. */
