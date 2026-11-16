@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.4';
+const VERSION = '1.2.5';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1030,7 +1030,7 @@ function drawContours() {
 
 
 /* ================= Maquette 3D (Revit) ================= */
-let Maq = null, calMode = null, pending = null, modelTouched = false, siteFar = null;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
+let Maq = null, calMode = null, pending = null, modelTouched = false, siteFar = null, modelFp = 0;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
 const calLayer = L.layerGroup().addTo(map);
 const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t || ''; };
 async function maq() {
@@ -1040,7 +1040,7 @@ async function maq() {
   catch (e) { status(''); maqError('Le module 3D n’a pas pu démarrer. Il faut un navigateur récent avec WebGL.'); console.error(e); throw e; }
   status(''); return Maq;
 }
-const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, Maq.state.geo.auto ? null : JSON.parse(Maq.exportCalage())); }; // un placement automatique se relit dans la maquette, on ne le fige pas
+const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, Maq.state.geo.auto ? null : Object.assign(JSON.parse(Maq.exportCalage()), { fp: modelFp })); }; // un placement automatique se relit dans la maquette, on ne le fige pas
 function setMaqPanel(on) { $('maqPanel').hidden = !on; $('maqBtn').setAttribute('aria-expanded', String(on)); }
 $('maqBtn').addEventListener('click', () => setMaqPanel($('maqPanel').hidden));
 $('maqClose').addEventListener('click', () => setMaqPanel(false));
@@ -1059,7 +1059,9 @@ async function openModel(buffer, name, calText, opts = {}) {
   const c = map.getCenter();
   M.state.geo = { pairs: [], angle: 0, fixScale: true };
   M.setFrameAt(c.lat, c.lng);
-  const saved = store.get('geotrace:calage:' + name, null);
+  modelFp = buffer.byteLength; // empreinte du fichier : un calage gardé dans le navigateur ne vaut que pour ce fichier-là
+  let saved = store.get('geotrace:calage:' + name, null);
+  if (saved && saved.fp !== modelFp && (saved.fp || M.state.georef)) saved = null; // fichier ré-exporté depuis Revit : on relit sa position plutôt qu'un ancien calage
   for (const text of [calText, saved && JSON.stringify(saved)]) { if (!text) continue; try { M.importCalage(text); break; } catch (e) { /* calage illisible : suivant */ } }
   const fromCal = M.state.geo.pairs.length > 0;
   siteFar = null;
