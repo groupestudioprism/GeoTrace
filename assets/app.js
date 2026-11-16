@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.3.1';
+const VERSION = '1.4.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1229,7 +1229,7 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, onPhoto: alignPhoto, onElement: showElem }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   $('v3Ground').checked = true;
@@ -1237,12 +1237,13 @@ async function open3d(focusId) {
   $('v3Close').focus();
 }
 function close3d() { if (Maq) Maq.close3D(); $('v3d').hidden = true; document.body.style.overflow = ''; }
+function showNote(t) { const el = $('v3Elem'); el.hidden = !t; el.textContent = t || ''; }
 function showElem(info) {
   const el = $('v3Elem'); el.hidden = !info;
   if (info) el.innerHTML = `<b>${esc(info.name || 'Élément sans nom')}</b>${esc(info.type || '')}${info.tag ? ', ' + esc(info.tag) : ''}`;
 }
 const HINT_FREE = $('v3Hint').textContent;
-const HINT_LOCK = 'Caméra placée comme à la prise de vue. Glissez pour affiner l’orientation, Maj + glisser pour déplacer l’appareil, molette pour zoomer, double-clic pour revenir au réglage d’origine, ← → pour changer de photo.';
+const HINT_LOCK = 'Caméra placée comme à la prise de vue. Pour caler : cliquez un point de la maquette, puis le même point sur la photo (deux points règlent aussi la rotation et le zoom). Glisser : orienter. Maj + glisser : déplacer l’appareil. Molette : zoom. Double-clic : réinitialiser. ← → : photo suivante.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
   $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE;
@@ -1346,7 +1347,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
 /* ================= Aide et raccourcis ================= */
 $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace version ${VERSION}`; $('help').showModal(); });
 addEventListener('keydown', e => {
-  if (!$('v3d').hidden) { if (e.key === 'Escape') close3d(); return; }
+  if (!$('v3d').hidden) { if (e.key === 'Escape' && !(Maq && Maq.v3Cancel())) close3d(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') closeViewer();

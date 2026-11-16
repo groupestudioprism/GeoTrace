@@ -415,13 +415,13 @@ function basisOf(h, pitch) {
   return { r, u, f };
 }
 const quatOf = ({ r, u, f }) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, f.clone().negate()));
-const ADJ0 = () => ({ yaw: 0, pitch: 0, e: 0, n: 0, z: 0, zoom: 1 });
+const ADJ0 = () => ({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 });
 const adjKey = p => 'geotrace:vue:' + (p.key || p.name);
 const loadAdj = p => { try { return Object.assign(ADJ0(), JSON.parse(localStorage.getItem(adjKey(p)) || '{}')); } catch (e) { return ADJ0(); } };
-const saveAdj = (p, a) => { try { const z = !a.yaw && !a.pitch && !a.e && !a.n && !a.z && a.zoom === 1; z ? localStorage.removeItem(adjKey(p)) : localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
+const saveAdj = (p, a) => { try { const z = !a.yaw && !a.pitch && !a.roll && !a.e && !a.n && !a.z && a.zoom === 1; z ? localStorage.removeItem(adjKey(p)) : localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, onPhoto, onElement }) {
+export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -472,24 +472,95 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   };
   v3.ro = new ResizeObserver(fitSize); v3.ro.observe(host); fitSize();
   /* Caméra verrouillée sur une photo : même position, même cap, même inclinaison et même champ de vision, dans un cadre de la forme de la photo. */
-  const applyLock = () => {
-    const lk = v3.lock; if (!lk) return; const p = lk.p, a = lk.adj;
-    camera.position.set(p._e + a.e, p._n + a.n, p._z + a.z);
-    const pt = Math.max(-89, Math.min(89, (p.pitch || 0) + a.pitch)) * RAD;
-    camera.quaternion.copy(quatOf(basisOf((headingOf(p) + a.yaw) * RAD, pt)));
-    camera.fov = 2 * Math.atan(Math.tan(vfovOf(p, lk.aspect) * RAD / 2) / a.zoom) / RAD;
-    camera.aspect = lk.aspect; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  const poseCam = (lk, a) => {
+    const p = lk.p, cam = new THREE.PerspectiveCamera(); cam.position.set(p._e + a.e, p._n + a.n, p._z + a.z);
+    const bs = basisOf((headingOf(p) + a.yaw) * RAD, Math.max(-89, Math.min(89, (p.pitch || 0) + a.pitch)) * RAD), cr = Math.cos(a.roll * RAD), sr = Math.sin(a.roll * RAD);
+    const r = bs.r.clone().multiplyScalar(cr).addScaledVector(bs.u, sr), u = bs.u.clone().multiplyScalar(cr).addScaledVector(bs.r, -sr);
+    cam.quaternion.copy(quatOf({ r, u, f: bs.f }));
+    cam.fov = 2 * Math.atan(Math.tan(vfovOf(p, lk.aspect) * RAD / 2) / a.zoom) / RAD; cam.aspect = lk.aspect; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    return cam;
   };
+  const applyLock = () => {
+    const lk = v3.lock; if (!lk) return; const cam = poseCam(lk, lk.adj);
+    camera.position.copy(cam.position); camera.quaternion.copy(cam.quaternion); camera.fov = cam.fov; camera.aspect = cam.aspect;
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld(); drawMarks();
+  };
+  // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
+  const syncVis = () => { markers.visible = !v3.lock; if (v3.ground) v3.ground.visible = !v3.lock && v3.groundOn !== false; };
+  v3.syncVis = syncVis; v3.poseCam = poseCam; v3.applyLock = applyLock;
+  /* Calage par points : un point de la maquette, puis le même point sur la photo. 1 point règle le cap et l'inclinaison, 2 points ou plus règlent aussi le roulis et le zoom. */
+  const ndcOf = (cam, x, y, z) => { const q = new THREE.Vector3(x, y, z).project(cam); return q; };
+  const solve = lk => {
+    const pr = lk.pairs; if (!pr.length) return;
+    const full = pr.length >= 2, a0 = lk.adj;
+    const get = x => Object.assign({}, a0, { yaw: x[0], pitch: x[1], roll: full ? x[2] : a0.roll, zoom: full ? Math.exp(x[3]) : a0.zoom });
+    const res = x => {
+      const cam = poseCam(lk, get(x)), out = [];
+      pr.forEach(q => { const n = ndcOf(cam, q.P.x, q.P.y, q.P.z); out.push(n.x - q.t[0], n.y - q.t[1]); });
+      if (full) out.push(x[2] * .004, (x[3] - Math.log(a0.zoom)) * .3);
+      return out;
+    };
+    let x = [a0.yaw, a0.pitch, a0.roll, Math.log(a0.zoom)]; const k = full ? 4 : 2; let lam = 1e-3, r = res(x), cost = r.reduce((t, v) => t + v * v, 0);
+    for (let it = 0; it < 40; it++) {
+      const J = []; for (let j = 0; j < k; j++) { const y = x.slice(), h = j === 3 ? 1e-3 : .02; y[j] += h; const r2 = res(y); J.push(r2.map((v, i) => (v - r[i]) / h)); }
+      const A = Array.from({ length: k }, (_, i) => Array.from({ length: k }, (_, j) => J[i].reduce((t, v, m) => t + v * J[j][m], 0) + (i === j ? lam : 0))), b = J.map(row => -row.reduce((t, v, m) => t + v * r[m], 0));
+      for (let i = 0; i < k; i++) { // élimination de Gauss
+        let m = i; for (let j = i + 1; j < k; j++) if (Math.abs(A[j][i]) > Math.abs(A[m][i])) m = j;
+        [A[i], A[m]] = [A[m], A[i]]; [b[i], b[m]] = [b[m], b[i]]; if (Math.abs(A[i][i]) < 1e-14) continue;
+        for (let j = i + 1; j < k; j++) { const f = A[j][i] / A[i][i]; for (let l = i; l < k; l++) A[j][l] -= f * A[i][l]; b[j] -= f * b[i]; }
+      }
+      const dx = Array(k).fill(0); for (let i = k - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < k; j++) t -= A[i][j] * dx[j]; dx[i] = Math.abs(A[i][i]) < 1e-14 ? 0 : t / A[i][i]; }
+      const y = x.slice(); for (let j = 0; j < k; j++) y[j] += dx[j]; const r2 = res(y), c2 = r2.reduce((t, v) => t + v * v, 0);
+      if (c2 < cost) { x = y; r = r2; const gain = cost - c2; cost = c2; lam = Math.max(lam / 3, 1e-9); if (gain < 1e-14) break; } else lam *= 5;
+    }
+    lk.adj = get(x); lk.adj.zoom = Math.max(.3, Math.min(4, lk.adj.zoom));
+  };
+  const boxOf = () => renderer.domElement.getBoundingClientRect();
+  const worldVerts = () => {
+    if (v3.verts) return v3.verts; holder.updateMatrixWorld(true); const out = [], v = new THREE.Vector3();
+    holder.traverse(o => { if (!o.isMesh || !o.geometry.attributes.position) return; const ps = o.geometry.attributes.position, st = Math.max(1, Math.floor(ps.count / 120)); for (let i = 0; i < ps.count; i += st) { v.fromBufferAttribute(ps, i).applyMatrix4(o.matrixWorld); out.push(v.x, v.y, v.z); } });
+    return (v3.verts = new Float32Array(out));
+  };
+  const snap = (px, py) => { // point de la maquette le plus proche du clic, à l'écran
+    const vs = worldVerts(), r = boxOf(), q = new THREE.Vector3(); let best = null, bd = 28 * 28;
+    for (let i = 0; i < vs.length; i += 3) {
+      q.set(vs[i], vs[i + 1], vs[i + 2]).project(camera); if (q.z > 1 || q.z < -1) continue;
+      const dx = (q.x + 1) / 2 * r.width - px, dy = (1 - q.y) / 2 * r.height - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = new THREE.Vector3(vs[i], vs[i + 1], vs[i + 2]); }
+    }
+    return best;
+  };
+  const marks = document.createElement('div'); marks.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden'; host.parentElement.appendChild(marks); v3.marks = marks;
+  const dot = (x, y, col, ring) => { const d = document.createElement('span'); d.style.cssText = `position:absolute;left:${x - 9}px;top:${y - 9}px;width:18px;height:18px;border-radius:50%;box-sizing:border-box;border:2px solid ${col};${ring ? '' : 'background:' + col + '55;'}`; marks.appendChild(d); };
+  const drawMarks = () => {
+    marks.textContent = ''; const lk = v3.lock; if (!lk) return;
+    const r = boxOf(), hr = host.getBoundingClientRect(), ox = r.left - hr.left, oy = r.top - hr.top, q = new THREE.Vector3();
+    const at = (P) => { q.copy(P).project(camera); return [ox + (q.x + 1) / 2 * r.width, oy + (1 - q.y) / 2 * r.height]; };
+    lk.pairs.forEach(pq => { const [x, y] = at(pq.P); dot(x, y, '#ffd23f', true); dot(ox + (pq.t[0] + 1) / 2 * r.width, oy + (1 - pq.t[1]) / 2 * r.height, '#ff5a36', false); });
+    if (lk.pending) { const [x, y] = at(lk.pending); dot(x, y, '#ffd23f', true); }
+  };
+  v3.pick = (px, py) => { // clic sans déplacement en superposition
+    const lk = v3.lock; if (!lk) return;
+    if (!lk.pending) {
+      const P = snap(px, py);
+      if (!P) { onNote && onNote('Aucun élément de la maquette à cet endroit. Cliquez sur une canalisation ou un ouvrage visible.'); return; }
+      lk.pending = P; drawMarks(); onNote && onNote('Point de la maquette choisi (rond jaune). Cliquez maintenant le même point sur la photo. Échap pour annuler.');
+    } else {
+      const r = boxOf(); lk.pairs.push({ P: lk.pending, t: [px / r.width * 2 - 1, -(py / r.height * 2 - 1)] }); lk.pending = null;
+      solve(lk); applyLock(); persist(); const n = lk.pairs.length;
+      onNote && onNote(n === 1 ? '1 point calé. Ajoutez un deuxième point, loin du premier, pour régler aussi la rotation et le zoom.' : `${n} points calés. Double-clic pour tout réinitialiser.`);
+    }
+  };
+  v3.cancel = () => { const lk = v3.lock; if (!lk || !lk.pending) return false; lk.pending = null; drawMarks(); onNote && onNote(''); return true; };
   v3.overview = () => { v3.release(); const d = radius * 1.6; camera.position.set(c.x - d * .5, c.y - d * .9, Math.max(sz.z, 5) + d * .7); controls.target.set(c.x, c.y, 0); controls.update(); };
   v3.fromPhoto = (id, aspect) => {
     const p = photos.find(x => x.id === id); if (!p || p._e == null) return false;
     p._asp = aspect || p._asp || 4 / 3; if (p._bb) build(p, p._asp);
-    v3.lock = { p, aspect: p._asp, adj: loadAdj(p) }; controls.enabled = false; fitSize(); applyLock(); return true;
+    v3.lock = { p, aspect: p._asp, adj: loadAdj(p), pairs: [], pending: null }; controls.enabled = false; syncVis(); fitSize(); applyLock(); onNote && onNote(''); return true;
   };
   v3.release = () => {
     if (!v3.lock) return; v3.lock = null;
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    camera.up.set(0, 0, 1); camera.fov = 60; controls.target.copy(camera.position).addScaledVector(dir, 12); controls.enabled = true; fitSize(); controls.update();
+    camera.up.set(0, 0, 1); camera.fov = 60; controls.target.copy(camera.position).addScaledVector(dir, 12); controls.enabled = true; syncVis(); marks.textContent = ''; onNote && onNote(''); fitSize(); controls.update();
   };
   v3.step = d => { // photo suivante ou précédente parmi celles qui sont sur la maquette
     const ids = photos.filter(p => p._e != null).map(p => p.id); if (!ids.length) return null;
@@ -513,9 +584,13 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
     if (e.shiftKey) a.z -= Math.sign(d) * .1; else a.zoom = Math.max(.3, Math.min(4, a.zoom * Math.exp(-d * .0012)));
     applyLock(); persist();
   }, { passive: false });
-  el.addEventListener('dblclick', () => { if (!v3.lock) return; v3.lock.adj = ADJ0(); applyLock(); persist(); });
+  el.addEventListener('dblclick', () => { if (!v3.lock) return; v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; applyLock(); persist(); onNote && onNote(''); });
   el.addEventListener('pointerup', e => {
-    if (v3.lock) { drag = null; down = null; return; }
+    if (v3.lock) {
+      const was = down; drag = null; down = null;
+      if (was && !e.shiftKey && Math.hypot(e.clientX - was[0], e.clientY - was[1]) <= 5) { const r = boxOf(); v3.pick(e.clientX - r.left, e.clientY - r.top); }
+      return;
+    }
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return; down = null;
     const r = el.getBoundingClientRect(); ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ptr, camera);
     const hitP = ray.intersectObjects(v3.photoMeshes, false)[0];
@@ -526,19 +601,20 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   const loop = () => { if (!v3 || v3.dead) return; v3.raf = requestAnimationFrame(loop); if (!v3.lock) controls.update(); renderer.render(scene, camera); };
   loop();
   // fond photo aérienne, chargé en arrière-plan
-  buildGround(state.frame, bounds).then(g => { if (!v3 || v3.dead) return; v3.ground = g.mesh; v3.groundTiles = g.tiles; scene.add(g.mesh); }).catch(() => { /* fond uni */ });
+  buildGround(state.frame, bounds).then(g => { if (!v3 || v3.dead) return; v3.ground = g.mesh; v3.groundTiles = g.tiles; scene.add(g.mesh); v3.syncVis(); }).catch(() => { /* fond uni */ });
   return v3;
 }
-export function v3Ground(on) { if (v3 && v3.ground) v3.ground.visible = on; }
+export function v3Ground(on) { if (!v3) return; v3.groundOn = on; v3.syncVis(); }
+export function v3Cancel() { return v3 ? v3.cancel() : false; }
 export function v3Overview() { if (v3) v3.overview(); }
 export function v3FromPhoto(id, aspect) { return v3 ? v3.fromPhoto(id, aspect) : false; }
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }
-export function v3Camera() { return v3 ? { camera: v3.camera, lock: v3.lock } : null; }
+export function v3Camera() { return v3 ? { camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center } : null; }
 export function close3D() {
   if (!v3) return;
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();
   v3.scene.traverse(o => { if ((o.isMesh || o.isLine) && (o.userData.photoId || o.userData.dispose || o === v3.ground)) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
-  v3.renderer.dispose(); v3.renderer.domElement.remove(); v3 = null;
+  v3.renderer.dispose(); v3.renderer.domElement.remove(); if (v3.marks) v3.marks.remove(); v3 = null;
 }
