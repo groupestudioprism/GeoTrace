@@ -1,0 +1,438 @@
+{
+  "Uuid": "15ae1305-89a6-4a8e-9f5c-a117bc3a1798",
+  "IsCustomNode": false,
+  "Description": "Géoréférence le projet Revit pour GeoTrace (lieu du projet et coordonnées partagées).",
+  "Name": "GeoTrace - georeferencement",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": 47.6583,
+      "Id": "6a990b2d36a34e499b071f52f9a46668",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d87e3dc4112d4fd6935caf43eef1081e",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": -2.7611,
+      "Id": "2b51339ad39247459e24dfd630f8afc4",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "8b82810c57744db4a3827e02b4943833",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": 0.0,
+      "Id": "c72384dcf0ea4b5ea06ce83288415edd",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "d5fa832726f84c3c8ddc799b87dc6bcd",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": 0.0,
+      "Id": "471969042a7946ffbd0065b27ef83dfa",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "1f3c668be8f5456b84a6c7ff67d4d213",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": 0.0,
+      "Id": "354d7810acdd4be08a98457aa7e13be1",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "86fbf09a44be42dbbd3da73e71ab87e7",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.DoubleInput, CoreNodeModels",
+      "NodeType": "NumberInputNode",
+      "NumberType": "Double",
+      "InputValue": 0.0,
+      "Id": "e1bd8d9b07a846aab7fb3dd9dd5bedd5",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "0a3137e2afda4fbbb48d51bcd2b00e48",
+          "Name": "",
+          "Description": "Double",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Crée un nombre."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
+      "NodeType": "BooleanInputNode",
+      "InputValue": false,
+      "Id": "614952ac6765449597fbe77ce467f18c",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "4f7dbe326cd345ba8bf893e09f8d86b7",
+          "Name": "",
+          "Description": "Booléen",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Sélection entre vrai et faux."
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "# GeoTrace : géoréférencer le projet Revit ouvert (à coller dans un nœud « Python Script » de Dynamo, moteur CPython3).\n# Entrées : IN[0] latitude, IN[1] longitude (degrés, WGS84), IN[2] Est, IN[3] Nord, IN[4] altitude (mètres, Lambert-93 ou zone CC),\n#           IN[5] angle du nord du projet en degrés, IN[6] appliquer (False = seulement lire et afficher).\nimport clr, math\nclr.AddReference('RevitAPI')\nclr.AddReference('RevitServices')\nfrom Autodesk.Revit.DB import XYZ, ProjectPosition\nfrom RevitServices.Persistence import DocumentManager\nfrom RevitServices.Transactions import TransactionManager\n\ndoc = DocumentManager.Instance.CurrentDBDocument\nlat, lon, est, nord, alt, angle, appliquer = [IN[i] for i in range(7)]\nFT = 0.3048          # Revit stocke les longueurs en pieds\nout = []\n\nsite = doc.SiteLocation\nloc = doc.ActiveProjectLocation\npos = loc.GetProjectPosition(XYZ.Zero)   # position de l'origine interne dans les coordonnées partagées\nout.append('Lieu actuel : lat %.6f, lon %.6f' % (math.degrees(site.Latitude), math.degrees(site.Longitude)))\nout.append('Origine interne : Est %.3f m, Nord %.3f m, altitude %.3f m, angle %.3f deg'\n           % (pos.EastWest * FT, pos.NorthSouth * FT, pos.Elevation * FT, math.degrees(pos.Angle)))\n\nset_lieu = bool(lat) and bool(lon)\nset_coord = bool(est) and bool(nord)\nif not (set_lieu or set_coord):\n    out.append('Rien à changer : renseignez la latitude et la longitude, et/ou l\\'Est et le Nord.')\nelif not appliquer:\n    out.append('Aperçu seulement. Mettez « Appliquer » sur True pour écrire dans le projet.')\nelse:\n    try:\n        TransactionManager.Instance.EnsureInTransaction(doc)\n        if set_lieu:\n            site.Latitude = math.radians(lat)\n            site.Longitude = math.radians(lon)\n            out.append('Lieu du projet mis à %.6f, %.6f' % (lat, lon))\n        if set_coord:\n            loc.SetProjectPosition(XYZ.Zero, ProjectPosition(est / FT, nord / FT, alt / FT, math.radians(angle)))\n            out.append('Origine interne placée à Est %.3f, Nord %.3f, altitude %.3f, angle %.3f deg' % (est, nord, alt, angle))\n        TransactionManager.Instance.TransactionTaskDone()\n    except Exception as e:\n        out.append('Échec : %s' % e)\n\nOUT = out\n",
+      "Engine": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "84a5f30c90734837b794c37a50d6655f",
+      "Inputs": [
+        {
+          "Id": "3324251fda6e4cd287a3c14612ddacc0",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "078df0609b934ee986013c0d9edc3668",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "0380fd8b74f647e39b602fc07cb7c90b",
+          "Name": "IN[2]",
+          "Description": "Input #2",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "6891104ccf4c4539b9d88dbbee3f3d98",
+          "Name": "IN[3]",
+          "Description": "Input #3",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "2fd548738e294f54af4558b3e6e83db3",
+          "Name": "IN[4]",
+          "Description": "Input #4",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "734f88e0139640de995414fc2b4c6b59",
+          "Name": "IN[5]",
+          "Description": "Input #5",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "73fa89405e92487697e4f0d978cfa403",
+          "Name": "IN[6]",
+          "Description": "Input #6",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "49ca6e5558984043891a7ae60cde9b48",
+          "Name": "OUT",
+          "Description": "Résultat du script Python",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Exécute un script Python incorporé."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "NodeType": "ExtensionNode",
+      "Id": "fa43f233816940b2ad0439e691d96028",
+      "Inputs": [
+        {
+          "Id": "5f354c1ef441435b941f4d70ec1768ed",
+          "Name": "",
+          "Description": "Node to evaluate.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "8a2bbc51b08d4ec3b3147c7da0626680",
+          "Name": "",
+          "Description": "Watch contents.",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualise la sortie d'un nœud."
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "d87e3dc4112d4fd6935caf43eef1081e",
+      "End": "3324251fda6e4cd287a3c14612ddacc0",
+      "Id": "1cdb7b32954946aaaa048a41308ca66d"
+    },
+    {
+      "Start": "8b82810c57744db4a3827e02b4943833",
+      "End": "078df0609b934ee986013c0d9edc3668",
+      "Id": "6a39b945d0a74d3ebc958ed04e513822"
+    },
+    {
+      "Start": "d5fa832726f84c3c8ddc799b87dc6bcd",
+      "End": "0380fd8b74f647e39b602fc07cb7c90b",
+      "Id": "839e375c89b14f92ba399121bc6179ba"
+    },
+    {
+      "Start": "1f3c668be8f5456b84a6c7ff67d4d213",
+      "End": "6891104ccf4c4539b9d88dbbee3f3d98",
+      "Id": "550c6eb953764d0f9eb3e8cbe7f20138"
+    },
+    {
+      "Start": "86fbf09a44be42dbbd3da73e71ab87e7",
+      "End": "2fd548738e294f54af4558b3e6e83db3",
+      "Id": "06df0b63f06d49659314788effbd7d8f"
+    },
+    {
+      "Start": "0a3137e2afda4fbbb48d51bcd2b00e48",
+      "End": "734f88e0139640de995414fc2b4c6b59",
+      "Id": "58c50a09344948d8943e7f962a0ee720"
+    },
+    {
+      "Start": "4f7dbe326cd345ba8bf893e09f8d86b7",
+      "End": "73fa89405e92487697e4f0d978cfa403",
+      "Id": "c591e3da42c84b40a93911f82bc378ed"
+    },
+    {
+      "Start": "49ca6e5558984043891a7ae60cde9b48",
+      "End": "5f354c1ef441435b941f4d70ec1768ed",
+      "Id": "b61d07c7dc5546c8be011f95ed0cd929"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": false,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "3.0.0",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "6a990b2d36a34e499b071f52f9a46668",
+        "Name": "Latitude (degrés)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 0.0
+      },
+      {
+        "Id": "2b51339ad39247459e24dfd630f8afc4",
+        "Name": "Longitude (degrés)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 110.0
+      },
+      {
+        "Id": "c72384dcf0ea4b5ea06ce83288415edd",
+        "Name": "Est (m)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 220.0
+      },
+      {
+        "Id": "471969042a7946ffbd0065b27ef83dfa",
+        "Name": "Nord (m)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 330.0
+      },
+      {
+        "Id": "354d7810acdd4be08a98457aa7e13be1",
+        "Name": "Altitude (m)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 440.0
+      },
+      {
+        "Id": "e1bd8d9b07a846aab7fb3dd9dd5bedd5",
+        "Name": "Angle du nord (degrés)",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 550.0
+      },
+      {
+        "Id": "614952ac6765449597fbe77ce467f18c",
+        "Name": "Appliquer",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 0.0,
+        "Y": 660.0
+      },
+      {
+        "Id": "84a5f30c90734837b794c37a50d6655f",
+        "Name": "Géoréférencer le projet",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 380.0,
+        "Y": 150.0
+      },
+      {
+        "Id": "fa43f233816940b2ad0439e691d96028",
+        "Name": "Résultat",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 800.0,
+        "Y": 150.0
+      }
+    ],
+    "Annotations": [],
+    "X": 0.0,
+    "Y": 0.0,
+    "Zoom": 0.8
+  }
+}
