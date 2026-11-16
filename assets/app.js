@@ -3,12 +3,13 @@
 (() => {
 'use strict';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
 const IMG_RE = /\.(jpe?g|heic|heif|tiff?|png|webp)$/i;
+const MODEL_RE = /\.(ifc|glb|gltf)$/i, CAL_RE = /\.geotrace\.json$/i;
 const DEV = { phone: 'Téléphone', tab: 'Tablette', drone: 'Drone' };
 const COLORS = { phone: '#f26b1d', tab: '#0fa37f', drone: '#7b4fd6' };
 const MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', tif: 'image/tiff', tiff: 'image/tiff', heic: 'image/heic', heif: 'image/heif' };
@@ -24,6 +25,13 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } },
 };
+/* La maquette est gardée dans le navigateur : on n'a pas à la réimporter à chaque visite. */
+const idbOpen = () => new Promise((res, rej) => { const r = indexedDB.open('geotrace', 1); r.onupgradeneeded = () => r.result.createObjectStore('maquette'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function idbDo(mode, fn) { const db = await idbOpen(); return new Promise((res, rej) => { const q = fn(db.transaction('maquette', mode).objectStore('maquette')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+const idbSet = rec => idbDo('readwrite', s => s.put(rec, 'derniere')).catch(e => console.warn('maquette non mémorisée', e));
+const idbDel = () => idbDo('readwrite', s => s.delete('derniere')).catch(() => {});
+const idbGet = () => idbDo('readonly', s => s.get('derniere')).catch(() => null);
+
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
 const IC = {
@@ -227,15 +235,23 @@ async function loadFileList(fileList, label, append) {
     const rel = f.webkitRelativePath || f._rel || f.name;
     return { name: f.name, folder: rel.split('/').slice(0, -1).join('/'), blob: f };
   });
+  const extra = { models: files.filter(f => MODEL_RE.test(f.name)), cals: files.filter(f => CAL_RE.test(f.name)) };
   let n = await addLocal(imgs);
-  for (const z of zips) n += await loadZip(z);
+  for (const z of zips) n += await loadZip(z, extra);
   finish(n);
+  await autoModel(extra);
 }
-async function loadZip(file) {
+async function loadZip(file, extra) {
   status('Ouverture du ZIP…');
   let zip;
   try { zip = await JSZip.loadAsync(file); } catch (e) { status('Ce ZIP est illisible. Essayez de le télécharger à nouveau.', { ms: 6000 }); return 0; }
-  const files = Object.values(zip.files).filter(f => !f.dir && IMG_RE.test(f.name) && !/(^|\/)(__MACOSX|\.)/.test(f.name));
+  const ok = f => !f.dir && !/(^|\/)(__MACOSX|\.)/.test(f.name);
+  const files = Object.values(zip.files).filter(f => ok(f) && IMG_RE.test(f.name));
+  if (extra) for (const f of Object.values(zip.files)) {
+    if (!ok(f) || !(MODEL_RE.test(f.name) || CAL_RE.test(f.name))) continue;
+    const raw = new File([await f.async('blob')], f.name.split('/').pop());
+    (MODEL_RE.test(f.name) ? extra.models : extra.cals).push(raw);
+  }
   const entries = []; let k = 0;
   for (const f of files) {
     const raw = await f.async('blob');
@@ -292,7 +308,8 @@ async function loadShare() {
   showWelcome(false);
   status('Lecture du dossier partagé…');
   let paths;
-  try { paths = await walk('/'); }
+  let found;
+  try { found = await walk('/', 0, [], /\.(jpe?g|heic|heif|tiff?|png|webp|ifc|glb|gltf|geotrace\.json)$/i); paths = found.filter(x => IMG_RE.test(x)); }
   catch (e) {
     status(''); showWelcome(true);
     if (e.code === 401) { $('pwdInput').hidden = false; return linkError('Ce lien est protégé. Saisissez son mot de passe, puis rouvrez le lien.'); }
@@ -307,6 +324,8 @@ async function loadShare() {
       url, previewUrl: prev + '&x=600&y=450', thumbRemote: prev + '&x=96&y=96', path }, meta));
   }, 'Lecture des photos');
   finish(paths.length);
+  const mp = found.filter(x => MODEL_RE.test(x)), cp = found.filter(x => CAL_RE.test(x));
+  if (mp.length) { try { const r = await shareModel(mp, cp); await openModel(r.buf, r.name, r.calText, { quiet: true }); } catch (e) { console.warn('maquette du dossier partagé illisible', e); } }
 }
 function parseShare(url) {
   const m = String(url).match(/^(https?:\/\/[^/]+)(?:\/index\.php)?\/s\/([A-Za-z0-9]+)/);
@@ -1011,7 +1030,7 @@ function drawContours() {
 
 
 /* ================= Maquette 3D (Revit) ================= */
-let Maq = null, calMode = null, pending = null;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
+let Maq = null, calMode = null, pending = null, modelTouched = false;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
 const calLayer = L.layerGroup().addTo(map);
 const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t || ''; };
 async function maq() {
@@ -1021,7 +1040,7 @@ async function maq() {
   catch (e) { status(''); maqError('Le module 3D n’a pas pu démarrer. Il faut un navigateur récent avec WebGL.'); console.error(e); throw e; }
   status(''); return Maq;
 }
-const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, JSON.parse(Maq.exportCalage())); };
+const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, Maq.state.geo.auto ? null : JSON.parse(Maq.exportCalage())); }; // un placement automatique se relit dans la maquette, on ne le fige pas
 function setMaqPanel(on) { $('maqPanel').hidden = !on; $('maqBtn').setAttribute('aria-expanded', String(on)); }
 $('maqBtn').addEventListener('click', () => setMaqPanel($('maqPanel').hidden));
 $('maqClose').addEventListener('click', () => setMaqPanel(false));
@@ -1029,8 +1048,8 @@ $('maqPick').addEventListener('click', () => $('maqFile').click());
 $('maqFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) openModel(await f.arrayBuffer(), f.name); });
 if (CFG.maquetteLien) $('maqLink').value = CFG.maquetteLien;
 
-async function openModel(buffer, name, calText) {
-  maqError('');
+async function openModel(buffer, name, calText, opts = {}) {
+  modelTouched = true; maqError('');
   const M = await maq();
   status('Lecture de la maquette…');
   let info;
@@ -1042,11 +1061,17 @@ async function openModel(buffer, name, calText) {
   M.setFrameAt(c.lat, c.lng);
   const saved = store.get('geotrace:calage:' + name, null);
   for (const text of [calText, saved && JSON.stringify(saved)]) { if (!text) continue; try { M.importCalage(text); break; } catch (e) { /* calage illisible : suivant */ } }
+  const fromCal = M.state.geo.pairs.length > 0;
+  if (!fromCal && M.state.georef) M.applyGeoref(); // rien d'enregistré : on lit la position dans les coordonnées de Revit
   closeCal();
   M.refreshOverlay(); maqUi(info);
-  if (M.isPlaced()) { const b = M.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); status('Maquette placée d’après le calage enregistré.', { ms: 4000 }); }
-  else status('Maquette lue. Ajoutez au moins 2 points de calage pour la placer.', { ms: 6000 });
-  setMaqPanel(true);
+  if (!opts.noSave) idbSet({ name, buffer });
+  const auto = M.state.geo.auto;
+  if (M.isPlaced()) {
+    if (!opts.quiet) { const b = M.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); }
+    status(auto ? 'Maquette placée d’après les coordonnées de Revit.' : 'Maquette placée d’après le calage enregistré.', { ms: 4000 });
+  } else status('Maquette lue. Ajoutez au moins 2 points de calage pour la placer.', { ms: 6000 });
+  if (!opts.quiet) setMaqPanel(true);
 }
 function maqUi(info) {
   const M = Maq, m = M && M.state.model;
@@ -1064,10 +1089,22 @@ function maqUi(info) {
     const r = sol && sol.residuals && sol.residuals[i] != null && n > 1 ? `, écart ${fmt(sol.residuals[i], 2)} m` : '';
     t.innerHTML = `Maquette ${esc(fmt(p.m[0], 1))} ; ${esc(fmt(p.m[1], 1))}<small>${p.ll[0].toFixed(6)}, ${p.ll[1].toFixed(6)}${esc(r)}</small>`;
     b.type = 'button'; b.setAttribute('aria-label', `Supprimer le point ${i + 1}`); b.innerHTML = icon('close', 16);
-    b.addEventListener('click', () => { g.pairs.splice(i, 1); if (!g.pairs.length) { const c = map.getCenter(); M.setFrameAt(c.lat, c.lng); } afterCal(); });
+    b.addEventListener('click', () => { g.auto = false; g.pairs.splice(i, 1); if (!g.pairs.length) { const c = map.getCenter(); M.setFrameAt(c.lat, c.lng); } afterCal(); });
     li.append(a, t, b); ul.appendChild(li);
     L.marker(p.ll, { icon: L.divIcon({ className: '', html: `<div class="cal-dot" style="width:22px;height:22px">${i + 1}</div>`, iconSize: [22, 22] }), interactive: false, keyboard: false }).addTo(calLayer);
   });
+  const gr = M.state.georef, geo = $('maqGeo');
+  geo.hidden = !gr;
+  if (gr) {
+    const lab = gr.crs ? M.crsLabel(gr.crs) : (gr.crsName || 'inconnu');
+    $('maqGeoTxt').textContent = !gr.crs ? `Ce fichier est géoréférencé dans un système que GeoTrace ne connaît pas (${lab}). Placez la maquette avec des points de calage.`
+      : g.auto ? `Placée d’après les coordonnées enregistrées dans Revit (${M.crsLabel(g.auto)}).`
+      : `Ce fichier contient des coordonnées géographiques (${lab}). Vous pouvez y placer la maquette automatiquement.`;
+    $('maqUseGeo').hidden = !gr.crs || !!g.auto;
+    const sel = $('maqCrs'), multi = gr.candidates.length > 1;
+    $('maqCrsRow').hidden = !multi;
+    if (multi) { sel.textContent = ''; gr.candidates.forEach(c => sel.add(new Option(M.crsLabel(c), c))); sel.value = g.auto || gr.crs; }
+  }
   const st = $('maqState'); st.className = 'mq-state';
   if (!n) st.textContent = 'Aucun point de calage. Il en faut au moins 2 : un point de la maquette et le même point sur la carte.';
   else if (n === 1) st.textContent = 'Un seul point : la maquette est placée à cet endroit avec l’orientation saisie ci-dessous. Un deuxième point la cale précisément.';
@@ -1081,12 +1118,15 @@ function maqUi(info) {
   $('maqBtn').classList.toggle('on', !!m);
 }
 function afterCal() { Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
+const zoomModel = () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); };
+$('maqUseGeo').addEventListener('click', () => { if (Maq && Maq.applyGeoref($('maqCrs').value || null)) { afterCal(); zoomModel(); } });
+$('maqCrs').addEventListener('change', e => { if (Maq && Maq.applyGeoref(e.target.value)) { afterCal(); zoomModel(); } });
 $('maqShow').addEventListener('change', e => Maq && Maq.setVisible(e.target.checked));
 $('maqOpacity').addEventListener('input', e => Maq && Maq.setOpacity(e.target.value / 100));
 $('maqAngle').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.angle = +e.target.value || 0; afterCal(); });
 $('maqScale').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.fixScale = e.target.checked; afterCal(); });
 $('maqZoom').addEventListener('click', () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 20 }); });
-$('maqRemove').addEventListener('click', () => { if (!Maq) return; closeCal(); Maq.unloadModel(); Maq.refreshOverlay(); maqUi(); maqError(''); });
+$('maqRemove').addEventListener('click', () => { idbDel(); if (!Maq) return; closeCal(); Maq.unloadModel(); Maq.refreshOverlay(); maqUi(); maqError(''); });
 $('maqExport').addEventListener('click', () => {
   const m = Maq && Maq.state.model; if (!m) return;
   download(m.name.replace(/\.[^.]+$/, '') + '.geotrace.json', new Blob([Maq.exportCalage()], { type: 'application/json' }));
@@ -1122,7 +1162,8 @@ $('maqAdd').addEventListener('click', startCal);
 $('maqPlanDone').addEventListener('click', closeCal);
 map.on('click', e => {
   if (calMode !== 'map' || !pending) return;
-  Maq.state.geo.pairs.push({ m: pending, ll: [e.latlng.lat, e.latlng.lng] });
+  const gg = Maq.state.geo; if (gg.auto) { gg.pairs = []; gg.auto = false; } // le point saisi à la main remplace le placement automatique
+  gg.pairs.push({ m: pending, ll: [e.latlng.lat, e.latlng.lng] });
   pending = null; calMode = 'model';
   afterCal();
 });
@@ -1169,40 +1210,67 @@ $('v3Blend').addEventListener('click', e => {
 $('v3Alpha').addEventListener('input', e => $('v3Pip').style.setProperty('--a', e.target.value / 100));
 
 /* Maquette sur Nextcloud : lien d'un fichier .ifc/.glb ou d'un dossier. Un fichier « nom.geotrace.json » à côté donne le calage. */
-$('maqForm').addEventListener('submit', async e => {
-  e.preventDefault(); maqError('');
-  const s = parseShare($('maqLink').value.trim());
-  if (!s) return maqError('Ce n’est pas un lien de partage. Il doit contenir « /s/ » suivi d’un code.');
-  s.password = $('maqPwd').value || null;
+/* Trouve la maquette dans le dossier ou le lien partagé en cours (`share`) et la télécharge, avec son calage s'il y en a un. */
+async function shareModel(models, cals) {
+  const get = async url => { const r = await fetch(url, { headers: authH() }); if (!r.ok) throw Object.assign(new Error('http'), { code: r.status }); return r; };
+  let buf, name;
+  if (models.length) { name = models[0].split('/').pop(); status(`Téléchargement de ${name}…`); buf = await (await get(davRoot() + encPath(models[0]))).arrayBuffer(); }
+  else { // lien direct vers un fichier
+    const r = await get(davRoot()); buf = await r.arrayBuffer();
+    const cd = (r.headers.get('content-disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i);
+    name = cd ? decodeURIComponent(cd[1]) : (new TextDecoder().decode(buf.slice(0, 4)) === 'glTF' ? 'maquette.glb' : 'maquette.ifc');
+  }
+  let calText = null;
+  const stem = name.replace(/\.[^.]+$/, '').toLowerCase();
+  const calPath = cals.find(c => c.split('/').pop().toLowerCase() === stem + '.geotrace.json') || cals[0];
+  if (calPath) { try { calText = await (await get(davRoot() + encPath(calPath))).text(); } catch (er) { /* calage absent : on continue */ } }
+  status('');
+  return { buf, name, calText };
+}
+/* Maquette sur Nextcloud : lien d'un fichier .ifc/.glb ou d'un dossier. Un fichier « nom.geotrace.json » à côté donne le calage. */
+async function loadMaquetteShare(text, pwd, opts = {}) {
+  maqError('');
+  const s = parseShare(String(text).trim());
+  if (!s) { maqError('Ce n’est pas un lien de partage. Il doit contenir « /s/ » suivi d’un code.'); return false; }
+  s.password = pwd || null;
   const prev = share; share = s;
   try {
     status('Recherche de la maquette…');
     let models = [], cals = [];
     try {
       const all = await walk('/', 0, [], /\.(ifc|glb|gltf|geotrace\.json)$/i);
-      models = all.filter(x => /\.(ifc|glb|gltf)$/i.test(x)); cals = all.filter(x => /\.geotrace\.json$/i.test(x));
+      models = all.filter(x => MODEL_RE.test(x)); cals = all.filter(x => CAL_RE.test(x));
     } catch (er) { if (er.code === 401 || er.code === 404) throw er; }
-    const get = async url => { const r = await fetch(url, { headers: authH() }); if (!r.ok) throw Object.assign(new Error('http'), { code: r.status }); return r; };
-    let buf, name;
-    if (models.length) { name = models[0].split('/').pop(); status(`Téléchargement de ${name}…`); buf = await (await get(davRoot() + encPath(models[0]))).arrayBuffer(); }
-    else { // lien direct vers un fichier
-      const r = await get(davRoot()); buf = await r.arrayBuffer();
-      const cd = (r.headers.get('content-disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i);
-      name = cd ? decodeURIComponent(cd[1]) : (new TextDecoder().decode(buf.slice(0, 4)) === 'glTF' ? 'maquette.glb' : 'maquette.ifc');
-    }
-    let calText = null;
-    const stem = name.replace(/\.[^.]+$/, '').toLowerCase();
-    const calPath = cals.find(c => c.split('/').pop().toLowerCase() === stem + '.geotrace.json') || cals[0];
-    if (calPath) { try { calText = await (await get(davRoot() + encPath(calPath))).text(); } catch (er) { /* calage absent : on continue */ } }
-    status('');
-    await openModel(buf, name, calText);
+    const r = await shareModel(models, cals);
+    await openModel(r.buf, r.name, r.calText, opts);
+    return true;
   } catch (er) {
     status('');
     if (er.code === 401) { $('maqPwd').hidden = false; maqError('Ce lien est protégé. Saisissez son mot de passe puis validez.'); }
     else if (er.code === 404) maqError('Ce lien a expiré ou n’existe pas. Demandez un nouveau lien de partage.');
     else maqError('Le serveur Nextcloud refuse la lecture depuis cette page. Installez GeoTrace sur le serveur ou téléchargez la maquette pour l’ouvrir depuis le PC.');
+    return false;
   } finally { share = prev; }
-});
+}
+$('maqForm').addEventListener('submit', e => { e.preventDefault(); loadMaquetteShare($('maqLink').value, $('maqPwd').value); });
+
+/* Maquette trouvée à côté des photos (dossier, glisser-déposer ou ZIP) : elle se charge toute seule. */
+async function autoModel({ models, cals }) {
+  if (!models.length) return;
+  const f = models.find(x => /\.ifc$/i.test(x.name)) || models[0];
+  const stem = f.name.replace(/\.[^.]+$/, '').toLowerCase();
+  const cal = cals.find(c => c.name.toLowerCase() === stem + '.geotrace.json') || cals[0];
+  try { await openModel(await f.arrayBuffer(), f.name, cal ? await cal.text() : null, { quiet: true }); }
+  catch (er) { console.warn('maquette du dossier illisible', er); }
+}
+/* À l'ouverture : lien Nextcloud de la configuration, sinon la dernière maquette gardée dans ce navigateur. */
+async function restoreModel() {
+  if (qp.get('maquette') || modelTouched) return;
+  if (CFG.maquetteLien && await loadMaquetteShare(CFG.maquetteLien, null, { quiet: true })) return;
+  maqError('');
+  const rec = await idbGet();
+  if (rec && rec.buffer && !modelTouched) await openModel(rec.buffer, rec.name, null, { quiet: true, noSave: true });
+}
 
 window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour les tests et la console
 
@@ -1241,6 +1309,7 @@ const qp = new URLSearchParams(location.search);
 if (qp.get('s')) { share = { base: (CFG.nextcloud || location.origin).replace(/\/$/, ''), token: qp.get('s'), password: null }; loadShare(); }
 else if (qp.get('lien')) { const s = parseShare(qp.get('lien')); if (s) { share = s; loadShare(); } }
 if (qp.get('demo') !== null && qp.has('demo')) loadDemo();
+restoreModel();
 if (qp.get('maquette')) { $('maqLink').value = qp.get('maquette'); setMaqPanel(true); $('maqForm').requestSubmit(); }
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {

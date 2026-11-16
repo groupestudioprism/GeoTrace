@@ -31,11 +31,23 @@ Raccourcis : `F` tout voir, `M` mesurer, `T` vignettes, `L` liste, `/` filtrer, 
 
 Le bouton **Maquette** place sur la carte une maquette 3D exportée de Revit, puis la cale avec des points GPS.
 
-1. Dans Revit : Fichier, Exporter, IFC (IFC 2x3 ou IFC 4). Le GLB est aussi accepté. Un `.rvt` ne s'ouvre pas dans un navigateur.
+1. Dans Revit : Fichier, Exporter, IFC. Le GLB est aussi accepté. Un `.rvt` ne s'ouvre pas dans un navigateur.
 2. Dans GeoTrace : Maquette, choisir le fichier, ou coller le lien de partage Nextcloud d'un fichier ou d'un dossier.
-3. **Ajouter un point de calage** : cliquez un point reconnaissable sur la vue plan de la maquette (angle de bâtiment, regard), puis le même point sur la carte. Avec la photo aérienne IGN, les angles de bâtiments sont les meilleurs repères.
-4. Deux points suffisent pour placer et orienter la maquette. Plus de points, plus loin les uns des autres, donnent un calage plus sûr. L'écart moyen est affiché : en dessous de 1 m, c'est bon.
-5. **Vue 3D** : la maquette sur la photo aérienne, avec les repères des photos de chantier. Le bouton « Voir dans la maquette » d'une fiche photo place la caméra là où la photo a été prise. « Superposer » affiche la photo en transparence sur la maquette pour comparer.
+3. **Chargement automatique** : un `.ifc` ou `.glb` placé dans le dossier de photos (dossier du PC, glisser-déposer, ZIP ou dossier Nextcloud) se charge tout seul à l'import des photos. La dernière maquette est aussi gardée dans le navigateur : à la visite suivante, elle revient sans rien réimporter. Avec `maquetteLien` dans `assets/config.js`, elle vient directement de Nextcloud.
+4. **Ajouter un point de calage** : cliquez un point reconnaissable sur la vue plan de la maquette (angle de bâtiment, regard), puis le même point sur la carte. Avec la photo aérienne IGN, les angles de bâtiments sont les meilleurs repères.
+5. Deux points suffisent pour placer et orienter la maquette. Plus de points, plus loin les uns des autres, donnent un calage plus sûr. L'écart moyen est affiché : en dessous de 1 m, c'est bon.
+6. **Vue 3D** : la maquette sur la photo aérienne, avec les repères des photos de chantier. Le bouton « Voir dans la maquette » d'une fiche photo place la caméra là où la photo a été prise. « Superposer » affiche la photo en transparence sur la maquette pour comparer.
+
+### Placer la maquette depuis Revit (sans cliquer de points)
+
+Si Revit connaît la position de l'ouvrage, GeoTrace la lit dans le fichier IFC et place la maquette tout seul (« Placée d'après les coordonnées enregistrées dans Revit »).
+
+Dans Revit :
+1. Donnez au projet les coordonnées du géomètre (Lambert-93 ou zone CC, RGF93) : dans l'onglet Gérer, Coordonnées, *Spécifier les coordonnées au point* sur le point de repérage, ou réglez Est/Nord/Élévation du point de base du projet. Les menus varient selon la version de Revit.
+2. Exportez en **IFC 4** (ou IFC 2x3) avec *Base des coordonnées* = **Coordonnées partagées** (ou point de mesure).
+3. Chargez le fichier dans GeoTrace. Si le fichier contient un `IfcMapConversion` avec un système `EPSG:2154` ou `EPSG:3942` à `EPSG:3950`, il est utilisé tel quel. Sinon, si les positions du fichier sont des coordonnées Lambert plausibles, GeoTrace propose le système (liste déroulante si plusieurs conviennent).
+
+Les points de calage saisis à la main ou un calage importé passent avant ce placement automatique. Le bouton *Placer d'après Revit* y revient. Un fichier sans coordonnées (origine interne de Revit) se cale avec des points, comme avant.
 
 L'échelle reste à 1:1 par défaut (une maquette Revit est à l'échelle réelle). Décochez l'option pour laisser GeoTrace l'ajuster.
 

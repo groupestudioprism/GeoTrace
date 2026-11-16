@@ -3,10 +3,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { IfcAPI } from '../vendor/web-ifc/web-ifc-api.js';
-import { makeFrame, solveSimilarity, applyTo } from './geo.js';
+import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT } from '../vendor/web-ifc/web-ifc-api.js';
+import { makeFrame, solveSimilarity, applyTo, CRS_LIST, latLonToProj, projToLatLon, crsFromName, guessCrs } from './geo.js';
 
-export { makeFrame, solveSimilarity, applyTo };
+export const crsLabel = code => (CRS_LIST.find(c => c.code === code) || { label: code }).label;
+export { makeFrame, solveSimilarity, applyTo, projToLatLon, latLonToProj };
 
 const L = window.L;
 const RAD = Math.PI / 180;
@@ -70,7 +71,8 @@ async function readIfc(buffer) {
   });
   // web-ifc fournit la géométrie avec Y vers le haut : on la remet Z vers le haut comme dans Revit.
   const up = new THREE.Group(); up.add(group); up.rotation.x = Math.PI / 2; up.updateMatrixWorld(true);
-  return { group: up, api, id };
+  let coord = null; try { coord = Array.from(api.GetCoordinationMatrix(id)); } catch (e) { /* absent */ }
+  return { group: up, api, id, coord };
 }
 
 function readGlb(buffer) {
@@ -88,7 +90,7 @@ function readGlb(buffer) {
 export async function loadModel(buffer, name) {
   unloadModel();
   const isGlb = /\.(glb|gltf)$/i.test(name);
-  const { group, api, id } = isGlb ? await readGlb(buffer) : await readIfc(buffer);
+  const { group, api, id, coord } = isGlb ? await readGlb(buffer) : await readIfc(buffer);
   const stats = summarize(group);
   if (!stats.meshes) throw new Error('empty');
   group.updateMatrixWorld(true);
@@ -96,12 +98,14 @@ export async function loadModel(buffer, name) {
   const c = box.getCenter(new THREE.Vector3());
   const inner = new THREE.Group(); inner.add(group); group.position.set(-c.x, -c.y, 0); inner.updateMatrixWorld(true);
   const lbox = new THREE.Box3().setFromObject(inner);
-  state.model = { name, kind: isGlb ? 'GLB' : 'IFC', group: inner, box: lbox, stats, api, id, offset: [c.x, c.y] };
+  state.georef = null;
+  state.model = { name, kind: isGlb ? 'GLB' : 'IFC', group: inner, box: lbox, stats, api, id, offset: [c.x, c.y], coord };
+  try { state.georef = isGlb ? null : readGeoref(state.model); } catch (e) { console.warn('géoréférencement illisible', e); state.georef = null; }
   return { name, kind: state.model.kind, ...stats, size: lbox.getSize(new THREE.Vector3()).toArray() };
 }
 export function unloadModel() {
   if (state.model && state.model.api) { try { state.model.api.CloseModel(state.model.id); } catch (e) { /* déjà fermé */ } }
-  state.model = null; state.sol = null;
+  state.model = null; state.sol = null; state.georef = null;
   closePlan(); close3D();
   if (ovl) { if (ovl.holder) ovl.scene.remove(ovl.holder); ovl.holder = null; renderOverlay(); }
 }
@@ -113,6 +117,62 @@ export function describe(expressID) {
     const val = v => v && v.value != null ? v.value : null;
     return { type: String(type || '').replace(/^IFC/i, 'Ifc'), name: val(line.Name), tag: val(line.Tag) || val(line.ObjectType) };
   } catch (e) { return null; }
+}
+
+/* ================= Géoréférencement lu dans le fichier IFC (Revit) ================= */
+const val = v => (v && v.value != null ? v.value : v);
+function lines(api, id, type) { const out = [], v = api.GetLineIDsWithType(id, type); for (let i = 0; i < v.size(); i++) out.push(v.get(i)); return out; }
+/* Coefficient qui ramène une longueur de la maquette (en mètres) dans l'unité du projet IFC. */
+function projectUnitM(api, id) {
+  for (const e of lines(api, id, IFCSIUNIT)) {
+    const u = api.GetLine(id, e, false);
+    if (String(val(u.UnitType)) !== 'LENGTHUNIT') continue;
+    const f = { MILLI: 0.001, CENTI: 0.01, DECI: 0.1, KILO: 1000 }[String(val(u.Prefix))];
+    return f || 1;
+  }
+  return 1;
+}
+/* Repère d'origine de l'IFC : « brut = position dans la scène + décalage ». web-ifc recentre la géométrie, la matrice de coordination dit de combien. */
+function rawOffset(model) {
+  const t = model.coord ? [model.coord[12], model.coord[13], model.coord[14]] : [0, 0, 0];
+  return [model.offset[0] - t[0], model.offset[1] + t[2]];
+}
+function readGeoref(model) {
+  const api = model.api, id = model.id, off = rawOffset(model);
+  const maps = lines(api, id, IFCMAPCONVERSION);
+  if (maps.length) {
+    const mc = api.GetLine(id, maps[0], false);
+    let name = null;
+    try { const ref = val(mc.TargetCRS); if (ref != null) name = val(api.GetLine(id, ref, false).Name); } catch (e) { /* nom absent */ }
+    if (!name) { const c = lines(api, id, IFCPROJECTEDCRS); if (c.length) name = val(api.GetLine(id, c[0], false).Name); }
+    const E = +val(mc.Eastings), N = +val(mc.Northings);
+    const a = val(mc.XAxisAbscissa) != null ? +val(mc.XAxisAbscissa) : 1, b = val(mc.XAxisOrdinate) != null ? +val(mc.XAxisOrdinate) : 0;
+    const norm = Math.hypot(a, b) || 1, ca = a / norm, sa = b / norm;
+    const k = (val(mc.Scale) != null ? +val(mc.Scale) : 1) / projectUnitM(api, id);
+    const crs = crsFromName(name);
+    return { source: 'IfcMapConversion', crsName: name, crs, candidates: crs ? [crs] : [], off,
+      fn: m => { const x = m[0] + off[0], y = m[1] + off[1]; return [E + k * (ca * x - sa * y), N + k * (sa * x + ca * y)]; } };
+  }
+  // Pas de IfcMapConversion : Revit a pu exporter les coordonnées partagées directement (ex. Lambert-93) dans les positions.
+  const b = model.box, cx = (b.min.x + b.max.x) / 2 + off[0], cy = (b.min.y + b.max.y) / 2 + off[1];
+  const cands = guessCrs(cx, cy).map(c => c.code);
+  if (!cands.length) return null;
+  return { source: 'coordonnées', crs: cands[0], candidates: cands, off, fn: m => [m[0] + off[0], m[1] + off[1]] };
+}
+/* Deux points de calage déduits des coordonnées de la maquette (coins opposés de l'emprise). */
+export function georefPairs(crs) {
+  const g = state.georef, m = state.model; if (!g || !m) return null;
+  const code = crs || g.crs; if (!code) return null;
+  const b = m.box, pts = [[b.min.x, b.min.y], [b.max.x, b.max.y]];
+  const pairs = pts.map(p => { const ll = projToLatLon(code, ...g.fn(p)); return ll && { m: p, ll }; });
+  if (pairs.some(p => !p || !(p.ll[0] > 40 && p.ll[0] < 52 && p.ll[1] > -6 && p.ll[1] < 10))) return null;
+  return pairs;
+}
+/* Place la maquette d'après le géoréférencement du fichier. Rend false si le fichier n'en contient pas d'utilisable. */
+export function applyGeoref(crs) {
+  const pairs = georefPairs(crs); if (!pairs) return false;
+  state.geo = { pairs, angle: 0, fixScale: true, auto: crs || state.georef.crs };
+  return true;
 }
 
 /* ================= Calage ================= */

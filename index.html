@@ -161,6 +161,11 @@
 
         <h3>Calage GPS</h3>
         <p id="maqState" class="mq-state"></p>
+        <div id="maqGeo" class="mq-geo" hidden>
+          <p id="maqGeoTxt" class="mq-state"></p>
+          <label id="maqCrsRow" hidden>Système de coordonnées <select id="maqCrs"></select></label>
+          <button class="btn" type="button" id="maqUseGeo" hidden>Placer d’après Revit</button>
+        </div>
         <ol id="maqPts"></ol>
         <div class="mq-opts">
           <label id="maqAngleRow" hidden>Orientation, en degrés <input type="number" id="maqAngle" value="0" step="1" min="-360" max="360"></label>
