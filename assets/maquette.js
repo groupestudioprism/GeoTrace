@@ -3,10 +3,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT } from '../vendor/web-ifc/web-ifc-api.js';
+import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT, IFCSITE, IFCGEOMETRICREPRESENTATIONCONTEXT } from '../vendor/web-ifc/web-ifc-api.js';
 import { makeFrame, solveSimilarity, applyTo, CRS_LIST, latLonToProj, projToLatLon, crsFromName, guessCrs } from './geo.js';
 
-export const crsLabel = code => (CRS_LIST.find(c => c.code === code) || { label: code }).label;
+export const crsLabel = code => code === 'SITE' ? 'lieu du projet' : (CRS_LIST.find(c => c.code === code) || { label: code }).label;
 export { makeFrame, solveSimilarity, applyTo, projToLatLon, latLonToProj };
 
 const L = window.L;
@@ -137,7 +137,36 @@ function rawOffset(model) {
   const t = model.coord ? [model.coord[12], model.coord[13], model.coord[14]] : [0, 0, 0];
   return [model.offset[0] - t[0], model.offset[1] + t[2]];
 }
+const plausible = ll => !!ll && ll[0] > 40 && ll[0] < 52 && ll[1] > -6 && ll[1] < 10;
 function readGeoref(model) {
+  const g = readMapGeoref(model), at0 = g && g.crs && g.fn ? projToLatLon(g.crs, ...g.fn([0, 0])) : null;
+  if (g && plausible(at0)) return g;
+  const site = readSiteGeoref(model);   // pas de position utilisable dans IfcMapConversion : lieu du projet défini dans Revit
+  return site || g;
+}
+/* Latitude/longitude du lieu du projet (IfcSite), avec l'angle du nord vrai. Position approximative : c'est le lieu choisi dans Revit, pas un relevé. */
+function readSiteGeoref(model) {
+  const api = model.api, id = model.id, off = rawOffset(model);
+  const sites = lines(api, id, IFCSITE); if (!sites.length) return null;
+  const site = api.GetLine(id, sites[0], false);
+  const list = a => Array.isArray(a) ? a : (a && Array.isArray(a.value) ? a.value : null);
+  const dms = raw => { const a = list(raw); if (!a || a.length < 3) return null; const v = a.map(x => +val(x) || 0), sg = v.some(x => x < 0) ? -1 : 1; return sg * (Math.abs(v[0]) + Math.abs(v[1]) / 60 + (Math.abs(v[2]) + Math.abs(v[3] || 0) / 1e6) / 3600); };
+  const lat = dms(site.RefLatitude), lon = dms(site.RefLongitude);
+  if (lat == null || lon == null || (!lat && !lon)) return null;
+  let phi = 90; // direction du nord vrai dans le repère de la maquette, en degrés depuis l'axe X (90 = nord vers +Y)
+  try {
+    for (const e of lines(api, id, IFCGEOMETRICREPRESENTATIONCONTEXT)) {
+      const c = api.GetLine(id, e, false), tn = val(c.TrueNorth); if (tn == null) continue;
+      const d = list(api.GetLine(id, tn, false).DirectionRatios).map(x => +val(x));
+      if (Math.hypot(d[0], d[1]) > 1e-9) { phi = Math.atan2(d[1], d[0]) / RAD; break; }
+    }
+  } catch (e) { /* nord par défaut */ }
+  const rot = (90 - phi) * RAD, cr = Math.cos(rot), sr = Math.sin(rot), Rt = 6371008.8;
+  return { source: 'IfcSite', crs: 'SITE', crsName: 'lieu du projet', candidates: ['SITE'], off, site: [lat, lon],
+    ll: m => { const x = m[0] + off[0], y = m[1] + off[1], e = cr * x - sr * y, n = sr * x + cr * y;
+      return [lat + n / Rt / RAD, lon + e / (Rt * Math.cos(lat * RAD)) / RAD]; } };
+}
+function readMapGeoref(model) {
   const api = model.api, id = model.id, off = rawOffset(model);
   const maps = lines(api, id, IFCMAPCONVERSION);
   if (maps.length) {
@@ -164,8 +193,8 @@ export function georefPairs(crs) {
   const g = state.georef, m = state.model; if (!g || !m) return null;
   const code = crs || g.crs; if (!code) return null;
   const b = m.box, pts = [[b.min.x, b.min.y], [b.max.x, b.max.y]];
-  const pairs = pts.map(p => { const ll = projToLatLon(code, ...g.fn(p)); return ll && { m: p, ll }; });
-  if (pairs.some(p => !p || !(p.ll[0] > 40 && p.ll[0] < 52 && p.ll[1] > -6 && p.ll[1] < 10))) return null;
+  const pairs = pts.map(p => { const ll = g.ll ? g.ll(p) : projToLatLon(code, ...g.fn(p)); return ll && { m: p, ll }; });
+  if (pairs.some(p => !p || !plausible(p.ll))) return null;
   return pairs;
 }
 /* Place la maquette d'après le géoréférencement du fichier. Rend false si le fichier n'en contient pas d'utilisable. */

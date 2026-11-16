@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.1';
+const VERSION = '1.2.2';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1030,7 +1030,7 @@ function drawContours() {
 
 
 /* ================= Maquette 3D (Revit) ================= */
-let Maq = null, calMode = null, pending = null, modelTouched = false;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
+let Maq = null, calMode = null, pending = null, modelTouched = false, siteFar = null;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
 const calLayer = L.layerGroup().addTo(map);
 const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t || ''; };
 async function maq() {
@@ -1062,7 +1062,15 @@ async function openModel(buffer, name, calText, opts = {}) {
   const saved = store.get('geotrace:calage:' + name, null);
   for (const text of [calText, saved && JSON.stringify(saved)]) { if (!text) continue; try { M.importCalage(text); break; } catch (e) { /* calage illisible : suivant */ } }
   const fromCal = M.state.geo.pairs.length > 0;
-  if (!fromCal && M.state.georef) M.applyGeoref(); // rien d'enregistré : on lit la position dans les coordonnées de Revit
+  siteFar = null;
+  if (!fromCal && M.state.georef) { // rien d'enregistré : on lit la position dans les coordonnées de Revit
+    const gr = M.state.georef, ps = photos.filter(p => p.lat != null);
+    if (gr.source === 'IfcSite' && ps.length) { // lieu par défaut de Revit, loin du chantier : on ne place pas la maquette au mauvais endroit
+      const cl = ps.reduce((s, p) => s + p.lat, 0) / ps.length, co = ps.reduce((s, p) => s + p.lon, 0) / ps.length;
+      const d = map.distance([cl, co], gr.site); if (d > 25000) siteFar = { km: Math.round(d / 1000), ll: gr.site };
+    }
+    if (!siteFar) M.applyGeoref();
+  }
   closeCal();
   M.refreshOverlay(); maqUi(info);
   if (!opts.noSave) idbSet({ name, buffer });
@@ -1099,10 +1107,12 @@ function maqUi(info) {
     const lab = gr.crs ? M.crsLabel(gr.crs) : (gr.crsName || 'inconnu');
     const usable = !!(gr.crs && M.georefPairs());
     $('maqGeoTxt').textContent = !gr.crs ? `Ce fichier est géoréférencé dans un système que GeoTrace ne connaît pas (${lab}). Placez la maquette avec des points de calage.`
+      : gr.source === 'IfcSite' ? (g.auto ? 'Placée d’après le lieu du projet défini dans Revit. Position approximative (quelques dizaines de mètres) : pour la précision, donnez à Revit les coordonnées du géomètre.'
+        : siteFar ? `Revit place ce projet à ${siteFar.ll[0].toFixed(3)}, ${siteFar.ll[1].toFixed(3)}, à ${siteFar.km} km de vos photos : c’est sans doute le lieu par défaut. Dans Revit, Gérer, Emplacement : indiquez l’adresse du chantier puis ré-exportez.` : 'Placez la maquette avec des points de calage.')
       : !usable && !g.auto ? `Le fichier indique un système (${M.crsLabel(gr.crs)}) mais pas de vraie position : la maquette est à l’origine (0 ; 0). Dans Revit, donnez au projet les coordonnées du géomètre puis ré-exportez, ou placez la maquette avec des points de calage.`
       : g.auto ? `Placée d’après les coordonnées enregistrées dans Revit (${M.crsLabel(g.auto)}).`
       : `Ce fichier contient des coordonnées géographiques (${lab}). Vous pouvez y placer la maquette automatiquement.`;
-    $('maqUseGeo').hidden = !usable || !!g.auto;
+    $('maqUseGeo').hidden = !usable || !!g.auto || !!siteFar;
     const sel = $('maqCrs'), multi = gr.candidates.length > 1;
     $('maqCrsRow').hidden = !multi;
     if (multi) { sel.textContent = ''; gr.candidates.forEach(c => sel.add(new Option(M.crsLabel(c), c))); sel.value = g.auto || gr.crs; }

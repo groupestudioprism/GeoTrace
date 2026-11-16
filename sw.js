@@ -1,6 +1,6 @@
 /* GeoTrace – cache de l'application pour un démarrage rapide et hors connexion.
    Les fonds de carte ne sont pas mis en cache : ils demandent une connexion. */
-const CACHE = 'geotrace-v1.2.1';
+const CACHE = 'geotrace-v1.2.2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js',

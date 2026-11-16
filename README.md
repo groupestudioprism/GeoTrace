@@ -51,6 +51,8 @@ Dans Revit :
 2. Exportez en **IFC 4** (ou IFC 2x3) avec *Base des coordonnées* = **Coordonnées partagées** (ou point de mesure).
 3. Chargez le fichier dans GeoTrace. Si le fichier contient un `IfcMapConversion` avec un système `EPSG:2154` ou `EPSG:3942` à `EPSG:3950`, il est utilisé tel quel. Sinon, si les positions du fichier sont des coordonnées Lambert plausibles, GeoTrace propose le système (liste déroulante si plusieurs conviennent).
 
+Sans coordonnées du géomètre, GeoTrace se rabat sur le **lieu du projet** : dans Revit, Gérer, Emplacement, indiquez l'adresse du chantier avant d'exporter. La maquette est alors placée toute seule, avec une précision de quelques dizaines de mètres et l'orientation du nord vrai. Si ce lieu est à plus de 25 km des photos (lieu par défaut de Revit), GeoTrace ne place pas la maquette et le dit.
+
 Les points de calage saisis à la main ou un calage importé passent avant ce placement automatique. Le bouton *Placer d'après Revit* y revient. Un fichier sans coordonnées (origine interne de Revit) se cale avec des points, comme avant.
 
 L'échelle reste à 1:1 par défaut (une maquette Revit est à l'échelle réelle). Décochez l'option pour laisser GeoTrace l'ajuster.
