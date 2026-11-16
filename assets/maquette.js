@@ -424,7 +424,7 @@ const saveAdj = (p, a) => { try { const z = !a.yaw && !a.pitch && !a.roll && !a.
 export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
-  const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement); renderer.domElement.className = 'v3-canvas';
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0xbcd3e6);
   scene.add(new THREE.AmbientLight(0xffffff, 1.7)); const dl = new THREE.DirectionalLight(0xffffff, 1.8); dl.position.set(-60, -80, 120); scene.add(dl);
@@ -486,7 +486,7 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(); drawMarks();
   };
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
-  const syncVis = () => { markers.visible = !v3.lock; if (v3.ground) v3.ground.visible = !v3.lock && v3.groundOn !== false; };
+  const syncVis = () => { scene.background = v3.lock ? null : new THREE.Color(0xbcd3e6); markers.visible = !v3.lock; if (v3.ground) v3.ground.visible = !v3.lock && v3.groundOn !== false; };
   v3.syncVis = syncVis; v3.poseCam = poseCam; v3.applyLock = applyLock;
   /* Calage par points : un point de la maquette, puis le même point sur la photo. 1 point règle le cap et l'inclinaison, 2 points ou plus règlent aussi le roulis et le zoom. */
   const ndcOf = (cam, x, y, z) => { const q = new THREE.Vector3(x, y, z).project(cam); return q; };

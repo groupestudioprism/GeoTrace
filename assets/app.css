@@ -332,8 +332,11 @@ dialog .hint { color: var(--muted); }
 .pip-acts button { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.22); border-radius: 7px; padding: 4px 10px; font-size: .78rem; font-weight: 600; }
 .pip-acts button[aria-pressed="true"] { background: rgba(18,181,240,.35); border-color: var(--cyan); }
 #v3Pip.blend { inset: 0; right: 0; bottom: 0; width: auto; background: none; border: 0; border-radius: 0; pointer-events: none; }
-#v3Pip.blend img { height: 100%; aspect-ratio: auto; object-fit: contain; opacity: var(--a, .5); }
-#v3Pip.blend figcaption { position: absolute; right: 12px; bottom: 12px; width: 280px; background: rgba(7,17,30,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; pointer-events: auto; }
+#v3Pip.blend img { position: relative; z-index: 1; height: 100%; aspect-ratio: auto; object-fit: contain; }
+/* Superposition : la photo en pleine couleur au fond, la maquette en pleine couleur par-dessus (le curseur règle l'opacité de la maquette). */
+#v3d.locked #v3Host { z-index: 2; pointer-events: none; }
+#v3d.locked .v3-canvas { pointer-events: auto; opacity: var(--m, 1); }
+#v3Pip.blend figcaption { z-index: 8; position: absolute; right: 12px; bottom: 12px; width: 280px; background: rgba(7,17,30,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; pointer-events: auto; }
 
 /* ---------- Mobile ---------- */
 .icon-btn.only-mobile { display: none; }

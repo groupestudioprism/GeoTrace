@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.5.0';
+const VERSION = '1.5.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1265,7 +1265,7 @@ const HINT_FREE = $('v3Hint').textContent;
 const HINT_LOCK = 'Caméra placée comme à la prise de vue. Pour caler : cliquez un point de la maquette, puis le même point sur la photo (deux points règlent aussi la rotation et le zoom). Glisser : orienter. Maj + glisser : déplacer l’appareil. Molette : zoom. Double-clic : réinitialiser. ← → : photo suivante.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
-  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE;
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on);
 }
 /* Affiche la photo et renvoie son rapport largeur / hauteur tel qu'elle apparaît (orientation EXIF comprise). */
 async function showPip(id) {
@@ -1293,7 +1293,7 @@ $('v3Blend').addEventListener('click', e => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
   if (on) alignPhoto($('v3Pip').dataset.pid); else { if (Maq) Maq.v3Release(); setBlend(false); }
 });
-$('v3Alpha').addEventListener('input', e => $('v3Pip').style.setProperty('--a', e.target.value / 100));
+$('v3Alpha').addEventListener('input', e => $('v3d').style.setProperty('--m', e.target.value / 100));
 document.addEventListener('keydown', e => {
   if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
   const id = Maq.v3Step(e.key === 'ArrowRight' ? 1 : -1); if (id) { e.preventDefault(); alignPhoto(id); }
