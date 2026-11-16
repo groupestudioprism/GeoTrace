@@ -40,7 +40,7 @@ Le bouton **Maquette** place sur la carte une maquette 3D exportée de Revit, pu
 
 ### Réglage d'export prêt à l'emploi (Revit 2026)
 
-[`revit/GeoTrace-IFC-Revit2026.json`](revit/GeoTrace-IFC-Revit2026.json) : IFC 4 Reference View, coordonnées partagées, sans lignes 2D ni propriétés Revit internes (fichier plus léger). Dans Revit : Fichier, Exporter, IFC, *Modifier la configuration*, icône *Importer*, choisir le fichier, puis sélectionner « GeoTrace ». Exportez depuis une vue 3D où seuls les éléments voulus sont visibles.
+[`revit/GeoTrace-IFC-Revit2026.json`](revit/GeoTrace-IFC-Revit2026.json) : IFC 4 Reference View, coordonnées partagées, système CC48 (EPSG:3948) renseigné, sans lignes 2D ni propriétés Revit internes (fichier plus léger). Dans Revit : Fichier, Exporter, IFC, *Modifier la configuration*, icône *Importer*, choisir le fichier, puis sélectionner « GeoTrace ». Exportez depuis une vue 3D où seuls les éléments voulus sont visibles.
 
 Pour bien référencer le projet dans Revit, pas à pas : [`revit/GUIDE-georeferencement.md`](revit/GUIDE-georeferencement.md). Un script Dynamo est fourni (`revit/GeoTrace-georeferencement.dyn`).
 

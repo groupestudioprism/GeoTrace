@@ -36,7 +36,7 @@ Ne prenez pas des latitudes/longitudes (GPS) comme coordonnées du projet : Revi
 
 ## 7. Exporter
 1. Importez la configuration `GeoTrace-IFC-Revit2026.json` (Fichier > Exporter > IFC > Modifier la configuration > Importer).
-2. Vérifiez : **IFC 4 Reference View**, base de coordonnées **Coordonnées partagées**. Si la fenêtre propose un code de système de coordonnées, saisissez **2154** (Lambert-93) ou **3948** (CC48).
+2. Vérifiez : **IFC 4 Reference View**, base de coordonnées **Coordonnées partagées**. Le fichier fourni renseigne déjà le système **CC48** (EPSG 3948). Pour un autre système, changez `GeoRefEPSGCode` et `GeoRefCRSName` dans le JSON (2154 pour Lambert-93), ou saisissez le code dans la fenêtre de configuration.
 3. Exportez depuis une vue 3D où seuls les éléments utiles sont visibles.
 4. Dans GeoTrace, la maquette doit se placer toute seule. Le panneau Maquette dit d'où vient la position : « coordonnées enregistrées dans Revit (Lambert-93) » ou « lieu du projet ».
 

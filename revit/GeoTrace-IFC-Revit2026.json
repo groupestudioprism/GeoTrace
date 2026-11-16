@@ -1,5 +1,5 @@
 {
-  "Name": "GeoTrace",
+  "Name": "GeoTrace CC48",
   "IFCVersion": 25,
   "IFCFileType": 0,
   "SpaceBoundaries": 0,
@@ -7,12 +7,14 @@
   "ActivePhaseId": {
     "IntegerValue": -1
   },
-  "ExportBaseQuantities": false,
   "SplitWallsAndColumns": false,
+  "IncludeSteelElements": false,
+  "ExportBaseQuantities": false,
+  "Export2DElements": false,
+  "ExportLinkedFiles": false,
+  "VisibleElementsOfCurrentView": true,
   "ExportInternalRevitPropertySets": false,
   "ExportIFCCommonPropertySets": true,
-  "Export2DElements": false,
-  "VisibleElementsOfCurrentView": true,
   "Use2DRoomBoundaryForVolume": false,
   "UseFamilyAndTypeNameForReference": false,
   "ExportPartsAsBuildingElements": false,
@@ -22,7 +24,11 @@
   "ExportUserDefinedParameterMapping": false,
   "UseActiveViewGeometry": false,
   "IncludeSiteElevation": true,
-  "IncludeSteelElements": false,
+  "GeoRefCRSName": "RGF93 v1 / CC48",
+  "GeoRefCRSDesc": "RGF93 v1 / Conic Conformal Zone 48",
+  "GeoRefEPSGCode": "3948",
+  "GeoRefGeodeticDatum": "RGF93",
+  "GeoRefMapUnit": "",
   "IsBuiltIn": false,
   "IsInSession": false
 }
