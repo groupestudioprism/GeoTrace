@@ -287,8 +287,10 @@ export function renderOverlay() {
   ovl.drawn = { zoom: map.getZoom(), topLeft };
   canvas.style.opacity = state.opacity;
   const f = state.frame, tl = f.toEN(...llArr(map.containerPointToLatLng([0, 0]))), br = f.toEN(...llArr(map.containerPointToLatLng([size.x, size.y])));
-  camera.left = tl[0]; camera.right = br[0]; camera.top = tl[1]; camera.bottom = br[1];
-  camera.position.set((tl[0] + br[0]) / 2, (tl[1] + br[1]) / 2, 2000); camera.lookAt((tl[0] + br[0]) / 2, (tl[1] + br[1]) / 2, 0);
+  // Les bords d'une caméra orthographique sont relatifs à sa position : on la centre sur la vue et on borne par la demi-largeur / demi-hauteur.
+  const mx = (tl[0] + br[0]) / 2, my = (tl[1] + br[1]) / 2;
+  camera.left = tl[0] - mx; camera.right = br[0] - mx; camera.top = tl[1] - my; camera.bottom = br[1] - my;
+  camera.position.set(mx, my, 2000); camera.lookAt(mx, my, 0);
   camera.updateProjectionMatrix();
   renderer.render(ovl.scene, camera);
 }
