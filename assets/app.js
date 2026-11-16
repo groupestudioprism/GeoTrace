@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.2';
+const VERSION = '1.2.3';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1030,7 +1030,7 @@ function drawContours() {
 
 
 /* ================= Maquette 3D (Revit) ================= */
-let Maq = null, calMode = null, pending = null, modelTouched = false, siteFar = null;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
+let Maq = null, calMode = null, pending = null, modelTouched = false, siteFar = null, moving = false;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
 const calLayer = L.layerGroup().addTo(map);
 const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t || ''; };
 async function maq() {
@@ -1126,7 +1126,7 @@ function maqUi(info) {
     st.textContent = `Maquette calée. Écart moyen ${fmt(sol.rms, 2)} m, ${q}.` + (g.fixScale ? '' : ` Échelle ${fmt(sol.s, 4)}.`);
   } else st.textContent = 'Les points sont trop proches l’un de l’autre. Choisissez des points éloignés.';
   const placed = M.isPlaced();
-  $('maq3d').disabled = !placed; $('maqZoom').disabled = !placed;
+  $('maq3d').disabled = !placed; $('maqZoom').disabled = !placed; $('maqMove').disabled = !placed;
   $('maqBtn').classList.toggle('on', !!m);
 }
 function afterCal() { Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
@@ -1172,7 +1172,25 @@ function planUpdate() {
 function closeCal() { calMode = null; pending = null; $('maqPlan').hidden = true; map.getContainer().style.cursor = ''; if (Maq) Maq.closePlan(); }
 $('maqAdd').addEventListener('click', startCal);
 $('maqPlanDone').addEventListener('click', closeCal);
+/* Déplacer la maquette : un clic sur la carte place le centre de la maquette à cet endroit, l'orientation ne change pas. */
+function moveOff() { moving = false; map.getContainer().style.cursor = ''; }
+$('maqMove').addEventListener('click', () => {
+  if (!Maq || !Maq.isPlaced()) return;
+  moving = true; closeCal(); map.getContainer().style.cursor = 'crosshair';
+  if (matchMedia('(max-width: 700px)').matches) setMaqPanel(false);
+  status('Cliquez sur la carte à l’endroit du centre de la maquette. Échap pour annuler.', { ms: 8000 });
+});
 map.on('click', e => {
+  if (moving && Maq) {
+    const b = Maq.state.model.box, c = Maq.modelToLatLon([(b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2]);
+    moveOff();
+    if (!c) return;
+    const g = Maq.state.geo, dLat = e.latlng.lat - c[0], dLon = e.latlng.lng - c[1];
+    g.pairs.forEach(p => { p.ll = [p.ll[0] + dLat, p.ll[1] + dLon]; });
+    g.auto = false; // position choisie à la main : elle est gardée et exportable comme un calage
+    afterCal(); zoomModel(); status('Maquette déplacée. Orientation inchangée.', { ms: 4000 });
+    return;
+  }
   if (calMode !== 'map' || !pending) return;
   const gg = Maq.state.geo; if (gg.auto) { gg.pairs = []; gg.auto = false; } // le point saisi à la main remplace le placement automatique
   gg.pairs.push({ m: pending, ll: [e.latlng.lat, e.latlng.lng] });
@@ -1297,7 +1315,7 @@ addEventListener('keydown', e => {
     else if (!typing && e.key === 'ArrowRight') $('vNext').click();
     return;
   }
-  if (e.key === 'Escape') { if (calMode === 'map') { calMode = 'model'; pending = null; planUpdate(); } else if (meas.on) measureOn(false); closeMenus(); return; }
+  if (e.key === 'Escape') { if (moving) { moveOff(); status(''); return; } if (calMode === 'map') { calMode = 'model'; pending = null; planUpdate(); } else if (meas.on) measureOn(false); closeMenus(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey || !$('welcome').hidden) return;
   const k = e.key.toLowerCase();
   if (k === 'f') fitAll();
