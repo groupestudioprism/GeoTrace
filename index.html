@@ -10,6 +10,7 @@
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="vendor/fonts/public-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/" } }</script>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
 <link rel="stylesheet" href="assets/app.css">
@@ -71,6 +72,8 @@
     </div>
   </div>
 
+  <button class="btn" id="maqBtn" type="button" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette</button>
+
   <div class="pop-wrap">
     <button class="btn" id="exportBtn" type="button" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
     <div class="menu right" id="exportMenu" hidden>
@@ -131,6 +134,57 @@
 
     <div id="coords" aria-live="off"></div>
 
+    <section id="maqPanel" hidden aria-label="Maquette 3D">
+      <div class="mq-head"><b>Maquette 3D</b><button class="icon-btn" id="maqClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
+
+      <div id="maqEmpty">
+        <p>Placez sur la carte la maquette exportée de Revit, puis calez-la avec des points GPS.</p>
+        <div class="mq-acts">
+          <button class="btn primary" type="button" id="maqPick"><span data-ic="cube"></span>Choisir un fichier IFC ou GLB</button>
+        </div>
+        <details class="mq-nc">
+          <summary>Ouvrir depuis Nextcloud</summary>
+          <form id="maqForm">
+            <input id="maqLink" type="url" placeholder="https://buildingnext.sturno.fr/s/…" aria-label="Lien de partage de la maquette" required>
+            <input id="maqPwd" type="password" placeholder="Mot de passe du lien" hidden autocomplete="off" aria-label="Mot de passe du lien">
+            <button class="btn" type="submit">Ouvrir</button>
+          </form>
+          <p class="hint">Lien d’un fichier .ifc ou .glb, ou d’un dossier qui en contient un.</p>
+        </details>
+        <p class="hint">Export Revit : Fichier, Exporter, IFC. L’IFC 2x3 ou 4 convient. Les très gros fichiers (plus de 100 Mo) peuvent être lents.</p>
+      </div>
+
+      <div id="maqLoaded" hidden>
+        <div class="mq-name"><b id="maqName"></b><small id="maqInfo"></small></div>
+        <label class="mq-row"><input type="checkbox" id="maqShow" checked> Afficher sur la carte</label>
+        <label class="mq-row">Opacité <input type="range" id="maqOpacity" min="10" max="100" value="75" aria-label="Opacité de la maquette"></label>
+
+        <h3>Calage GPS</h3>
+        <p id="maqState" class="mq-state"></p>
+        <ol id="maqPts"></ol>
+        <div class="mq-opts">
+          <label id="maqAngleRow" hidden>Orientation, en degrés <input type="number" id="maqAngle" value="0" step="1" min="-360" max="360"></label>
+          <label><input type="checkbox" id="maqScale" checked> Garder l’échelle réelle (1:1)</label>
+        </div>
+        <div class="mq-acts">
+          <button class="btn primary" type="button" id="maqAdd">Ajouter un point de calage</button>
+          <button class="btn" type="button" id="maq3d" disabled><span data-ic="cube"></span>Vue 3D</button>
+          <button class="btn" type="button" id="maqZoom" disabled>Zoomer dessus</button>
+        </div>
+        <div class="mq-acts small">
+          <button class="link" type="button" id="maqExport">Exporter le calage</button>
+          <button class="link" type="button" id="maqImport">Importer un calage</button>
+          <button class="link" type="button" id="maqRemove">Retirer la maquette</button>
+        </div>
+      </div>
+      <span class="err" id="maqErr" hidden></span>
+    </section>
+
+    <div id="maqPlan" hidden>
+      <div class="mp-head"><span id="maqPlanMsg"></span><button class="btn small" type="button" id="maqPlanDone">Terminer</button></div>
+      <div id="maqPlanView"></div>
+    </div>
+
     <div id="timeline" hidden>
       <div class="tl-head">
         <span id="tlTitle">Photos par jour</span>
@@ -187,6 +241,8 @@
   </div>
 </main>
 
+<input type="file" id="maqFile" class="hidden-input" accept=".ifc,.glb,.gltf" tabindex="-1" aria-hidden="true">
+<input type="file" id="maqCalFile" class="hidden-input" accept=".json,application/json" tabindex="-1" aria-hidden="true">
 <input type="file" id="folderInput" class="hidden-input" webkitdirectory multiple tabindex="-1" aria-hidden="true">
 <input type="file" id="zipInput" class="hidden-input" accept=".zip,application/zip" tabindex="-1" aria-hidden="true">
 <input type="file" id="filesInput" class="hidden-input" accept="image/*,.heic,.heif,.tif,.tiff,.zip" multiple tabindex="-1" aria-hidden="true">
@@ -210,6 +266,26 @@
   <div class="v-body">
     <div class="v-stage" id="vStage"><img id="vImg" alt="" draggable="false"><span class="v-msg" id="vMsg" hidden></span></div>
     <aside class="v-info" id="vInfo"></aside>
+  </div>
+</div>
+
+<div id="v3d" hidden role="dialog" aria-modal="true" aria-label="Maquette en 3D">
+  <div class="v-bar">
+    <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glissez pour tourner, molette pour zoomer, clic droit pour déplacer. Cliquez un repère pour voir la photo.</small></div>
+    <button class="vb wide" id="v3Over" type="button">Vue d’ensemble</button>
+    <label class="vb wide chk"><input type="checkbox" id="v3Ground" checked> Photo aérienne</label>
+    <button class="vb" id="v3Close" type="button" aria-label="Fermer" data-ic="close"></button>
+  </div>
+  <div class="v3-body">
+    <div id="v3Host"></div>
+    <div id="v3Elem" hidden></div>
+    <figure id="v3Pip" hidden>
+      <img id="v3PipImg" alt="">
+      <figcaption><span id="v3PipName"></span>
+        <span class="pip-acts"><button type="button" id="v3Here">Se placer ici</button><button type="button" id="v3Blend" aria-pressed="false">Superposer</button></span>
+        <input type="range" id="v3Alpha" min="10" max="90" value="50" aria-label="Transparence de la photo" hidden>
+      </figcaption>
+    </figure>
   </div>
 </div>
 

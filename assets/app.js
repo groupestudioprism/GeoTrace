@@ -3,8 +3,8 @@
 (() => {
 'use strict';
 
-const VERSION = '1.0.1';
-const CFG = Object.assign({ nextcloud: '', maquette: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
+const VERSION = '1.1.0';
+const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
 const $ = id => document.getElementById(id);
@@ -48,6 +48,7 @@ const IC = {
   minus: '<path d="M5 12h14"/>',
   rotate: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-9.5h.01"/>',
+  cube: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
 };
 const icon = (n, size) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"${size ? ` style="width:${size}px;height:${size}px"` : ''}>${IC[n]}</svg>`;
@@ -278,10 +279,10 @@ async function propfind(path) {
     return { path: rel, isDir: res.getElementsByTagNameNS('DAV:', 'collection').length > 0 };
   }).filter(e => e.path !== (path.replace(/\/$/, '') || '/'));
 }
-async function walk(path = '/', depth = 0, out = []) {
+async function walk(path = '/', depth = 0, out = [], re = IMG_RE) {
   for (const e of await propfind(path)) {
-    if (e.isDir) { if (depth < CFG.maxDepth) await walk(e.path + '/', depth + 1, out); }
-    else if (IMG_RE.test(e.path)) out.push(e.path);
+    if (e.isDir) { if (depth < CFG.maxDepth) await walk(e.path + '/', depth + 1, out, re); }
+    else if (re.test(e.path)) out.push(e.path);
   }
   return out;
 }
@@ -547,6 +548,7 @@ function popupHtml(p) {
     <div class="acts"><button type="button" data-act="open">Voir en grand</button>
       <button type="button" class="sec" data-act="copy">Copier la position</button>
       <a class="sec" href="${esc(mapsLink(p))}" target="_blank" rel="noopener">Itinéraire</a>
+      ${Maq && Maq.isPlaced() ? '<button type="button" class="sec" data-act="maq">Voir dans la maquette</button>' : ''}
       ${maq ? `<a class="sec" href="${esc(maq)}" target="_blank" rel="noopener">Ouvrir dans la maquette</a>` : ''}</div></div>`;
 }
 async function onPopupOpen(p) {
@@ -604,6 +606,7 @@ document.addEventListener('click', e => {
     document.querySelectorAll(`[data-pid="${p.id}"] [data-act="fav"]`).forEach(b => b.setAttribute('aria-pressed', on));
     setFav(p, on);
   } else if (act === 'copy') copyText(`${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`, 'Position copiée');
+  else if (act === 'maq') open3d(p.id);
   else if (act === 'copy-l93') { const l = fmtL93(p.lat, p.lon); if (l) copyText(l, 'Coordonnées Lambert-93 copiées'); }
 });
 document.addEventListener('input', e => {
@@ -1006,9 +1009,207 @@ function drawContours() {
   if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(() => svg.classList.add('draw'));
 }
 
+
+/* ================= Maquette 3D (Revit) ================= */
+let Maq = null, calMode = null, pending = null;           // calMode : null, 'model' (clic sur la maquette) ou 'map' (clic sur la carte)
+const calLayer = L.layerGroup().addTo(map);
+const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t || ''; };
+async function maq() {
+  if (Maq) return Maq;
+  status('Chargement du module 3D…');
+  try { Maq = await import('./maquette.js'); Maq.attachMap(map); }
+  catch (e) { status(''); maqError('Le module 3D n’a pas pu démarrer. Il faut un navigateur récent avec WebGL.'); console.error(e); throw e; }
+  status(''); return Maq;
+}
+const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, JSON.parse(Maq.exportCalage())); };
+function setMaqPanel(on) { $('maqPanel').hidden = !on; $('maqBtn').setAttribute('aria-expanded', String(on)); }
+$('maqBtn').addEventListener('click', () => setMaqPanel($('maqPanel').hidden));
+$('maqClose').addEventListener('click', () => setMaqPanel(false));
+$('maqPick').addEventListener('click', () => $('maqFile').click());
+$('maqFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) openModel(await f.arrayBuffer(), f.name); });
+if (CFG.maquetteLien) $('maqLink').value = CFG.maquetteLien;
+
+async function openModel(buffer, name, calText) {
+  maqError('');
+  const M = await maq();
+  status('Lecture de la maquette…');
+  let info;
+  try { info = await M.loadModel(buffer, name); }
+  catch (e) { status(''); maqError('Cette maquette n’a pas pu être lue. Vérifiez que c’est un export IFC ou GLB.'); console.error(e); return; }
+  status('');
+  const c = map.getCenter();
+  M.state.geo = { pairs: [], angle: 0, fixScale: true };
+  M.setFrameAt(c.lat, c.lng);
+  const saved = store.get('geotrace:calage:' + name, null);
+  for (const text of [calText, saved && JSON.stringify(saved)]) { if (!text) continue; try { M.importCalage(text); break; } catch (e) { /* calage illisible : suivant */ } }
+  closeCal();
+  M.refreshOverlay(); maqUi(info);
+  if (M.isPlaced()) { const b = M.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); status('Maquette placée d’après le calage enregistré.', { ms: 4000 }); }
+  else status('Maquette lue. Ajoutez au moins 2 points de calage pour la placer.', { ms: 6000 });
+  setMaqPanel(true);
+}
+function maqUi(info) {
+  const M = Maq, m = M && M.state.model;
+  $('maqEmpty').hidden = !!m; $('maqLoaded').hidden = !m;
+  calLayer.clearLayers();
+  if (!m) return;
+  if (info) { $('maqName').textContent = m.name; $('maqInfo').textContent = `${m.kind}, ${fmt(info.meshes, 0)} éléments, ${fmt(info.size[0], 0)} × ${fmt(info.size[1], 0)} m, hauteur ${fmt(info.size[2], 0)} m`; }
+  const g = M.state.geo, sol = M.state.sol, n = g.pairs.length;
+  $('maqAngle').value = g.angle; $('maqScale').checked = g.fixScale;
+  $('maqAngleRow').hidden = n > 1;
+  const ul = $('maqPts'); ul.textContent = '';
+  g.pairs.forEach((p, i) => {
+    const li = document.createElement('li'), a = document.createElement('span'), t = document.createElement('span'), b = document.createElement('button');
+    a.className = 'n'; a.textContent = i + 1;
+    const r = sol && sol.residuals && sol.residuals[i] != null && n > 1 ? `, écart ${fmt(sol.residuals[i], 2)} m` : '';
+    t.innerHTML = `Maquette ${esc(fmt(p.m[0], 1))} ; ${esc(fmt(p.m[1], 1))}<small>${p.ll[0].toFixed(6)}, ${p.ll[1].toFixed(6)}${esc(r)}</small>`;
+    b.type = 'button'; b.setAttribute('aria-label', `Supprimer le point ${i + 1}`); b.innerHTML = icon('close', 16);
+    b.addEventListener('click', () => { g.pairs.splice(i, 1); if (!g.pairs.length) { const c = map.getCenter(); M.setFrameAt(c.lat, c.lng); } afterCal(); });
+    li.append(a, t, b); ul.appendChild(li);
+    L.marker(p.ll, { icon: L.divIcon({ className: '', html: `<div class="cal-dot" style="width:22px;height:22px">${i + 1}</div>`, iconSize: [22, 22] }), interactive: false, keyboard: false }).addTo(calLayer);
+  });
+  const st = $('maqState'); st.className = 'mq-state';
+  if (!n) st.textContent = 'Aucun point de calage. Il en faut au moins 2 : un point de la maquette et le même point sur la carte.';
+  else if (n === 1) st.textContent = 'Un seul point : la maquette est placée à cet endroit avec l’orientation saisie ci-dessous. Un deuxième point la cale précisément.';
+  else if (sol) {
+    st.classList.add('ok');
+    const q = sol.rms < 1 ? 'bon calage' : sol.rms < 3 ? 'à vérifier' : 'écart important, vérifiez les points';
+    st.textContent = `Maquette calée. Écart moyen ${fmt(sol.rms, 2)} m, ${q}.` + (g.fixScale ? '' : ` Échelle ${fmt(sol.s, 4)}.`);
+  } else st.textContent = 'Les points sont trop proches l’un de l’autre. Choisissez des points éloignés.';
+  const placed = M.isPlaced();
+  $('maq3d').disabled = !placed; $('maqZoom').disabled = !placed;
+  $('maqBtn').classList.toggle('on', !!m);
+}
+function afterCal() { Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
+$('maqShow').addEventListener('change', e => Maq && Maq.setVisible(e.target.checked));
+$('maqOpacity').addEventListener('input', e => Maq && Maq.setOpacity(e.target.value / 100));
+$('maqAngle').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.angle = +e.target.value || 0; afterCal(); });
+$('maqScale').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.fixScale = e.target.checked; afterCal(); });
+$('maqZoom').addEventListener('click', () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 20 }); });
+$('maqRemove').addEventListener('click', () => { if (!Maq) return; closeCal(); Maq.unloadModel(); Maq.refreshOverlay(); maqUi(); maqError(''); });
+$('maqExport').addEventListener('click', () => {
+  const m = Maq && Maq.state.model; if (!m) return;
+  download(m.name.replace(/\.[^.]+$/, '') + '.geotrace.json', new Blob([Maq.exportCalage()], { type: 'application/json' }));
+  status('Calage exporté. Déposez-le à côté de la maquette sur Nextcloud : GeoTrace le relira tout seul.', { ms: 6000 });
+});
+$('maqImport').addEventListener('click', () => $('maqCalFile').click());
+$('maqCalFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !Maq) return;
+  try { Maq.importCalage(await f.text()); afterCal(); const b = Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); maqError(''); }
+  catch (er) { maqError('Ce fichier n’est pas un calage GeoTrace.'); }
+});
+
+/* Calage : clic sur la maquette, puis clic sur la carte au même endroit. */
+async function startCal() {
+  const M = await maq(); if (!M.state.model) return;
+  if (meas.on) measureOn(false);
+  calMode = 'model'; pending = null;
+  $('maqPlan').hidden = false;
+  M.openPlan($('maqPlanView'), { onPick: w => { if (calMode !== 'model') return; pending = w; calMode = 'map'; planUpdate(); } });
+  planUpdate();
+}
+function planUpdate() {
+  const M = Maq; if (!M || !calMode) return;
+  M.planSet(M.state.geo.pairs.map(p => ({ m: p.m })), pending);
+  map.getContainer().style.cursor = calMode === 'map' ? 'crosshair' : '';
+  const n = M.state.geo.pairs.length;
+  $('maqPlanMsg').textContent = calMode === 'model'
+    ? (n ? `Point ${n} placé. Cliquez le point suivant sur la maquette, ou terminez.` : 'Cliquez un point reconnaissable de la maquette (angle de bâtiment, regard).')
+    : `Cliquez maintenant le même point sur la carte (point ${n + 1}).`;
+}
+function closeCal() { calMode = null; pending = null; $('maqPlan').hidden = true; map.getContainer().style.cursor = ''; if (Maq) Maq.closePlan(); }
+$('maqAdd').addEventListener('click', startCal);
+$('maqPlanDone').addEventListener('click', closeCal);
+map.on('click', e => {
+  if (calMode !== 'map' || !pending) return;
+  Maq.state.geo.pairs.push({ m: pending, ll: [e.latlng.lat, e.latlng.lng] });
+  pending = null; calMode = 'model';
+  afterCal();
+});
+
+/* Vue 3D */
+async function open3d(focusId) {
+  const M = await maq();
+  if (!M.isPlaced()) { setMaqPanel(true); maqError('Placez d’abord la maquette avec au moins 2 points de calage.'); return; }
+  if (!$('viewer').hidden) closeViewer();
+  map.closePopup();
+  const list = placedOf(visible()).map(p => ({ id: p.id, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, dev: p.dev, rel: p.rel }));
+  $('v3d').hidden = false; document.body.style.overflow = 'hidden';
+  $('v3Pip').hidden = true; $('v3Elem').hidden = true; $('v3Pip').classList.remove('blend');
+  status('Préparation de la vue 3D…');
+  try { await M.open3D($('v3Host'), { photos: list, focus: focusId, onPhoto: showPip, onElement: showElem }); }
+  catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
+  status('');
+  $('v3Ground').checked = true;
+  if (focusId) showPip(focusId);
+  $('v3Close').focus();
+}
+function close3d() { if (Maq) Maq.close3D(); $('v3d').hidden = true; document.body.style.overflow = ''; }
+function showElem(info) {
+  const el = $('v3Elem'); el.hidden = !info;
+  if (info) el.innerHTML = `<b>${esc(info.name || 'Élément sans nom')}</b>${esc(info.type || '')}${info.tag ? ', ' + esc(info.tag) : ''}`;
+}
+async function showPip(id) {
+  const p = photos.find(x => x.id === id); if (!p) return;
+  const fig = $('v3Pip'); fig.hidden = false; fig.dataset.pid = id;
+  $('v3PipName').textContent = p.name;
+  const u = await displayUrl(p);
+  if (fig.dataset.pid === id) $('v3PipImg').src = u || '';
+}
+$('v3Close').addEventListener('click', close3d);
+$('maq3d').addEventListener('click', () => open3d(null));
+$('v3Over').addEventListener('click', () => Maq && Maq.v3Overview());
+$('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
+$('v3Here').addEventListener('click', () => Maq && Maq.v3FromPhoto($('v3Pip').dataset.pid));
+$('v3Blend').addEventListener('click', e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  e.currentTarget.setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
+  if (on) Maq.v3FromPhoto($('v3Pip').dataset.pid);
+});
+$('v3Alpha').addEventListener('input', e => $('v3Pip').style.setProperty('--a', e.target.value / 100));
+
+/* Maquette sur Nextcloud : lien d'un fichier .ifc/.glb ou d'un dossier. Un fichier « nom.geotrace.json » à côté donne le calage. */
+$('maqForm').addEventListener('submit', async e => {
+  e.preventDefault(); maqError('');
+  const s = parseShare($('maqLink').value.trim());
+  if (!s) return maqError('Ce n’est pas un lien de partage. Il doit contenir « /s/ » suivi d’un code.');
+  s.password = $('maqPwd').value || null;
+  const prev = share; share = s;
+  try {
+    status('Recherche de la maquette…');
+    let models = [], cals = [];
+    try {
+      const all = await walk('/', 0, [], /\.(ifc|glb|gltf|geotrace\.json)$/i);
+      models = all.filter(x => /\.(ifc|glb|gltf)$/i.test(x)); cals = all.filter(x => /\.geotrace\.json$/i.test(x));
+    } catch (er) { if (er.code === 401 || er.code === 404) throw er; }
+    const get = async url => { const r = await fetch(url, { headers: authH() }); if (!r.ok) throw Object.assign(new Error('http'), { code: r.status }); return r; };
+    let buf, name;
+    if (models.length) { name = models[0].split('/').pop(); status(`Téléchargement de ${name}…`); buf = await (await get(davRoot() + encPath(models[0]))).arrayBuffer(); }
+    else { // lien direct vers un fichier
+      const r = await get(davRoot()); buf = await r.arrayBuffer();
+      const cd = (r.headers.get('content-disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i);
+      name = cd ? decodeURIComponent(cd[1]) : (new TextDecoder().decode(buf.slice(0, 4)) === 'glTF' ? 'maquette.glb' : 'maquette.ifc');
+    }
+    let calText = null;
+    const stem = name.replace(/\.[^.]+$/, '').toLowerCase();
+    const calPath = cals.find(c => c.split('/').pop().toLowerCase() === stem + '.geotrace.json') || cals[0];
+    if (calPath) { try { calText = await (await get(davRoot() + encPath(calPath))).text(); } catch (er) { /* calage absent : on continue */ } }
+    status('');
+    await openModel(buf, name, calText);
+  } catch (er) {
+    status('');
+    if (er.code === 401) { $('maqPwd').hidden = false; maqError('Ce lien est protégé. Saisissez son mot de passe puis validez.'); }
+    else if (er.code === 404) maqError('Ce lien a expiré ou n’existe pas. Demandez un nouveau lien de partage.');
+    else maqError('Le serveur Nextcloud refuse la lecture depuis cette page. Installez GeoTrace sur le serveur ou téléchargez la maquette pour l’ouvrir depuis le PC.');
+  } finally { share = prev; }
+});
+
+window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour les tests et la console
+
 /* ================= Aide et raccourcis ================= */
 $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace version ${VERSION}`; $('help').showModal(); });
 addEventListener('keydown', e => {
+  if (!$('v3d').hidden) { if (e.key === 'Escape') close3d(); return; }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') closeViewer();
@@ -1016,7 +1217,7 @@ addEventListener('keydown', e => {
     else if (!typing && e.key === 'ArrowRight') $('vNext').click();
     return;
   }
-  if (e.key === 'Escape') { if (meas.on) measureOn(false); closeMenus(); return; }
+  if (e.key === 'Escape') { if (calMode === 'map') { calMode = 'model'; pending = null; planUpdate(); } else if (meas.on) measureOn(false); closeMenus(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey || !$('welcome').hidden) return;
   const k = e.key.toLowerCase();
   if (k === 'f') fitAll();
@@ -1040,6 +1241,7 @@ const qp = new URLSearchParams(location.search);
 if (qp.get('s')) { share = { base: (CFG.nextcloud || location.origin).replace(/\/$/, ''), token: qp.get('s'), password: null }; loadShare(); }
 else if (qp.get('lien')) { const s = parseShare(qp.get('lien')); if (s) { share = s; loadShare(); } }
 if (qp.get('demo') !== null && qp.has('demo')) loadDemo();
+if (qp.get('maquette')) { $('maqLink').value = qp.get('maquette'); setMaqPanel(true); $('maqForm').requestSubmit(); }
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* hors ligne non disponible */ }));

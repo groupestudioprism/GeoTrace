@@ -27,6 +27,24 @@ Le bouton « Essayer avec des photos d'exemple » charge une rue fictive pour d�
 
 Raccourcis : `F` tout voir, `M` mesurer, `T` vignettes, `L` liste, `/` filtrer, `?` aide.
 
+## Maquette Revit
+
+Le bouton **Maquette** place sur la carte une maquette 3D exportée de Revit, puis la cale avec des points GPS.
+
+1. Dans Revit : Fichier, Exporter, IFC (IFC 2x3 ou IFC 4). Le GLB est aussi accepté. Un `.rvt` ne s'ouvre pas dans un navigateur.
+2. Dans GeoTrace : Maquette, choisir le fichier, ou coller le lien de partage Nextcloud d'un fichier ou d'un dossier.
+3. **Ajouter un point de calage** : cliquez un point reconnaissable sur la vue plan de la maquette (angle de bâtiment, regard), puis le même point sur la carte. Avec la photo aérienne IGN, les angles de bâtiments sont les meilleurs repères.
+4. Deux points suffisent pour placer et orienter la maquette. Plus de points, plus loin les uns des autres, donnent un calage plus sûr. L'écart moyen est affiché : en dessous de 1 m, c'est bon.
+5. **Vue 3D** : la maquette sur la photo aérienne, avec les repères des photos de chantier. Le bouton « Voir dans la maquette » d'une fiche photo place la caméra là où la photo a été prise. « Superposer » affiche la photo en transparence sur la maquette pour comparer.
+
+L'échelle reste à 1:1 par défaut (une maquette Revit est à l'échelle réelle). Décochez l'option pour laisser GeoTrace l'ajuster.
+
+**Partager le calage avec toute l'équipe** : exportez le calage (fichier `nom.geotrace.json`) et déposez-le à côté de la maquette sur Nextcloud, avec le même nom que le fichier IFC. GeoTrace le relit à l'ouverture du lien. Sans cela, le calage est gardé dans le navigateur de l'ordinateur qui l'a fait.
+
+Pour ouvrir la maquette de l'affaire directement, renseignez `maquetteLien` dans `assets/config.js` ou ouvrez la page avec `?maquette=LIEN_DE_PARTAGE`.
+
+Limites : la maquette est lue entièrement dans le navigateur, donc les très gros IFC (plus de 100 Mo) sont lents. Sur la carte, la maquette est vue du dessus (plan) ; l'inclinaison se fait dans la Vue 3D.
+
 ## Réglages
 
 Le fichier [`assets/config.js`](assets/config.js) contient le serveur Nextcloud, la profondeur des sous-dossiers et le lien vers une future maquette 3D.
@@ -39,7 +57,7 @@ Le logo GeoTrace est dans `assets/`. Le logo STURNO est `assets/logo-sturno.svg`
 
 ## Développement
 
-Site statique sans étape de compilation. Les bibliothèques (Leaflet, markercluster, exifr, JSZip, heic2any) et les polices sont dans `vendor/`.
+Site statique sans étape de compilation. Les bibliothèques (Leaflet, markercluster, exifr, JSZip, heic2any, three.js, web-ifc) et les polices sont dans `vendor/`.
 
 ```
 python3 -m http.server 8000
@@ -49,4 +67,4 @@ Puis ouvrez http://localhost:8000. Après une modification, changez la version d
 
 ## Licences des bibliothèques
 
-Leaflet et Leaflet.markercluster (BSD-2 et MIT), exifr (MIT), JSZip (MIT ou GPLv3), heic2any (MIT), polices Public Sans et Michroma (SIL OFL). Fonds de carte © IGN, © OpenStreetMap, © CARTO.
+Leaflet et Leaflet.markercluster (BSD-2 et MIT), exifr (MIT), JSZip (MIT ou GPLv3), heic2any (MIT), three.js (MIT), web-ifc (MPL-2.0), polices Public Sans et Michroma (SIL OFL). Fonds de carte © IGN, © OpenStreetMap, © CARTO.
