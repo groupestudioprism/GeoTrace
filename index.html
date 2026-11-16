@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GeoTrace – Carte des photos de chantier</title>
+<meta name="description" content="GeoTrace place sur la carte les photos de chantier géolocalisées, avec la direction de prise de vue. Tout est traité dans le navigateur.">
+<meta name="theme-color" content="#04264b">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="vendor/fonts/public-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
+<link rel="stylesheet" href="assets/app.css">
+<script>
+  /* Thème appliqué avant le rendu pour éviter un flash clair. */
+  try {
+    var t = JSON.parse(localStorage.getItem('geotrace:prefs') || '{}').theme;
+    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+  } catch (e) { document.documentElement.dataset.theme = 'light'; }
+</script>
+</head>
+<body>
+<noscript><p style="padding:24px">GeoTrace a besoin de JavaScript pour fonctionner.</p></noscript>
+
+<header id="top">
+  <button class="icon-btn only-mobile" id="panelToggle" type="button" aria-label="Afficher la liste des photos" aria-expanded="false" data-ic="list"></button>
+  <a class="brand" href="./" aria-label="GeoTrace, accueil">
+    <img src="assets/symbol.png" alt="" width="36" height="31">
+    <span class="wordmark"><span class="w-geo">Geo</span><span class="w-trace">Trace</span></span>
+  </a>
+
+  <a class="sturno" href="https://www.sturno.fr" target="_blank" rel="noopener" aria-label="Application STURNO">
+    <img class="st-logo" src="assets/logo-sturno.svg" alt="" width="30" height="30">
+    <b>STURNO</b>
+  </a>
+
+  <div class="search" role="search">
+    <span class="si" data-ic="search"></span>
+    <input id="geoSearch" type="search" placeholder="Aller à une adresse ou une commune" autocomplete="off" spellcheck="false" aria-label="Aller à une adresse ou une commune" aria-controls="geoResults" aria-expanded="false" role="combobox">
+    <ul id="geoResults" role="listbox" hidden></ul>
+  </div>
+
+  <span class="grow"></span>
+  <span class="sub" id="sub" aria-live="polite"></span>
+
+  <div class="pop-wrap">
+    <button class="btn" id="layersBtn" type="button" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Carte</button>
+    <div class="menu" id="layersMenu" hidden>
+      <fieldset>
+        <legend>Fond de carte</legend>
+        <label><input type="radio" name="base" value="ortho"> Photo aérienne IGN</label>
+        <label><input type="radio" name="base" value="plan"> Plan IGN</label>
+        <label><input type="radio" name="base" value="osm"> Plan clair</label>
+        <label><input type="radio" name="base" value="dark"> Plan sombre</label>
+      </fieldset>
+      <fieldset>
+        <legend>Calques</legend>
+        <label><input type="checkbox" id="optCadastre"> Parcelles cadastrales</label>
+        <label><input type="checkbox" id="optThumbs"> Vignettes sur les repères</label>
+        <label><input type="checkbox" id="optCones" checked> Direction de prise de vue</label>
+        <label><input type="checkbox" id="optTrack"> Parcours dans l’ordre des prises</label>
+        <label><input type="checkbox" id="optCluster" checked> Regrouper les photos proches</label>
+      </fieldset>
+      <fieldset>
+        <legend>Fiche photo</legend>
+        <label><input type="checkbox" id="optAddr" checked> Chercher l’adresse (envoie la position à l’IGN)</label>
+      </fieldset>
+    </div>
+  </div>
+
+  <div class="pop-wrap">
+    <button class="btn" id="exportBtn" type="button" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
+    <div class="menu right" id="exportMenu" hidden>
+      <button type="button" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS, outils web</small></button>
+      <button type="button" data-export="kml"><b>KML</b><small>Google Earth</small></button>
+      <button type="button" data-export="csv"><b>CSV</b><small>Excel, avec coordonnées Lambert-93</small></button>
+      <button type="button" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV de la sélection</small></button>
+    </div>
+  </div>
+
+  <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
+  <button class="icon-btn" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
+  <button class="btn primary" id="sourceBtn" type="button"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
+</header>
+
+<main id="app">
+  <aside id="panel" aria-label="Liste des photos">
+    <div class="p-head">
+      <div class="src-row">
+        <span class="src" id="srcName">Aucune source</span>
+        <button class="btn small" id="addBtn" type="button" disabled>Ajouter</button>
+      </div>
+      <div class="filter">
+        <span class="si" data-ic="search"></span>
+        <input id="q" type="search" placeholder="Filtrer par nom, dossier ou note" autocomplete="off" aria-label="Filtrer les photos">
+      </div>
+      <div class="chips" id="chips" role="group" aria-label="Appareils">
+        <button type="button" class="chip on" data-dev="phone" aria-pressed="true"><i></i>Téléphone<b>0</b></button>
+        <button type="button" class="chip on" data-dev="tab" aria-pressed="true"><i></i>Tablette<b>0</b></button>
+        <button type="button" class="chip on" data-dev="drone" aria-pressed="true"><i></i>Drone<b>0</b></button>
+        <button type="button" class="chip fav" id="favOnly" aria-pressed="false"><span data-ic="star"></span>Favoris<b>0</b></button>
+      </div>
+      <div class="dates">
+        <label>Du <input type="date" id="dFrom"></label>
+        <label>au <input type="date" id="dTo"></label>
+        <button type="button" class="link" id="dReset" hidden>Effacer</button>
+      </div>
+    </div>
+    <ul id="list"></ul>
+    <div class="empty" id="emptyList" hidden></div>
+  </aside>
+
+  <section class="mapwrap" aria-label="Carte">
+    <div id="map"></div>
+
+    <div class="tools" role="toolbar" aria-label="Outils de carte">
+      <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
+      <button class="tool" id="measureBtn" type="button" aria-label="Mesurer (M)" title="Mesurer (M)" aria-pressed="false" data-ic="ruler"></button>
+      <button class="tool" id="locateBtn" type="button" aria-label="Ma position" title="Ma position" data-ic="locate"></button>
+    </div>
+
+    <div id="measure" hidden>
+      <div class="m-read" id="mRead">Cliquez sur la carte pour tracer.</div>
+      <button type="button" class="link" id="mUndo">Annuler le point</button>
+      <button type="button" class="link" id="mClear">Effacer</button>
+      <button type="button" class="link" id="mDone">Terminer</button>
+    </div>
+
+    <div id="coords" aria-live="off"></div>
+
+    <div id="timeline" hidden>
+      <div class="tl-head">
+        <span id="tlTitle">Photos par jour</span>
+        <span class="tl-range" id="tlRange"></span>
+        <button type="button" class="link" id="tlClear" hidden>Tout afficher</button>
+      </div>
+      <div class="tl-plot" id="tlPlot" aria-label="Chronologie des prises de vue. Cliquez ou glissez pour filtrer la période."></div>
+    </div>
+
+    <div id="toast" role="status" hidden><span id="toastText"></span><i class="bar" id="toastBar" hidden><b></b></i></div>
+  </section>
+
+  <!-- Accueil -->
+  <div id="welcome">
+    <svg class="contours" id="contours" aria-hidden="true" preserveAspectRatio="xMidYMid slice"></svg>
+    <div class="w-in">
+      <img class="w-logo" src="assets/logo-geotrace.png" alt="GeoTrace" width="320" height="174">
+      <h1>Vos photos de chantier, replacées sur la carte.</h1>
+      <p class="lead">GeoTrace lit la position et la direction de chaque photo, puis la dessine là où elle a été prise.</p>
+
+      <div class="drop" id="dropzone">
+        <div class="drop-title">Déposez ici un dossier, des photos ou un ZIP</div>
+        <div class="drop-acts">
+          <button class="btn primary" type="button" id="pickFolder"><span data-ic="folder"></span>Choisir un dossier</button>
+          <button class="btn" type="button" id="pickFiles"><span data-ic="image"></span>Choisir des photos</button>
+          <button class="btn" type="button" id="pickZip"><span data-ic="zip"></span>Choisir un ZIP</button>
+        </div>
+        <div class="drop-note">Dossier du PC, dossier Nextcloud synchronisé ou ZIP téléchargé depuis Nextcloud. Les sous-dossiers sont lus.</div>
+      </div>
+
+      <details class="nc">
+        <summary>Ouvrir un lien de partage Nextcloud</summary>
+        <form id="linkForm">
+          <input id="linkInput" type="url" placeholder="https://buildingnext.sturno.fr/s/…" required aria-label="Lien de partage Nextcloud">
+          <input id="pwdInput" type="password" placeholder="Mot de passe du lien" hidden autocomplete="off" aria-label="Mot de passe du lien">
+          <button class="btn" type="submit">Ouvrir le lien</button>
+        </form>
+        <p class="hint">Fonctionne quand GeoTrace est installé sur le serveur Nextcloud ou autorisé par celui-ci. Sinon, utilisez le dossier synchronisé ou le ZIP.</p>
+        <span class="err" id="linkErr" hidden></span>
+      </details>
+
+      <div class="owner">
+        <img class="st-logo" src="assets/logo-sturno.svg" alt="" width="34" height="34">
+        <span>Application GeoTrace de <b>STURNO</b>, pour le suivi des chantiers de réseaux.</span>
+      </div>
+
+      <div class="w-foot">
+        <button class="link" type="button" id="demoBtn">Essayer avec des photos d’exemple</button>
+        <span>Les photos restent sur votre ordinateur.</span>
+      </div>
+      <span class="err" id="welErr" hidden></span>
+      <button class="btn small" id="welClose" type="button" hidden>Revenir à la carte</button>
+    </div>
+  </div>
+</main>
+
+<input type="file" id="folderInput" class="hidden-input" webkitdirectory multiple tabindex="-1" aria-hidden="true">
+<input type="file" id="zipInput" class="hidden-input" accept=".zip,application/zip" tabindex="-1" aria-hidden="true">
+<input type="file" id="filesInput" class="hidden-input" accept="image/*,.heic,.heif,.tif,.tiff,.zip" multiple tabindex="-1" aria-hidden="true">
+<div id="dropHint" hidden>Déposez le dossier, les photos ou le ZIP</div>
+
+<div id="viewer" hidden role="dialog" aria-modal="true" aria-label="Photo en grand">
+  <div class="v-bar">
+    <div class="v-title"><b id="vName"></b><small id="vMeta"></small></div>
+    <button class="vb" id="vPrev" type="button" aria-label="Photo précédente" data-ic="prev"></button>
+    <button class="vb" id="vNext" type="button" aria-label="Photo suivante" data-ic="next"></button>
+    <span class="v-sep"></span>
+    <button class="vb" id="vZoomOut" type="button" aria-label="Zoom arrière" data-ic="minus"></button>
+    <button class="vb" id="vZoomIn" type="button" aria-label="Zoom avant" data-ic="plus"></button>
+    <button class="vb" id="vRotate" type="button" aria-label="Pivoter" data-ic="rotate"></button>
+    <button class="vb" id="vReset" type="button" aria-label="Taille d’origine" data-ic="fit"></button>
+    <span class="v-sep"></span>
+    <button class="vb" id="vInfoBtn" type="button" aria-label="Détails" aria-pressed="true" data-ic="info"></button>
+    <a class="vb" id="vDownload" aria-label="Télécharger la photo" data-ic="download"></a>
+    <button class="vb" id="vClose" type="button" aria-label="Fermer" data-ic="close"></button>
+  </div>
+  <div class="v-body">
+    <div class="v-stage" id="vStage"><img id="vImg" alt="" draggable="false"><span class="v-msg" id="vMsg" hidden></span></div>
+    <aside class="v-info" id="vInfo"></aside>
+  </div>
+</div>
+
+<dialog id="help">
+  <form method="dialog">
+    <h2>Aide</h2>
+    <p>Chaque photo apparaît sur la carte à l’endroit de la prise de vue. Le cône indique la direction visée quand l’appareil l’a enregistrée.</p>
+    <dl class="keys">
+      <dt>F</dt><dd>Tout voir</dd>
+      <dt>M</dt><dd>Mesurer une longueur ou une surface</dd>
+      <dt>T</dt><dd>Vignettes sur les repères</dd>
+      <dt>L</dt><dd>Afficher ou masquer la liste</dd>
+      <dt>/</dt><dd>Filtrer la liste</dd>
+      <dt>← →</dt><dd>Photo précédente ou suivante (visionneuse)</dd>
+      <dt>Échap</dt><dd>Fermer</dd>
+    </dl>
+    <p class="hint">Les favoris et les notes sont gardés dans ce navigateur, pour cet ordinateur. Ils sont aussi ajoutés aux exports.</p>
+    <p class="hint" id="ver"></p>
+    <button class="btn primary">Fermer</button>
+  </form>
+</dialog>
+
+<script src="assets/config.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet/leaflet.markercluster.js"></script>
+<script src="vendor/exifr.js"></script>
+<script src="vendor/jszip.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
