@@ -146,3 +146,8 @@ Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet p
 - Nouveau logo plus net (épingle avec reflet, calques, nom en dégradé) appliqué partout : en-tête, accueil, icônes, écran de lancement.
 - Animation de lancement complète d’environ 4,5 s qui utilise tout le logo (calques, routes, épingle, bâtiments, nom). Un clic ou une touche la passe ; `?nosplash` dans l’adresse la désactive.
 - Tuto guidé en 13 étapes : chaque étape entoure le vrai bouton ou la vraie zone, avec des aperçus des boutons de la vue 3D.
+
+## Version 1.12.0 : installations de chantier
+- Bouton « Chantier » : dessinez sur la carte 2D des zones de base vie, dépôt, décharge, stockage, parking et accès (rectangle ou polygone). Liste avec nom, type, surface, modification des sommets et suppression.
+- En vue 3D, chaque zone devient de vrais objets : cabines modulaires, conteneurs et palettes, bennes et tas de terre, piles de tuyaux, véhicules, portail, panneau, cônes et clôture. Les zones restent visibles en superposition.
+- Les zones sont gardées dans le navigateur et ajoutées au fichier de calage (`chantier`) par « Enregistrer pour l’équipe » : collègues et clients les retrouvent.

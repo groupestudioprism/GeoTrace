@@ -78,6 +78,7 @@
     </div>
   </div>
 
+  <button class="btn" id="chBtn" type="button" title="Dessiner les installations de chantier : base vie, dépôt, décharge…" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span>Chantier</button>
   <button class="btn" id="maqBtn" type="button" title="Placer une maquette Revit (IFC) sur la carte" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette 3D</button>
   <button class="btn" id="vue3dBtn" type="button" title="Voir les photos dans la maquette en 3D"><span data-ic="eye"></span>Photos en 3D</button>
 
@@ -141,6 +142,19 @@
     </div>
 
     <div id="coords" aria-live="off"></div>
+
+    <section id="chPanel" hidden aria-label="Installations de chantier">
+      <div class="mq-head"><b>Installations de chantier</b><button class="icon-btn" id="chClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
+      <p class="hint">Choisissez une installation, puis dessinez sa zone sur la carte. En 3D, elle devient des objets réels : cabines, conteneurs, bennes, tuyaux, véhicules et clôture.</p>
+      <div class="ch-types" id="chTypes"></div>
+      <div class="ch-mode" role="group" aria-label="Forme de la zone"><button type="button" id="chRect" aria-pressed="true">Rectangle</button><button type="button" id="chPoly" aria-pressed="false">Polygone</button></div>
+      <h3>Zones dessinées</h3>
+      <ul id="chList"></ul>
+      <p class="hint" id="chEmpty">Aucune zone pour l’instant.</p>
+      <label class="mq-row"><input type="checkbox" id="chShow" checked> Afficher sur la carte</label>
+      <p class="hint">Pour que l’équipe les voie : « Enregistrer pour l’équipe » en vue 3D, ou « Exporter le calage » dans Maquette 3D.</p>
+    </section>
+    <div id="chDraw" hidden><span id="chDrawTxt"></span><button type="button" class="link" id="chDrawBack">Retirer le dernier point</button><button type="button" class="link" id="chDrawOk">Terminer</button><button type="button" class="link" id="chDrawNo">Annuler</button></div>
 
     <section id="maqPanel" hidden aria-label="Maquette 3D">
       <div class="mq-head"><b>Maquette 3D</b><button class="icon-btn" id="maqClose" type="button" aria-label="Fermer" data-ic="close"></button></div>

@@ -445,7 +445,7 @@ dialog[open] { animation: gt-pop .18s ease-out both; }
 .pip-acts { flex-wrap: wrap; }
 
 /* Accueil : seuls les boutons utiles avant d'ouvrir des photos restent visibles */
-body.on-welcome #layersBtn, body.on-welcome #maqBtn, body.on-welcome #vue3dBtn, body.on-welcome #exportBtn, body.on-welcome #tutoBtn, body.on-welcome #sourceBtn, body.on-welcome #sub, body.on-welcome #layersBtn + .menu, body.on-welcome #panelToggle { display: none !important; }
+body.on-welcome #layersBtn, body.on-welcome #maqBtn, body.on-welcome #chBtn, body.on-welcome #vue3dBtn, body.on-welcome #exportBtn, body.on-welcome #tutoBtn, body.on-welcome #sourceBtn, body.on-welcome #sub, body.on-welcome #layersBtn + .menu, body.on-welcome #panelToggle { display: none !important; }
 body.on-welcome .pop-wrap { display: none; }
 
 /* Mode sombre : accueil, fenêtres et fiches */
@@ -540,3 +540,32 @@ body.on-welcome .pop-wrap { display: none; }
 .tc-demo small { color: rgba(255,255,255,.7); }
 .tc-nav { display: flex; justify-content: space-between; gap: 8px; }
 .tc-nav .btn[hidden] { display: none; }
+
+/* Installations de chantier */
+#chPanel { position: absolute; z-index: 820; top: 10px; right: 10px; width: 340px; max-height: calc(100% - var(--tl-h, 0px) - 30px); overflow-y: auto; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+#chPanel > * { flex: none; }
+#chPanel p { margin: 0; font-size: .88rem; }
+#chPanel h3 { margin: 4px 0 0; font-size: .92rem; }
+#chPanel .hint { color: var(--muted); font-size: .8rem; }
+.ch-types { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ch-type { display: grid; grid-template-columns: 14px 1fr; gap: 0 8px; align-items: center; text-align: left; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+.ch-type i { grid-row: 1 / 3; width: 14px; height: 36px; border-radius: 5px; }
+.ch-type b { font-size: .88rem; } .ch-type small { color: var(--muted); font-size: .72rem; line-height: 1.2; }
+.ch-type:hover { border-color: var(--bleu); } .ch-type[aria-pressed="true"] { border-color: var(--bleu); background: var(--sel); }
+.ch-mode { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; align-self: flex-start; }
+.ch-mode button { padding: 5px 12px; background: var(--panel-2); border: 0; font-size: .84rem; font-weight: 600; }
+.ch-mode button[aria-pressed="true"] { background: var(--bleu); color: #fff; }
+#chList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#chList li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 6px; }
+#chList li.on { border-color: var(--bleu); box-shadow: 0 0 0 1px var(--bleu) inset; }
+.ch-row { display: flex; align-items: center; gap: 8px; } .ch-sw { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.ch-name { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); font-weight: 600; }
+.ch-row small { color: var(--muted); white-space: nowrap; }
+.ch-acts { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: .84rem; }
+.ch-ty { height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); }
+.link.danger { color: var(--danger); }
+#chDraw { position: absolute; z-index: 800; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; max-width: calc(100% - 100px); padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: .88rem; font-weight: 600; }
+.ch-label { background: none; border: 0; }
+.ch-label span { display: inline-block; transform: translate(-50%, -50%); padding: 2px 9px; border-radius: 999px; background: #fff; color: #0b2342; border: 2px solid var(--c); font: 700 .74rem/1.4 var(--font); white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.ch-handle { background: #fff; border: 3px solid #0585c6; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: grab; }
+@media (max-width: 760px) { #chPanel { left: 10px; right: 10px; width: auto; top: 56px; } }

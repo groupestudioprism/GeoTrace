@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -45,6 +45,7 @@ const IC = {
   download: '<path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  zone: '<path d="M5 7l8-3 6 6-3 9-10-1z"/><circle cx="5" cy="7" r="1.3"/><circle cx="13" cy="4" r="1.3"/><circle cx="19" cy="10" r="1.3"/><circle cx="16" cy="19" r="1.3"/><circle cx="6" cy="18" r="1.3"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/>',
@@ -899,6 +900,7 @@ function measureUpdate() {
   else r.textContent = `Longueur ${fmtLen(len)}` + (meas.pts.length > 2 ? `, surface ${fmtArea(polyArea(meas.pts))}` : '');
 }
 function measureOn(on) {
+  if (on && Chantier) Chantier.cancelDraw();
   meas.on = on; $('measureBtn').setAttribute('aria-pressed', String(on)); $('measure').hidden = !on;
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) { meas.line.addTo(map); meas.poly.addTo(map); meas.dots.addTo(map); measureUpdate(); map.closePopup(); }
@@ -1031,7 +1033,7 @@ const maqError = t => { const e = $('maqErr'); e.hidden = !t; e.textContent = t 
 async function maq() {
   if (Maq) return Maq;
   status('Chargement du module 3D…');
-  try { Maq = await import('./maquette.js'); Maq.attachMap(map); }
+  try { Maq = await import('./maquette.js'); Maq.attachMap(map); Maq.setChantierProvider(() => Chantier ? Chantier.exportData() : null); }
   catch (e) { status(''); maqError('Le module 3D n’a pas pu démarrer. Il faut un navigateur récent avec WebGL.'); console.error(e); throw e; }
   status(''); return Maq;
 }
@@ -1127,7 +1129,7 @@ function maqUi(info) {
   $('maq3d').disabled = !placed; $('maqZoom').disabled = !placed;
   $('maqBtn').classList.toggle('on', !!m);
 }
-function afterCal() { Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
+function afterCal() { if (Chantier) Chantier.setProject(Maq.getProjChantier()); Maq.refreshOverlay(); saveCalage(); maqUi(); planUpdate(); }
 const zoomModel = () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 19 }); };
 $('maqUseGeo').addEventListener('click', () => { if (Maq && Maq.applyGeoref($('maqCrs').value || null)) { afterCal(); zoomModel(); } });
 $('maqCrs').addEventListener('change', e => { if (Maq && Maq.applyGeoref(e.target.value)) { afterCal(); zoomModel(); } });
@@ -1179,6 +1181,8 @@ map.on('click', e => {
 });
 
 /* Vue 3D */
+let Chantier = null;
+import('./chantier.js').then(m => { Chantier = m; m.init({ map, status, stopOthers: () => measureOn(false) }); if (Maq) m.setProject(Maq.getProjChantier()); }).catch(e => console.warn('chantier', e));
 async function open3d(focusId) {
   const M = await maq();
   if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
@@ -1190,7 +1194,7 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   buildStrip();
@@ -1360,6 +1364,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: '#timeline', t: 'La chronologie', x: 'Les barres comptent les photos par heure. Faites glisser sur la frise pour ne garder qu’une période. « Tout afficher » rétablit la liste complète.', note: 'Elle apparaît dès que les photos sont datées.' },
     { sel: '.tools', t: 'Les outils de la carte', x: 'De haut en bas : « Tout voir » (F) cadre toutes les photos, « Mesurer » (M) trace une longueur puis une surface dès trois points, « Ma position » centre la carte sur vous.' },
     { sel: ['#layersBtn', '#layersMenu'], t: 'Fond de carte et calques', x: 'Choisissez entre la photo aérienne et le plan de l’IGN. En dessous : parcelles cadastrales, vignettes sur les repères, direction de prise de vue, parcours dans l’ordre des prises.', pre: () => { closeMenus(); $('layersMenu').hidden = false; $('layersBtn').setAttribute('aria-expanded', 'true'); }, post: () => closeMenus() },
+    { sel: ['#chBtn', '#chPanel'], t: 'Installations de chantier', x: 'Dessinez sur la carte les zones d’installation : base vie, dépôt, décharge, stockage, parking, accès. Choisissez un type, puis tracez un rectangle (deux clics) ou un polygone. Vous pouvez les renommer, les modifier ou les supprimer dans la liste. En vue 3D, chaque zone devient un ensemble d’objets réels : cabines, conteneurs, bennes, tuyaux, véhicules, clôture.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } }, post: () => { if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
     { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
       demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },

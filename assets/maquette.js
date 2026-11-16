@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT, IFCSITE, IFCGEOMETRICREPRESENTATIONCONTEXT } from '../vendor/web-ifc/web-ifc-api.js';
+import { buildZones } from './zones3d.js';
 import { makeFrame, solveSimilarity, applyTo, CRS_LIST, latLonToProj, projToLatLon, crsFromName, guessCrs } from './geo.js';
 
 export const crsLabel = code => code === 'SITE' ? 'lieu du projet' : (CRS_LIST.find(c => c.code === code) || { label: code }).label;
@@ -229,17 +230,21 @@ export function applyTransform(obj) {
 export const modelToLatLon = m => state.sol && state.frame ? state.frame.toLL(...applyTo(state.sol, m)) : null;
 export function sceneToGeo() { return state.frame; }
 
+let chantierProvider = null, projChantier = null;
+export const setChantierProvider = f => { chantierProvider = f; };
+export const getProjChantier = () => projChantier;
 export function exportCalage() {
   return JSON.stringify({ geotrace: 'calage', version: 1, maquette: state.model ? state.model.name : null,
     fixScale: state.geo.fixScale, angle: state.geo.angle,
     points: state.geo.pairs.map(p => ({ maquette: p.m.map(v => +v.toFixed(3)), lat: +p.ll[0].toFixed(8), lon: +p.ll[1].toFixed(8) })),
     resultat: state.sol && !state.sol.placeholder ? { echelle: +state.sol.s.toFixed(5), rotation_deg: +(state.sol.theta / RAD).toFixed(3), ecart_moyen_m: +state.sol.rms.toFixed(3) } : null,
-    vues: collectVues() }, null, 2);
+    vues: collectVues(), chantier: chantierProvider ? chantierProvider() : null }, null, 2);
 }
 export function importCalage(text) {
   const j = JSON.parse(text);
   if (!j || j.geotrace !== 'calage' || !Array.isArray(j.points)) throw new Error('format');
   projVues = j.vues && typeof j.vues === 'object' ? j.vues : null;
+  projChantier = j.chantier && typeof j.chantier === 'object' ? j.chantier : null;
   state.geo = { fixScale: j.fixScale !== false, angle: +j.angle || 0,
     pairs: j.points.filter(p => Array.isArray(p.maquette) && Number.isFinite(p.lat) && Number.isFinite(p.lon)).map(p => ({ m: [+p.maquette[0], +p.maquette[1]], ll: [p.lat, p.lon] })) };
 }
@@ -468,7 +473,7 @@ function shareAdj(lk, photos) {
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
@@ -486,6 +491,7 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   const headingOf = p => p.heading != null ? p.heading : Math.atan2(c.x - p._e, c.y - p._n) / RAD;
   // photos : repère de l'appareil, plan de l'image à sa place dans le champ, et pyramide de vue
   const markers = new THREE.Group(); scene.add(markers);
+  if (zones.length) { try { const z = buildZones(zones, (la, lo) => state.frame.toEN(la, lo), zoneColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('installations', e); } }
   const far = Math.max(radius * 10, 2500);
   const dist = Math.max(3, radius / 12), K = .35;
   const build = (p, aspect) => {
@@ -718,7 +724,7 @@ export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }
-export function v3Camera() { return v3 ? { camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
+export function v3Camera() { return v3 ? { controls: v3.controls, camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
 export function close3D() {
   if (!v3) return;
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();
