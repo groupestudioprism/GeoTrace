@@ -116,3 +116,7 @@ Logo redessiné d'après le croquis retenu : épingle bleu foncé avec les trois
 - Commandes simplifiées : glisser = tourner, clic droit ou Maj + glisser = déplacer, molette = zoom vers le curseur, boutons + / − / vue de dessus, tactile (un doigt tourne, deux doigts zooment et déplacent).
 - Passage 3D → superposition : la caméra arrive à la prise de vue, puis le fond aérien s'efface en fondu pendant que la photo apparaît ; le cadre s'adapte à la forme de la photo sans saut.
 - « Appliquer à toutes » : le réglage d'une photo devient celui de toutes les autres (utile quand l'erreur vient de la maquette ou du drone et non d'une seule photo). « Tout annuler » remet tout à zéro.
+
+## Version 1.8.1
+
+« Appliquer à toutes » ne concerne plus que les photos du même type d'appareil (drone ou téléphone) : leurs erreurs de position et d'orientation ne sont pas les mêmes.

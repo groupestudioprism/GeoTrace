@@ -429,20 +429,21 @@ function basisOf(h, pitch) {
 const quatOf = ({ r, u, f }) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, f.clone().negate()));
 const ADJ0 = () => ({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 });
 const adjKey = p => 'geotrace:vue:' + (p.key || p.name);
-const SHARED = 'geotrace:vue:*commun';
+const SHARED = 'geotrace:vue:*commun:'; // + type d'appareil : une erreur de drone n'est pas celle d'un téléphone
+const sharedKey = p => SHARED + (p.dev || 'phone');
 /* Réglage propre à la photo s'il existe, sinon réglage commun (appliqué à toutes les photos), sinon aucun. */
-const loadAdj = p => { try { const own = localStorage.getItem(adjKey(p)); return Object.assign(ADJ0(), JSON.parse(own || localStorage.getItem(SHARED) || '{}')); } catch (e) { return ADJ0(); } };
+const loadAdj = p => { try { const own = localStorage.getItem(adjKey(p)); return Object.assign(ADJ0(), JSON.parse(own || localStorage.getItem(sharedKey(p)) || '{}')); } catch (e) { return ADJ0(); } };
 const saveAdj = (p, a) => { try { localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
 /* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
 function shareAdj(lk, photos) {
   try {
-    const a = lk.adj; localStorage.setItem(SHARED, JSON.stringify(a)); let n = 0;
-    photos.forEach(p => { if (p === lk.p) return; if (localStorage.getItem(adjKey(p)) != null) localStorage.removeItem(adjKey(p)); n++; });
+    const a = lk.adj; localStorage.setItem(sharedKey(lk.p), JSON.stringify(a)); let n = 0;
+    photos.forEach(p => { if (p === lk.p || (p.dev || 'phone') !== (lk.p.dev || 'phone')) return; if (localStorage.getItem(adjKey(p)) != null) localStorage.removeItem(adjKey(p)); n++; });
     saveAdj(lk.p, a); return n;
   } catch (e) { return 0; }
 }
 /* Remet toutes les photos sans réglage. */
-function clearAdj(photos) { try { localStorage.removeItem(SHARED); photos.forEach(p => localStorage.removeItem(adjKey(p))); } catch (e) { /* rien */ } }
+function clearAdj(photos) { try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
 export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {

@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.8.0';
+const VERSION = '1.8.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1304,7 +1304,7 @@ async function alignPhoto(id) {
   if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) setBlend(true);
 }
 $('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
-$('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
+$('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos du même type d’appareil.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
 $('v3Clear').addEventListener('click', () => { if (Maq) Maq.v3ClearAll(); showNote('Réglages de toutes les photos annulés.'); setTimeout(() => showNote(''), 3500); });
 $('v3In').addEventListener('click', () => Maq && Maq.v3Zoom(1.4));
 $('v3Out').addEventListener('click', () => Maq && Maq.v3Zoom(1 / 1.4));
