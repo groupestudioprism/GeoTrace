@@ -137,3 +137,7 @@ Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet p
 - Mode sombre appliqué à l'accueil, aux fenêtres, aux fiches et aux menus.
 - Bouton « Tuto » dans l'espace de travail ; l'accueil n'affiche plus les boutons réservés au travail sur les photos.
 - Retrait de la barre de recherche d'adresse et des fonds « Plan clair » et « Plan sombre ».
+
+## Version 1.10.1
+- Logo : l’épingle passe devant les calques.
+- Animation de lancement plus courte (environ 1,5 s) : les calques s’empilent, l’épingle tombe dessus, une onde part de sa pointe, puis le nom apparaît.
