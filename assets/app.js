@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.4.1';
+const VERSION = '1.5.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1123,7 +1123,6 @@ async function openModel(buffer, name, calText, opts = {}) {
 function maqUi(info) {
   const M = Maq, m = M && M.state.model;
   $('maqEmpty').hidden = !!m; $('maqLoaded').hidden = !m;
-  $('vue3dBtn').hidden = !m;
   calLayer.clearLayers();
   if (!m) return;
   if (info) { $('maqName').textContent = m.name; $('maqInfo').textContent = `${m.kind}, ${fmt(info.meshes, 0)} éléments, ${fmt(info.size[0], 0)} × ${fmt(info.size[1], 0)} m, hauteur ${fmt(info.size[2], 0)} m`; }
@@ -1223,7 +1222,7 @@ map.on('click', e => {
 /* Vue 3D */
 async function open3d(focusId) {
   const M = await maq();
-  if (!M.isPlaced()) { setMaqPanel(true); maqError('Placez d’abord la maquette avec au moins 2 points de calage.'); return; }
+  if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
   if (!$('viewer').hidden) closeViewer();
   map.closePopup();
   const ph = placedOf(visible());
@@ -1235,6 +1234,7 @@ async function open3d(focusId) {
   try { await M.open3D($('v3Host'), { photos: list, focus: null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
+  buildStrip();
   $('v3Ground').checked = true;
   if (focusId) alignPhoto(focusId);
   $('v3Close').focus();
@@ -1244,6 +1244,22 @@ function showNote(t) { const el = $('v3Elem'); el.hidden = !t; el.textContent = 
 function showElem(info) {
   const el = $('v3Elem'); el.hidden = !info;
   if (info) el.innerHTML = `<b>${esc(info.name || 'Élément sans nom')}</b>${esc(info.type || '')}${info.tag ? ', ' + esc(info.tag) : ''}`;
+}
+/* Bandeau de miniatures : un clic sur une photo y fait entrer la caméra. Les plus proches de la maquette d'abord. */
+function buildStrip() {
+  const st = $('v3Strip'); st.textContent = '';
+  const ids = (Maq ? Maq.v3Near() : []).slice(0, 80);
+  st.hidden = !ids.length;
+  ids.forEach(id => {
+    const p = photos.find(x => x.id === id); if (!p) return;
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = id; b.title = p.name; b.className = 'dev-' + p.dev;
+    if (p.thumb) b.style.backgroundImage = `url("${p.thumb}")`; else b.textContent = (p.name || '?').slice(0, 2);
+    b.addEventListener('click', () => alignPhoto(id)); st.appendChild(b);
+  });
+}
+function markStrip(id) {
+  const st = $('v3Strip'); st.querySelectorAll('.on').forEach(b => b.classList.remove('on'));
+  const b = st.querySelector(`[data-id="${id}"]`); if (b) { b.classList.add('on'); b.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }
 const HINT_FREE = $('v3Hint').textContent;
 const HINT_LOCK = 'Caméra placée comme à la prise de vue. Pour caler : cliquez un point de la maquette, puis le même point sur la photo (deux points règlent aussi la rotation et le zoom). Glisser : orienter. Maj + glisser : déplacer l’appareil. Molette : zoom. Double-clic : réinitialiser. ← → : photo suivante.';
@@ -1265,11 +1281,12 @@ async function showPip(id) {
 /* Clic sur une photo : on reste en 3D, la caméra se place comme à la prise de vue et la photo se superpose à la maquette. */
 async function alignPhoto(id) {
   const asp = await showPip(id); if (!Maq || $('v3d').hidden || $('v3Pip').dataset.pid !== id) return;
-  setBlend(true); Maq.v3FromPhoto(id, asp);
+  markStrip(id);
+  if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) setBlend(true);
 }
 $('v3Close').addEventListener('click', close3d);
 $('maq3d').addEventListener('click', () => open3d(null));
-$('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); });
+$('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); $('v3Strip').querySelectorAll('.on').forEach(b => b.classList.remove('on')); });
 $('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
 $('v3Here').addEventListener('click', () => alignPhoto($('v3Pip').dataset.pid));
 $('v3Blend').addEventListener('click', e => {
