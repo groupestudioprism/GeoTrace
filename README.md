@@ -88,3 +88,5 @@ Puis ouvrez http://localhost:8000. Après une modification, changez la version d
 ## Licences des bibliothèques
 
 Leaflet et Leaflet.markercluster (BSD-2 et MIT), exifr (MIT), JSZip (MIT ou GPLv3), heic2any (MIT), three.js (MIT), web-ifc (MPL-2.0), polices Public Sans et Michroma (SIL OFL). Fonds de carte © IGN, © OpenStreetMap, © CARTO.
+
+Reprise après un rafraîchissement : les photos ouvertes depuis un dossier, des fichiers ou un ZIP sont gardées dans le navigateur (IndexedDB), avec la maquette et son calage. Un lien Nextcloud est repris par l'adresse de la page. Ouvrir une autre source remplace la précédente. Le navigateur peut refuser de garder un très gros dossier s'il manque de place : dans ce cas la page revient à l'accueil au rafraîchissement.

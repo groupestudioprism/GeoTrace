@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.3.0';
+const VERSION = '1.3.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -26,7 +26,11 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } },
 };
 /* La maquette est gardée dans le navigateur : on n'a pas à la réimporter à chaque visite. */
-const idbOpen = () => new Promise((res, rej) => { const r = indexedDB.open('geotrace', 1); r.onupgradeneeded = () => r.result.createObjectStore('maquette'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const idbOpen = () => new Promise((res, rej) => {
+  const r = indexedDB.open('geotrace', 2);
+  r.onupgradeneeded = () => { const db = r.result; for (const n of ['maquette', 'session']) if (!db.objectStoreNames.contains(n)) db.createObjectStore(n); };
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
 async function idbDo(mode, fn) { const db = await idbOpen(); return new Promise((res, rej) => { const q = fn(db.transaction('maquette', mode).objectStore('maquette')); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 const idbSet = rec => idbDo('readwrite', s => s.put(rec, 'derniere')).catch(e => console.warn('maquette non mémorisée', e));
 const idbDel = () => idbDo('readwrite', s => s.delete('derniere')).catch(() => {});
@@ -225,10 +229,38 @@ async function addLocal(entries) {
   }, 'Lecture des photos');
   return items.length;
 }
+/* Les photos ouvertes sont gardées dans ce navigateur : un rafraîchissement de la page reprend là où on en était. */
+async function saveSession() {
+  const list = photos.filter(p => p.kind === 'local' && !p.demo && p.blob);
+  if (!list.length) return;
+  try {
+    const total = list.reduce((t, p) => t + p.blob.size, 0), est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+    if (est && est.quota && (est.usage || 0) + total > est.quota * .85) throw new Error('place insuffisante');
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    const label = $('srcName').textContent, db = await idbOpen();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('session', 'readwrite'), st = tx.objectStore('session');
+      st.clear(); st.put({ label, n: list.length }, 'meta'); list.forEach((p, i) => st.put({ name: p.name, folder: p.folder, blob: p.blob }, 'p' + i));
+      tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error || new Error('écriture annulée'));
+    });
+    store.set('geotrace:session', { label, n: list.length });
+  } catch (e) { console.warn('session non mémorisée', e); store.set('geotrace:session', null); }
+}
+async function restoreSession() {
+  const flag = store.get('geotrace:session', null); if (!flag) return false;
+  showWelcome(false); status('Reprise de votre dernière session…');
+  try {
+    const db = await idbOpen();
+    const recs = await new Promise((res, rej) => { const q = db.transaction('session', 'readonly').objectStore('session').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+    const entries = recs.filter(r => r && r.blob);
+    if (!entries.length) throw new Error('session vide');
+    reset(flag.label); const n = await addLocal(entries); finish(n); return true;
+  } catch (e) { console.warn('session illisible', e); store.set('geotrace:session', null); status(''); showWelcome(true); return false; }
+}
 async function loadFileList(fileList, label, append) {
   const files = [...fileList];
   if (!files.length) return;
-  if (!append) reset(label);
+  if (!append) { reset(label); try { history.replaceState(null, '', location.pathname); } catch (e) { /* adresse inchangée */ } }
   showWelcome(false); $('welErr').hidden = true;
   const zips = files.filter(f => /\.zip$/i.test(f.name));
   const imgs = files.filter(f => !/\.zip$/i.test(f.name)).map(f => {
@@ -239,6 +271,7 @@ async function loadFileList(fileList, label, append) {
   let n = await addLocal(imgs);
   for (const z of zips) n += await loadZip(z, extra);
   finish(n);
+  saveSession();
   await autoModel(extra);
 }
 async function loadZip(file, extra) {
@@ -324,6 +357,8 @@ async function loadShare() {
       url, previewUrl: prev + '&x=600&y=450', thumbRemote: prev + '&x=96&y=96', path }, meta));
   }, 'Lecture des photos');
   finish(paths.length);
+  try { history.replaceState(null, '', location.pathname + (share.base === (CFG.nextcloud || location.origin).replace(/\/$/, '') ? '?s=' + encodeURIComponent(share.token) : '?lien=' + encodeURIComponent(`${share.base}/s/${share.token}`))); } catch (e) { /* adresse inchangée */ }
+  store.set('geotrace:session', null); // la source est maintenant dans l'adresse
   const mp = found.filter(x => MODEL_RE.test(x)), cp = found.filter(x => CAL_RE.test(x));
   if (mp.length) { try { const r = await shareModel(mp, cp); await openModel(r.buf, r.name, r.calText, { quiet: true }); } catch (e) { console.warn('maquette du dossier partagé illisible', e); } }
 }
@@ -1343,7 +1378,7 @@ const qp = new URLSearchParams(location.search);
 if (qp.get('s')) { share = { base: (CFG.nextcloud || location.origin).replace(/\/$/, ''), token: qp.get('s'), password: null }; loadShare(); }
 else if (qp.get('lien')) { const s = parseShare(qp.get('lien')); if (s) { share = s; loadShare(); } }
 if (qp.get('demo') !== null && qp.has('demo')) loadDemo();
-restoreModel();
+(async () => { if (!qp.get('s') && !qp.get('lien') && !qp.has('demo')) await restoreSession(); restoreModel(); })();
 if (qp.get('maquette')) { $('maqLink').value = qp.get('maquette'); setMaqPanel(true); $('maqForm').requestSubmit(); }
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
