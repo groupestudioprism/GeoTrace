@@ -151,3 +151,9 @@ Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet p
 - Bouton « Chantier » : dessinez sur la carte 2D des zones de base vie, dépôt, décharge, stockage, parking et accès (rectangle ou polygone). Liste avec nom, type, surface, modification des sommets et suppression.
 - En vue 3D, chaque zone devient de vrais objets : cabines modulaires, conteneurs et palettes, bennes et tas de terre, piles de tuyaux, véhicules, portail, panneau, cônes et clôture. Les zones restent visibles en superposition.
 - Les zones sont gardées dans le navigateur et ajoutées au fichier de calage (`chantier`) par « Enregistrer pour l’équipe » : collègues et clients les retrouvent.
+
+## Version 1.13.0 : déviations
+
+Dans **Chantier**, l'onglet **Déviations** permet de tracer une déviation simple sur la carte : choisir le type (déviation véhicules, cheminement piétons, alternat, route barrée), cliquer les points du parcours, double-clic pour finir. Chaque déviation peut être renommée, changée de type, réglée en largeur, inversée de sens, modifiée point par point ou supprimée.
+
+En vue 3D, elle devient une chaussée provisoire avec marquages, flèches de sens, panneaux de déviation, cônes, barrières rouges et blanches (route barrée) ou feux aux extrémités (alternat). Les déviations sont enregistrées avec le fichier de calage (`chantier.devs`).

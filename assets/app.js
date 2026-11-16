@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1194,7 +1194,7 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   buildStrip();
@@ -1365,6 +1365,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: '.tools', t: 'Les outils de la carte', x: 'De haut en bas : « Tout voir » (F) cadre toutes les photos, « Mesurer » (M) trace une longueur puis une surface dès trois points, « Ma position » centre la carte sur vous.' },
     { sel: ['#layersBtn', '#layersMenu'], t: 'Fond de carte et calques', x: 'Choisissez entre la photo aérienne et le plan de l’IGN. En dessous : parcelles cadastrales, vignettes sur les repères, direction de prise de vue, parcours dans l’ordre des prises.', pre: () => { closeMenus(); $('layersMenu').hidden = false; $('layersBtn').setAttribute('aria-expanded', 'true'); }, post: () => closeMenus() },
     { sel: ['#chBtn', '#chPanel'], t: 'Installations de chantier', x: 'Dessinez sur la carte les zones d’installation : base vie, dépôt, décharge, stockage, parking, accès. Choisissez un type, puis tracez un rectangle (deux clics) ou un polygone. Vous pouvez les renommer, les modifier ou les supprimer dans la liste. En vue 3D, chaque zone devient un ensemble d’objets réels : cabines, conteneurs, bennes, tuyaux, véhicules, clôture.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } }, post: () => { if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
+    { sel: ['#chBtn', '#chPanel'], t: 'Déviations', x: 'Dans « Chantier », l’onglet Déviations : choisissez le type (véhicules, piétons, alternat, route barrée), cliquez les points du parcours, double-clic pour finir. Réglez la largeur, inversez le sens ou déplacez les points. En 3D : chaussée provisoire, flèches, panneaux, cônes, barrières ou feux.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=d]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
     { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
       demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },

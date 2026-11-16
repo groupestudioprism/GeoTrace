@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { IfcAPI, IFCMAPCONVERSION, IFCPROJECTEDCRS, IFCSIUNIT, IFCSITE, IFCGEOMETRICREPRESENTATIONCONTEXT } from '../vendor/web-ifc/web-ifc-api.js';
-import { buildZones } from './zones3d.js';
+import { buildZones, buildDevs } from './zones3d.js';
 import { makeFrame, solveSimilarity, applyTo, CRS_LIST, latLonToProj, projToLatLon, crsFromName, guessCrs } from './geo.js';
 
 export const crsLabel = code => code === 'SITE' ? 'lieu du projet' : (CRS_LIST.find(c => c.code === code) || { label: code }).label;
@@ -473,7 +473,7 @@ function shareAdj(lk, photos) {
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, onPhoto, onElement, onNote }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
@@ -492,6 +492,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   // photos : repère de l'appareil, plan de l'image à sa place dans le champ, et pyramide de vue
   const markers = new THREE.Group(); scene.add(markers);
   if (zones.length) { try { const z = buildZones(zones, (la, lo) => state.frame.toEN(la, lo), zoneColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('installations', e); } }
+  if (devs.length) { try { const z = buildDevs(devs, (la, lo) => state.frame.toEN(la, lo), devColors); scene.add(z.group); markers.add(z.labels); } catch (e) { console.warn('déviations', e); } }
   const far = Math.max(radius * 10, 2500);
   const dist = Math.max(3, radius / 12), K = .35;
   const build = (p, aspect) => {

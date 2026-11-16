@@ -193,3 +193,102 @@ export function buildZones(zones, toEN, colors) {
   [group, labels].forEach(g => g.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.userData.dispose = true; }));
   return { group, labels };
 }
+
+/* ---------- déviations : chaussée, flèches, panneaux, cônes, barrières, feux ---------- */
+const DEV3 = {
+  vehicule: { road: 0x4a5058, edge: 0xffffff, arrow: 0xffd23f },
+  pieton:   { road: 0x2f8f63, edge: 0xffffff, arrow: 0xffffff },
+  ferme:    { road: 0x4a5058, edge: 0xffffff, arrow: 0xd6402b },
+  alternat: { road: 0x4a5058, edge: 0xffffff, arrow: 0xffd23f },
+};
+export const DEV_HEIGHT = 3;
+function walk(P, step, start = step / 2) {
+  const out = []; let next = start, acc = 0;
+  for (let i = 0; i < P.length - 1; i++) {
+    const a = P[i], b = P[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1e-6) continue;
+    const th = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    while (next <= acc + L) { const f = (next - acc) / L; out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, th]); next += step; }
+    acc += L;
+  }
+  return out;
+}
+function offsetLine(P, o) {
+  return P.map((p, i) => {
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
+    let nx = -ty, ny = tx, k = 1;
+    if (i > 0 && i < P.length - 1) { const c = P[i - 1], d = P[i + 1], t1x = p[0] - c[0], t1y = p[1] - c[1], t2x = d[0] - p[0], t2y = d[1] - p[1], l1 = Math.hypot(t1x, t1y) || 1, l2 = Math.hypot(t2x, t2y) || 1; const dot = (t1x * t2x + t1y * t2y) / (l1 * l2); k = Math.min(2, 1 / Math.sqrt(Math.max(.25, (1 + dot) / 2))); }
+    return [p[0] + nx * o * k, p[1] + ny * o * k];
+  });
+}
+function strip(P, o0, o1, z, color, extra = {}) {
+  const A = offsetLine(P, o0), B = offsetLine(P, o1), pos = [], idx = [];
+  P.forEach((_, i) => { pos.push(A[i][0], A[i][1], z, B[i][0], B[i][1], z); if (i) { const k = (i - 1) * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); } });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial(Object.assign({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }, extra)));
+  return m;
+}
+function chevron(color, w, l) {
+  const g = new THREE.BufferGeometry(), t = w * .22;
+  const v = [-l / 2, -w / 2, 0, l / 2, 0, 0, -l / 2 + t * 1.5, 0, 0, -l / 2, w / 2, 0, l / 2, 0, 0, -l / 2 + t * 1.5, 0, 0];
+  g.setAttribute('position', new THREE.Float32BufferAttribute([-l / 2, -w / 2, 0, l / 2, 0, 0, -l / 2 + l * .35, 0, 0, -l / 2, w / 2, 0], 3)); g.setIndex([0, 1, 2, 3, 2, 1]);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  return m;
+}
+function devSign(color, text) {
+  const g = new THREE.Group(), pm = mat(0x59626d);
+  g.add(box(.07, .07, 2.3, pm)); const plate = box(.9, .05, .9, mat(color)); plate.position.z = 2.0; plate.rotation.y = Math.PI / 4; g.add(plate);
+  const inner = box(.62, .06, .62, mat(0xffffff)); inner.position.z = 2.0; inner.rotation.y = Math.PI / 4; g.add(inner);
+  const arrow = box(.4, .07, .16, mat(0x111820)); arrow.position.z = 2.0; g.add(arrow);
+  return g;
+}
+function barrier(width) {
+  const g = new THREE.Group(), pm = mat(0x59626d), n = Math.max(4, Math.round(width / .5));
+  [-width / 2, width / 2].forEach(x => { g.add(box(.06, .5, .9, pm, x, 0, 0)); g.add(box(.5, .06, .06, pm, x, 0, 0)); });
+  for (let i = 0; i < n; i++) { const w = width / n; g.add(box(w * .98, .06, .24, mat(i % 2 ? 0xffffff : 0xd6402b), -width / 2 + w * (i + .5), 0, .6)); g.add(box(w * .98, .06, .24, mat(i % 2 ? 0xd6402b : 0xffffff), -width / 2 + w * (i + .5), 0, .25)); }
+  return g;
+}
+function trafficLight(green) {
+  const g = new THREE.Group(), pm = mat(0x2b3138);
+  g.add(box(.08, .08, 2.6, pm)); g.add(box(.3, .22, .85, pm, 0, 0, 2.0));
+  [[0xe03b2b, .36], [0x555b62, .2], [0x555b62, .04]].forEach(([c, dz]) => { const l = new THREE.Mesh(new THREE.SphereGeometry(.07, 10, 8), new THREE.MeshBasicMaterial({ color: green ? (dz > .3 ? 0x555b62 : dz > .1 ? 0x555b62 : 0x2ed16b) : c })); l.position.set(0, -.12, 2.0 + dz + .02 + (dz > .3 ? .24 : dz > .1 ? .1 : -.02) - .1); g.add(l); });
+  g.add(box(.2, .06, .12, mat(0xffd23f), 0, 0, 0));
+  return g;
+}
+function dirTo(P, i, j) { const a = P[i], b = P[j]; return Math.atan2(b[1] - a[1], b[0] - a[0]); }
+
+/* devs : [{ id, type, name, width, pts:[[lat,lon],…] }]. Renvoie { group, labels }. */
+export function buildDevs(devs, toEN, colors) {
+  const group = new THREE.Group(), labels = new THREE.Group(); group.name = 'deviations';
+  devs.forEach(d => {
+    const cfg = DEV3[d.type]; if (!cfg || !d.pts || d.pts.length < 2) return;
+    const P = d.pts.map(p => toEN(p[0], p[1])), w = Math.max(1, Math.min(20, +d.width || (d.type === 'pieton' ? 1.5 : 6))), root = new THREE.Group();
+    try {
+      root.add(strip(P, -w / 2, w / 2, .05, cfg.road));
+      if (d.type === 'pieton') root.add(strip(P, -w / 2, w / 2, .06, 0x2f8f63));
+      root.add(strip(P, w / 2 - .25, w / 2 - .1, .08, cfg.edge)); root.add(strip(P, -w / 2 + .1, -w / 2 + .25, .08, cfg.edge));
+      if (d.type !== 'pieton') walk(P, 6, 3).forEach(([x, y, th]) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, .12), new THREE.MeshBasicMaterial({ color: 0xf5f5f5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); m.position.set(x, y, .09); m.rotation.z = th; root.add(m); });
+      const aw = Math.min(w * .5, 2.2), al = Math.min(w * .9, 3);
+      if (d.type !== 'ferme') walk(P, Math.max(7, w * 2.2), 3.5).forEach(([x, y, th]) => { const c = chevron(cfg.arrow, aw, al); c.position.set(x, y, .1); c.rotation.z = th; root.add(c); });
+      const L = []; P.forEach((p, i) => { if (i) L.push(Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1])); });
+      // glissières : plots tous les 4 m (véhicules) ou barrières légères (piétons)
+      [-1, 1].forEach(s => {
+        const E = offsetLine(P, s * (w / 2 + .35));
+        if (d.type === 'pieton') walk(E, 2.2, 0).forEach(([x, y, th]) => { const b = box(2, .05, .08, mat(0xf26b1d), 0, 0, .9); b.position.x += x; b.position.y += y; b.rotation.z = th; root.add(b); root.add(box(.07, .07, 1, mat(0x59626d), x, y, 0)); });
+        else walk(E, 4, 0).forEach(([x, y]) => { const c = cone(); c.position.set(x, y, 0); root.add(c); });
+      });
+      const a0 = dirTo(P, 0, 1), a1 = dirTo(P, P.length - 2, P.length - 1);
+      const place = (obj, i, th, side) => { obj.position.x += P[i][0] + Math.cos(th + Math.PI / 2) * side; obj.position.y += P[i][1] + Math.sin(th + Math.PI / 2) * side; obj.rotation.z = th; root.add(obj); };
+      place(devSign(0xffd23f), 0, a0 + Math.PI, -(w / 2 + 1.1)); place(devSign(0xffd23f), P.length - 1, a1, w / 2 + 1.1);
+      if (d.type === 'ferme') { place(barrier(w), 0, a0, 0); const e = barrier(w); place(e, P.length - 1, a1, 0); }
+      if (d.type === 'alternat') { place(trafficLight(false), 0, a0 + Math.PI, w / 2 + .9); place(trafficLight(true), P.length - 1, a1, -(w / 2 + .9)); }
+    } catch (e) { console.warn('déviation', d.type, e); }
+    group.add(root);
+    const mid = walk(P, 1e9, 0)[0] || [P[0][0], P[0][1]]; let tot = 0; for (let i = 1; i < P.length; i++) tot += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    const m = walk(P, tot * 2, tot / 2)[0] || mid, col = (colors && colors[d.type]) || '#0585c6';
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(d.name || d.type, col), sizeAttenuation: false, depthTest: false, transparent: true }));
+    s.scale.set(.19, .19 * 80 / 384, 1); s.center.set(.5, 0); s.position.set(m[0], m[1], DEV_HEIGHT + 1.2); s.renderOrder = 18; labels.add(s);
+  });
+  [group, labels].forEach(g => g.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) o.userData.dispose = true; }));
+  return { group, labels };
+}

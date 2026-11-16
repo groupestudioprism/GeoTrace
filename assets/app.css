@@ -564,8 +564,20 @@ body.on-welcome .pop-wrap { display: none; }
 .ch-acts { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: .84rem; }
 .ch-ty { height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); }
 .link.danger { color: var(--danger); }
-#chDraw { position: absolute; z-index: 800; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; max-width: calc(100% - 100px); padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: .88rem; font-weight: 600; }
+#chDraw, #dvDraw { position: absolute; z-index: 800; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; max-width: calc(100% - 100px); padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font-size: .88rem; font-weight: 600; }
 .ch-label { background: none; border: 0; }
 .ch-label span { display: inline-block; transform: translate(-50%, -50%); padding: 2px 9px; border-radius: 999px; background: #fff; color: #0b2342; border: 2px solid var(--c); font: 700 .74rem/1.4 var(--font); white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .ch-handle { background: #fff; border: 3px solid #0585c6; border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: grab; }
 @media (max-width: 760px) { #chPanel { left: 10px; right: 10px; width: auto; top: 56px; } }
+
+.ch-tabs { display: flex; gap: 4px; padding: 3px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+.ch-tabs button { flex: 1; padding: 6px 8px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-weight: 600; font-size: .86rem; }
+.ch-tabs button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+#chTabZ, #chTabD { display: flex; flex-direction: column; gap: 10px; } #chTabZ[hidden], #chTabD[hidden] { display: none; }
+#dvList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#dvList li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 6px; }
+#dvList li.on { border-color: var(--bleu); box-shadow: 0 0 0 1px var(--bleu) inset; }
+.dv-w { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.dv-width { width: 56px; height: 28px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); padding: 0 6px; }
+.dv-arrow { background: none; border: 0; }
+#dvDraw[hidden], #chDraw[hidden] { display: none; }
