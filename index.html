@@ -282,19 +282,28 @@
 
 <div id="v3d" hidden role="dialog" aria-modal="true" aria-label="Maquette en 3D">
   <div class="v-bar">
-    <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glissez pour tourner, molette pour zoomer, clic droit pour déplacer. Cliquez une photo pour placer la caméra comme à la prise de vue.</small></div>
+    <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoom · Cliquez un repère photo pour entrer dans la photo.</small></div>
     <button class="vb wide" id="v3Over" type="button">Vue d’ensemble</button>
     <label class="vb wide chk"><input type="checkbox" id="v3Ground" checked> Photo aérienne</label>
     <button class="vb" id="v3Close" type="button" aria-label="Fermer" data-ic="close"></button>
   </div>
   <div class="v3-body">
     <div id="v3Host"></div>
-    <div id="v3Strip" hidden aria-label="Photos"></div>
+    <div id="v3Strip" hidden aria-label="Photos">
+      <label class="st-find"><input id="v3Find" type="search" placeholder="Rechercher…" autocomplete="off" aria-label="Chercher une photo par son nom"><small id="v3Count"></small></label>
+      <div id="v3List"></div>
+    </div>
+    <div id="v3Tools" role="group" aria-label="Déplacements">
+      <button type="button" id="v3In" title="Zoom avant" aria-label="Zoom avant">+</button>
+      <button type="button" id="v3Out" title="Zoom arrière" aria-label="Zoom arrière">−</button>
+      <button type="button" id="v3Top" title="Voir de dessus" aria-label="Voir de dessus">⌖</button>
+    </div>
     <div id="v3Elem" hidden></div>
     <figure id="v3Pip" hidden>
       <img id="v3PipImg" alt="">
       <figcaption><span id="v3PipName"></span>
-        <span class="pip-acts"><button type="button" id="v3Here">Se placer ici</button><button type="button" id="v3Blend" aria-pressed="false">Superposer</button></span>
+        <small id="v3Calib" hidden>Pour caler : cliquez un point de la maquette, puis le même point sur la photo.</small>
+        <span class="pip-acts"><button type="button" id="v3Here">Se placer ici</button><button type="button" id="v3Blend" aria-pressed="false">Superposer</button><button type="button" id="v3Share" title="Utiliser le réglage de cette photo pour toutes les autres photos" hidden>Appliquer à toutes</button><button type="button" id="v3Clear" title="Annuler les réglages de toutes les photos" hidden>Tout annuler</button></span>
         <input type="range" id="v3Alpha" min="10" max="100" value="100" aria-label="Opacité de la maquette" title="Opacité de la maquette" hidden>
       </figcaption>
     </figure>

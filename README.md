@@ -108,3 +108,11 @@ Reprise après un rafraîchissement : les photos ouvertes depuis un dossier, des
 ## Version 1.7.1 : nouveau logo
 
 Logo redessiné d'après le croquis retenu : épingle bleu foncé avec les trois bâtiments de la maquette dans un cercle blanc, trois calques (fond IGN, photos, maquette) en losanges bleus, lettres larges « GEO » (marine) et « TRACE » (bleu clair). Source vectorielle : `assets/logo-geotrace.svg`. Les icônes (favicon, application installée, iOS) sont régénérées à partir du même dessin.
+
+## Version 1.8.0 : navigation 3D et superposition
+
+- Échap ou ✕ en superposition : retour à la vue 3D (un second appui ferme la 3D).
+- Bandeau de photos : miniature, nom et recherche (jusqu'à 400 photos, les plus proches de la maquette d'abord).
+- Commandes simplifiées : glisser = tourner, clic droit ou Maj + glisser = déplacer, molette = zoom vers le curseur, boutons + / − / vue de dessus, tactile (un doigt tourne, deux doigts zooment et déplacent).
+- Passage 3D → superposition : la caméra arrive à la prise de vue, puis le fond aérien s'efface en fondu pendant que la photo apparaît ; le cadre s'adapte à la forme de la photo sans saut.
+- « Appliquer à toutes » : le réglage d'une photo devient celui de toutes les autres (utile quand l'erreur vient de la maquette ou du drone et non d'une seule photo). « Tout annuler » remet tout à zéro.

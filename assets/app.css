@@ -318,11 +318,27 @@ dialog .hint { color: var(--muted); }
 .v3-body { position: relative; flex: 1; min-height: 0; }
 #v3Host { position: absolute; inset: 0; }
 .v3-canvas { display: block; width: 100%; height: 100%; outline: none; }
-#v3Strip { position: absolute; z-index: 7; top: 8px; left: 8px; right: 8px; display: flex; gap: 6px; overflow-x: auto; padding: 6px; background: rgba(7,17,30,.55); border-radius: 12px; width: max-content; max-width: calc(100% - 16px); scrollbar-width: thin; }
-#v3Strip button { flex: none; width: 68px; height: 50px; border-radius: 8px; border: 2px solid transparent; background: #2a3a52 center / cover no-repeat; color: #fff; font-size: .7rem; padding: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.25); }
-#v3Strip button.dev-drone { box-shadow: 0 0 0 2px #7b4fd6; }
-#v3Strip button:hover { border-color: #fff; }
-#v3Strip button.on { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan); }
+#v3Strip { position: absolute; z-index: 7; top: 8px; left: 8px; display: flex; align-items: stretch; gap: 8px; padding: 8px; background: rgba(7,17,30,.62); backdrop-filter: blur(6px); border-radius: 14px; max-width: calc(100% - 16px); }
+#v3Strip .st-find { flex: none; width: 150px; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+#v3Find { width: 100%; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: .85rem; }
+#v3Find::placeholder { color: rgba(255,255,255,.7); }
+#v3Find:focus { outline: 2px solid var(--cyan); background: rgba(255,255,255,.2); }
+#v3Count { color: rgba(255,255,255,.75); font-size: .72rem; }
+#v3List { display: flex; gap: 8px; overflow-x: auto; min-width: 0; scrollbar-width: thin; padding-bottom: 2px; }
+#v3List button { flex: none; width: 92px; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; color: #fff; text-align: left; cursor: pointer; }
+#v3List button[hidden] { display: none; }
+#v3List .th { display: block; width: 92px; height: 60px; border-radius: 8px; border: 2px solid transparent; background: #2a3a52 center / cover no-repeat; box-shadow: 0 0 0 1px rgba(255,255,255,.25); transition: border-color .15s, transform .15s; }
+#v3List .nm { font-size: .72rem; line-height: 1.15; max-height: 2.3em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; opacity: .92; }
+#v3List button.dev-drone .th { box-shadow: 0 0 0 2px #7b4fd6; }
+#v3List button:hover .th { border-color: #fff; transform: translateY(-2px); }
+#v3List button.on .th { border-color: var(--cyan); box-shadow: 0 0 0 2px var(--cyan); }
+#v3List button.on .nm { font-weight: 700; opacity: 1; }
+#v3Tools { position: absolute; z-index: 7; right: 12px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+#v3Tools button { width: 42px; height: 42px; border-radius: 12px; border: 1px solid rgba(255,255,255,.3); background: rgba(7,17,30,.7); color: #fff; font-size: 1.35rem; line-height: 1; cursor: pointer; backdrop-filter: blur(6px); transition: background-color .15s, transform .12s; }
+#v3Tools button:hover { background: rgba(26,155,215,.85); }
+#v3Tools button:active { transform: scale(.94); }
+#v3d.locked #v3Top { display: none; }
+#v3Calib { display: block; font-size: .74rem; opacity: .85; margin: 2px 0 6px; line-height: 1.3; }
 #v3Elem { position: absolute; z-index: 7; left: 12px; bottom: 12px; max-width: 320px; padding: 10px 12px; background: rgba(7,17,30,.88); border: 1px solid rgba(255,255,255,.18); border-radius: 10px; font-size: .84rem; }
 #v3Elem b { display: block; }
 #v3Pip { position: absolute; right: 12px; bottom: 12px; width: 280px; margin: 0; background: rgba(7,17,30,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 12px; overflow: hidden; }
@@ -429,3 +445,10 @@ dialog[open] { animation: gt-pop .18s ease-out both; }
   #welcome, #welcome .w-in > *, .menu, #maqPanel, #v3d, #v3Pip, #v3Strip, #viewer, #viewer .v-stage img, #toast, #timeline, #measure, #maqPlan, dialog { animation: none !important; }
   .btn, .icon-btn, .tool, .chip, .vb { transition: none; }
 }
+
+/* Passage 3D -> superposition : la photo apparaît en fondu sous la maquette */
+@keyframes gt-photo-in { from { opacity: 0; } to { opacity: 1; } }
+#v3Pip.blend img { animation: gt-photo-in .75s ease-in-out both; }
+#v3Pip.blend figcaption { animation: gt-slide-u .4s .35s ease-out both; }
+@media (prefers-reduced-motion: reduce) { #v3Pip.blend img, #v3Pip.blend figcaption { animation: none !important; } }
+.pip-acts { flex-wrap: wrap; }

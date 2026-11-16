@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.7.1';
+const VERSION = '1.8.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1246,28 +1246,46 @@ function showElem(info) {
   const el = $('v3Elem'); el.hidden = !info;
   if (info) el.innerHTML = `<b>${esc(info.name || 'Élément sans nom')}</b>${esc(info.type || '')}${info.tag ? ', ' + esc(info.tag) : ''}`;
 }
-/* Bandeau de miniatures : un clic sur une photo y fait entrer la caméra. Les plus proches de la maquette d'abord. */
+/* Bandeau de photos : miniature + nom, avec recherche. Un clic sur une photo y fait entrer la caméra. Les plus proches de la maquette d'abord. */
+const norm = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+let stripItems = [];
 function buildStrip() {
-  const st = $('v3Strip'); st.textContent = '';
-  const ids = (Maq ? Maq.v3Near() : []).slice(0, 80);
-  st.hidden = !ids.length;
+  const list = $('v3List'); list.textContent = ''; $('v3Find').value = '';
+  const ids = (Maq ? Maq.v3Near() : []).slice(0, 400);
+  stripItems = [];
   ids.forEach(id => {
     const p = photos.find(x => x.id === id); if (!p) return;
     const b = document.createElement('button'); b.type = 'button'; b.dataset.id = id; b.title = p.name; b.className = 'dev-' + p.dev;
-    if (p.thumb) b.style.backgroundImage = `url("${p.thumb}")`; else b.textContent = (p.name || '?').slice(0, 2);
-    b.addEventListener('click', () => alignPhoto(id)); st.appendChild(b);
+    const th = document.createElement('span'); th.className = 'th'; if (p.thumb) th.style.backgroundImage = `url("${p.thumb}")`;
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = p.name;
+    b.append(th, nm); b.addEventListener('click', () => alignPhoto(id)); list.appendChild(b);
+    stripItems.push({ p, b, th, n: norm(p.name) });
   });
+  $('v3Strip').hidden = !stripItems.length; filterStrip();
 }
+function filterStrip() {
+  const q = norm($('v3Find').value.trim()); let shown = 0;
+  stripItems.forEach(it => {
+    const ok = q ? it.n.includes(q) : true; it.b.hidden = !ok; if (!ok) return; shown++;
+    if (!it.p.thumb && !it.th.dataset.t) { it.th.dataset.t = '1'; ensureThumb(it.p).then(() => { if (it.p.thumb) it.th.style.backgroundImage = `url("${it.p.thumb}")`; }).catch(() => {}); }
+  });
+  $('v3Count').textContent = q ? `${shown} sur ${stripItems.length}` : `${stripItems.length} photos`;
+  $('v3List').scrollLeft = 0;
+}
+$('v3Find').addEventListener('input', filterStrip);
 function markStrip(id) {
-  const st = $('v3Strip'); st.querySelectorAll('.on').forEach(b => b.classList.remove('on'));
-  const b = st.querySelector(`[data-id="${id}"]`); if (b) { b.classList.add('on'); b.scrollIntoView({ inline: 'center', block: 'nearest' }); }
+  const st = $('v3List'); st.querySelectorAll('.on').forEach(b => b.classList.remove('on'));
+  const b = st.querySelector(`[data-id="${id}"]`); if (b) { b.classList.add('on'); if (!b.hidden) b.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }
 const HINT_FREE = $('v3Hint').textContent;
-const HINT_LOCK = 'Caméra placée comme à la prise de vue. Pour caler : cliquez un point de la maquette, puis le même point sur la photo (deux points règlent aussi la rotation et le zoom). Glisser : orienter. Maj + glisser : déplacer l’appareil. Molette : zoom. Double-clic : réinitialiser. ← → : photo suivante.';
+const HINT_LOCK = 'Superposition : Glisser : orienter · Maj + glisser : déplacer · Molette : zoom · Double-clic : annuler le calage · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
-  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on);
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Clear').hidden = !on;
+  const x = $('v3Close'); x.title = x.ariaLabel = on ? 'Revenir à la vue 3D' : 'Fermer';
 }
+/* Sortir de la superposition sans quitter la 3D. */
+function back3d() { if (Maq) Maq.v3Release(); setBlend(false); $('v3List').querySelectorAll('.on').forEach(b => b.classList.remove('on')); }
 /* Affiche la photo et renvoie son rapport largeur / hauteur tel qu'elle apparaît (orientation EXIF comprise). */
 async function showPip(id) {
   const p = photos.find(x => x.id === id); if (!p) return null;
@@ -1285,18 +1303,23 @@ async function alignPhoto(id) {
   markStrip(id);
   if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) setBlend(true);
 }
-$('v3Close').addEventListener('click', close3d);
+$('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
+$('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
+$('v3Clear').addEventListener('click', () => { if (Maq) Maq.v3ClearAll(); showNote('Réglages de toutes les photos annulés.'); setTimeout(() => showNote(''), 3500); });
+$('v3In').addEventListener('click', () => Maq && Maq.v3Zoom(1.4));
+$('v3Out').addEventListener('click', () => Maq && Maq.v3Zoom(1 / 1.4));
+$('v3Top').addEventListener('click', () => Maq && Maq.v3Top());
 $('maq3d').addEventListener('click', () => open3d(null));
-$('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); $('v3Strip').querySelectorAll('.on').forEach(b => b.classList.remove('on')); });
+$('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); $('v3List').querySelectorAll('.on').forEach(b => b.classList.remove('on')); });
 $('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
 $('v3Here').addEventListener('click', () => alignPhoto($('v3Pip').dataset.pid));
 $('v3Blend').addEventListener('click', e => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
-  if (on) alignPhoto($('v3Pip').dataset.pid); else { if (Maq) Maq.v3Release(); setBlend(false); }
+  if (on) alignPhoto($('v3Pip').dataset.pid); else back3d();
 });
 $('v3Alpha').addEventListener('input', e => $('v3d').style.setProperty('--m', e.target.value / 100));
 document.addEventListener('keydown', e => {
-  if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+  if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') || e.target.id === 'v3Find') return;
   const id = Maq.v3Step(e.key === 'ArrowRight' ? 1 : -1); if (id) { e.preventDefault(); alignPhoto(id); }
 });
 
@@ -1368,7 +1391,13 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
 /* ================= Aide et raccourcis ================= */
 $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace version ${VERSION}`; $('help').showModal(); });
 addEventListener('keydown', e => {
-  if (!$('v3d').hidden) { if (e.key === 'Escape' && !(Maq && Maq.v3Cancel())) close3d(); return; }
+  if (!$('v3d').hidden) {
+    if (e.key !== 'Escape') return;
+    const f = $('v3Find'); if (e.target === f) { if (f.value) { f.value = ''; filterStrip(); } else f.blur(); return; }
+    if (Maq && Maq.v3Cancel()) return;
+    if ($('v3d').classList.contains('locked')) back3d(); else close3d();
+    return;
+  }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') closeViewer();

@@ -429,8 +429,20 @@ function basisOf(h, pitch) {
 const quatOf = ({ r, u, f }) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(r, u, f.clone().negate()));
 const ADJ0 = () => ({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 });
 const adjKey = p => 'geotrace:vue:' + (p.key || p.name);
-const loadAdj = p => { try { return Object.assign(ADJ0(), JSON.parse(localStorage.getItem(adjKey(p)) || '{}')); } catch (e) { return ADJ0(); } };
-const saveAdj = (p, a) => { try { const z = !a.yaw && !a.pitch && !a.roll && !a.e && !a.n && !a.z && a.zoom === 1; z ? localStorage.removeItem(adjKey(p)) : localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
+const SHARED = 'geotrace:vue:*commun';
+/* Réglage propre à la photo s'il existe, sinon réglage commun (appliqué à toutes les photos), sinon aucun. */
+const loadAdj = p => { try { const own = localStorage.getItem(adjKey(p)); return Object.assign(ADJ0(), JSON.parse(own || localStorage.getItem(SHARED) || '{}')); } catch (e) { return ADJ0(); } };
+const saveAdj = (p, a) => { try { localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
+/* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
+function shareAdj(lk, photos) {
+  try {
+    const a = lk.adj; localStorage.setItem(SHARED, JSON.stringify(a)); let n = 0;
+    photos.forEach(p => { if (p === lk.p) return; if (localStorage.getItem(adjKey(p)) != null) localStorage.removeItem(adjKey(p)); n++; });
+    saveAdj(lk.p, a); return n;
+  } catch (e) { return 0; }
+}
+/* Remet toutes les photos sans réglage. */
+function clearAdj(photos) { try { localStorage.removeItem(SHARED); photos.forEach(p => localStorage.removeItem(adjKey(p))); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
 export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {
@@ -442,7 +454,7 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   scene.add(new THREE.AmbientLight(0xffffff, 1.7)); const dl = new THREE.DirectionalLight(0xffffff, 1.8); dl.position.set(-60, -80, 120); scene.add(dl);
   const holder = new THREE.Group(); holder.add(m.group.clone()); applyTransform(holder); scene.add(holder);
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 30000); camera.up.set(0, 0, 1);
-  const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000;
+  const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000; controls.zoomToCursor = true; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   // emprise terrain de la maquette et des photos proches
   const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
   const radius = Math.max(60, Math.max(sz.x, sz.y) * 0.9);
@@ -481,7 +493,8 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   v3.photos = photos;
   const fitSize = () => {
     const W = host.clientWidth || 800, H = host.clientHeight || 500; let w = W, h = H;
-    if (v3.lock) { const a = v3.lock.aspect; if (W / H > a) w = H * a; else h = W / a; camera.aspect = a; } else camera.aspect = W / H;
+    if (v3.lock) { const a = v3.lock.aspect, k = v3.k == null ? 1 : v3.k; let wt = W, ht = H; if (W / H > a) wt = H * a; else ht = W / a; w = W + (wt - W) * k; h = H + (ht - H) * k; }
+    camera.aspect = w / h;
     renderer.setSize(w, h); const st = renderer.domElement.style; st.position = 'absolute'; st.left = (W - w) / 2 + 'px'; st.top = (H - h) / 2 + 'px';
     camera.updateProjectionMatrix();
   };
@@ -497,11 +510,18 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
   };
   const applyLock = () => {
     const lk = v3.lock; if (!lk) return; const cam = poseCam(lk, lk.adj);
-    camera.position.copy(cam.position); camera.quaternion.copy(cam.quaternion); camera.fov = cam.fov; camera.aspect = cam.aspect;
+    camera.position.copy(cam.position); camera.quaternion.copy(cam.quaternion); camera.fov = cam.fov;
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(); drawMarks();
   };
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
-  const syncVis = () => { scene.background = v3.lock ? null : new THREE.Color(0xbcd3e6); markers.visible = !v3.lock; if (v3.ground) v3.ground.visible = !v3.lock && v3.groundOn !== false; if (v3.ground2) v3.ground2.visible = !v3.lock && v3.groundOn !== false; };
+  const syncVis = () => {
+    const on = v3.groundOn !== false, gs = [v3.ground, v3.ground2];
+    if (!v3.lock) { scene.background = new THREE.Color(0xbcd3e6); markers.visible = true; gs.forEach(g => { if (g) { g.visible = on; if (g.material.transparent) { g.material.transparent = false; g.material.opacity = 1; g.material.needsUpdate = true; } } }); return; }
+    // superposition : le fond aérien et les repères s'effacent en fondu pendant que la photo apparaît dessous
+    const k = v3.k == null ? 1 : v3.k, a = 1 - k; scene.background = null; renderer.setClearColor(0xbcd3e6, a); markers.visible = k < .4;
+    gs.forEach(g => { if (!g) return; const vis = a > .01 && on; g.visible = vis; if (vis && !g.material.transparent) { g.material.transparent = true; g.material.needsUpdate = true; } g.material.opacity = a; });
+  };
+  const setXf = k => { v3.k = k; syncVis(); fitSize(); if (v3.lock) applyLock(); };
   v3.syncVis = syncVis; v3.poseCam = poseCam; v3.applyLock = applyLock;
   /* Calage par points : un point de la maquette, puis le même point sur la photo. 1 point règle le cap et l'inclinaison, 2 points ou plus règlent aussi le roulis et le zoom. */
   const ndcOf = (cam, x, y, z) => { const q = new THREE.Vector3(x, y, z).project(cam); return q; };
@@ -572,13 +592,13 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
     p._asp = aspect || p._asp || 4 / 3; if (p._bb) build(p, p._asp);
     if (v3.fly) v3.fly.cancel();
     const lk = { p, aspect: p._asp, adj: loadAdj(p), pairs: [], pending: null };
-    const done = () => { v3.fly = null; v3.lock = lk; controls.enabled = false; syncVis(); fitSize(); applyLock(); onNote && onNote(''); resolve(true); };
+    const done = () => { const was = !!v3.lock; v3.fly = null; v3.lock = lk; controls.enabled = false; if (was || matchMedia('(prefers-reduced-motion: reduce)').matches) { v3.xf = null; setXf(1); } else { v3.xf = { t0: performance.now(), dur: 750 }; setXf(0); } onNote && onNote(''); resolve(true); };
     if (v3.lock) return done();
     const tgt = poseCam(lk, lk.adj); controls.enabled = false;
     v3.fly = { t0: performance.now(), dur: 750, from: { pos: camera.position.clone(), q: camera.quaternion.clone(), fov: camera.fov }, tgt, done, cancel: () => { v3.fly = null; if (!v3.lock) controls.enabled = true; resolve(false); } };
   });
   v3.release = () => {
-    if (!v3.lock) return; v3.lock = null;
+    if (!v3.lock) return; v3.lock = null; v3.xf = null; v3.k = 1;
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     camera.up.set(0, 0, 1); camera.fov = 60; controls.target.copy(camera.position).addScaledVector(dir, 12); controls.enabled = true; syncVis(); marks.textContent = ''; onNote && onNote(''); fitSize(); controls.update();
   };
@@ -588,6 +608,11 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
     const i = v3.lock ? ids.indexOf(v3.lock.p.id) : -1; return ids[((i < 0 ? (d > 0 ? -1 : 0) : i) + d + ids.length) % ids.length];
   };
   v3.overview = () => { if (v3.fly) v3.fly.cancel(); v3.release(); const d = radius * 1.6; camera.position.set(c.x - d * .5, c.y - d * .9, Math.max(sz.z, 5) + d * .7); controls.target.set(c.x, c.y, 0); controls.update(); };
+  v3.zoom = f => { // boutons + et − : zoom du calage en superposition, sinon rapprochement de la cible
+    if (v3.lock) { const a = v3.lock.adj; a.zoom = Math.max(.3, Math.min(4, a.zoom * f)); applyLock(); persist(); return; }
+    const d = camera.position.clone().sub(controls.target).multiplyScalar(1 / f); camera.position.copy(controls.target).add(d); controls.update();
+  };
+  v3.top = () => { if (v3.lock) return; const t = controls.target, d = Math.max(30, camera.position.distanceTo(t)); camera.position.set(t.x, t.y - 0.01, t.z + d); controls.update(); };
   v3.overview();
   if (!focus && !matchMedia('(prefers-reduced-motion: reduce)').matches) { const to = camera.position.clone(); camera.position.set(c.x - radius * 1.2, c.y - radius * 2.2, Math.max(sz.z, 5) + radius * 4); controls.update(); const t0 = performance.now(), tick = () => { if (!v3 || v3.dead || v3.lock || v3.fly) return; const k = Math.min(1, (performance.now() - t0) / 1100), e = 1 - Math.pow(1 - k, 3); camera.position.lerpVectors(v3.introFrom, to, e); if (k < 1) requestAnimationFrame(tick); }; v3.introFrom = camera.position.clone(); requestAnimationFrame(tick); }
   if (focus) v3.fromPhoto(focus);
@@ -649,6 +674,7 @@ export async function open3D(host, { photos = [], focus = null, onPhoto, onEleme
       camera.position.lerpVectors(f.from.pos, f.tgt.position, e); camera.quaternion.slerpQuaternions(f.from.q, f.tgt.quaternion, e);
       camera.fov = f.from.fov + (f.tgt.fov - f.from.fov) * e; camera.updateProjectionMatrix(); if (k >= 1) f.done();
     } else if (!v3.lock) controls.update();
+    if (v3.xf) { const q = Math.min(1, (performance.now() - v3.xf.t0) / v3.xf.dur); setXf(q * q * (3 - 2 * q)); if (q >= 1) v3.xf = null; }
     renderer.render(scene, camera);
   };
   loop();
@@ -662,6 +688,10 @@ export function v3Cancel() { return v3 ? v3.cancel() : false; }
 export function v3Overview() { if (v3) v3.overview(); }
 export function v3FromPhoto(id, aspect) { return v3 ? v3.fromPhoto(id, aspect) : Promise.resolve(false); }
 export function v3Near() { return v3 ? v3.near() : []; }
+export function v3Zoom(f) { if (v3) v3.zoom(f); }
+export function v3Top() { if (v3) v3.top(); }
+export function v3Share() { return v3 && v3.lock ? shareAdj(v3.lock, v3.photos) : 0; }
+export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock) { v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; v3.applyLock(); } }
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }
