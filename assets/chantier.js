@@ -160,7 +160,7 @@ export function init(ctx) {
   try { show = localStorage.getItem(SHOW) !== '0'; } catch (e) { /* par défaut */ }
   $('chShow').checked = show;
   zones = readLocal() || (proj ? proj.zones.filter(clean) : []);
-  $('chTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type" data-type="${k}" aria-pressed="false"><i style="background:${v.color}"></i><b>${v.label}</b><small>${v.note}</small></button>`).join('');
+  $('chTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type" data-type="${k}" aria-pressed="false" title="${v.note}"><i style="background:${v.color}"></i><b>${v.label}</b></button>`).join('');
   $('chTypes').addEventListener('click', e => { const b = e.target.closest('.ch-type'); if (!b) return; if (!show) { show = true; $('chShow').checked = true; render(); } startDraw(b.dataset.type); });
   const setMode = r => { rectMode = r; $('chRect').setAttribute('aria-pressed', String(r)); $('chPoly').setAttribute('aria-pressed', String(!r)); if (draw) { const t = draw.type; startDraw(t); } };
   $('chRect').addEventListener('click', () => setMode(true)); $('chPoly').addEventListener('click', () => setMode(false));

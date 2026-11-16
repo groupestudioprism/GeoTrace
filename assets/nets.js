@@ -234,7 +234,7 @@ export function init(ctx) {
   map = ctx.map; status = ctx.status; stopOthers = ctx.stopOthers || stopOthers; onChange = ctx.onChange || onChange; tabFn = ctx.tab || tabFn;
   show = ctx.show !== false; if (ctx.visible) vis = ctx.visible;
   nets = readLocal() || (proj ? proj.filter(clean) : []);
-  $('ntTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type nt-type" data-type="${k}" aria-pressed="false"><i style="background:${v.color}"></i><b>${v.label}</b></button>`).join('');
+  $('ntTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type nt-type" data-type="${k}" aria-pressed="false" title="${v.label}"><i style="background:${v.color}"></i><b>${v.label}</b></button>`).join('');
   $('ntImpType').innerHTML = '<option value="">Type selon le fichier</option>' + Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   $('ntTypes').addEventListener('click', e => { const b = e.target.closest('.nt-type'); if (b) startDraw(b.dataset.type); });
   $('ntFetch').addEventListener('click', fetchOpen);

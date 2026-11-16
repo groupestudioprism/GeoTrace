@@ -184,3 +184,7 @@ Les réseaux de distribution des villes (eau, assainissement, gaz, électricité
 Dans l'onglet **Phases**, « Importer les phases du planning » lit le planning PDF (diagramme de Gantt exporté de MS Project ou d'un outil équivalent) : numéro, nom, durée et dates de chaque tâche. Si les dates ne sont pas écrites dans le tableau, elles sont déduites de la position des barres sur l'échelle des semaines. On coche les tâches à transformer en phases (les titres en majuscules sont cochés d'office), avec leurs dates et la page du planning.
 
 La lecture suppose un planning en tableau (colonnes N°, Nom, Durée, Début, Fin) suivi du diagramme. Un planning présenté autrement ne se lit pas toujours : les phases se créent alors à la main. La lecture utilise PDF.js (dossier `vendor/pdfjs`) et se fait dans le navigateur.
+
+## Version 1.16.1 : panneau Chantier refait
+
+Le panneau « Chantier » a une hauteur stable et reste au-dessus du bandeau des heures. Quatre onglets alignés (Zones, Déviations, Réseaux, Phases), choix de types compacts, textes d'aide raccourcis, états vides explicites. L'option « Afficher sur la carte » reste visible en bas. Sur téléphone, le panneau se pose en bas de l'écran pour laisser la carte visible pendant le tracé.

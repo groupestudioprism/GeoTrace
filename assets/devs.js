@@ -137,7 +137,7 @@ export function init(ctx) {
   map = ctx.map; status = ctx.status; stopOthers = ctx.stopOthers || stopOthers; onChange = ctx.onChange || onChange;
   show = ctx.show !== false; if (ctx.visible) vis = ctx.visible;
   devs = readLocal() || (proj ? proj.filter(clean) : []);
-  $('dvTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type dv-type" data-type="${k}" aria-pressed="false"><i style="background:${v.color}"></i><b>${v.label}</b><small>${v.note}</small></button>`).join('');
+  $('dvTypes').innerHTML = Object.entries(TYPES).map(([k, v]) => `<button type="button" class="ch-type dv-type" data-type="${k}" aria-pressed="false" title="${v.note}"><i style="background:${v.color}"></i><b>${v.label}</b></button>`).join('');
   $('dvTypes').addEventListener('click', e => { const b = e.target.closest('.dv-type'); if (b) startDraw(b.dataset.type); });
   $('dvDrawOk').addEventListener('click', finishLine); $('dvDrawNo').addEventListener('click', cancelDraw);
   $('dvDrawBack').addEventListener('click', () => { if (draw && draw.pts.length) { draw.pts.pop(); draw.dots.clearLayers(); draw.pts.forEach(p => L.circleMarker(p, { radius: 4, color: '#fff', weight: 2, fillColor: TYPES[draw.type].color, fillOpacity: 1, interactive: false }).addTo(draw.dots)); preview(); drawText(); } });
