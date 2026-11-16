@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.9.0';
+const VERSION = '1.10.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -121,7 +121,7 @@ function status(text, opts = {}) {
   if (opts.pct != null) bar.firstElementChild.style.width = Math.round(opts.pct * 100) + '%';
   if (text && opts.ms) toastTimer = setTimeout(() => status(''), opts.ms);
 }
-const showWelcome = on => { $('welcome').hidden = !on; $('welClose').hidden = !(on && photos.length); if (on) drawContours(); };
+const showWelcome = on => { document.body.classList.toggle('on-welcome', !!on); $('welcome').hidden = !on; $('welClose').hidden = !(on && photos.length); if (on) drawContours(); };
 
 /* ================= Carte ================= */
 const map = L.map('map', { zoomControl: true, zoomSnap: 0.5, worldCopyJump: false }).setView([47.2, 2.4], 6);
@@ -132,12 +132,10 @@ const WMTS = (layer, fmtImg, style = 'normal') => `https://data.geopf.fr/wmts?SE
 const BASES = {
   ortho: () => L.tileLayer(WMTS('ORTHOIMAGERY.ORTHOPHOTOS', 'image/jpeg'), { maxZoom: 21, maxNativeZoom: 19, attribution: '© IGN' }),
   plan: () => L.tileLayer(WMTS('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'image/png'), { maxZoom: 21, maxNativeZoom: 19, attribution: '© IGN' }),
-  osm: () => L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 21, maxNativeZoom: 20, attribution: '© OpenStreetMap, © CARTO' }),
-  dark: () => L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { subdomains: 'abcd', maxZoom: 21, maxNativeZoom: 20, attribution: '© OpenStreetMap, © CARTO' }),
 };
 let baseLayer;
 function setBase(k) {
-  if (!BASES[k]) k = 'ortho';
+  if (!BASES[k]) k = 'ortho'; // anciens choix « plan clair / sombre » retirés
   if (baseLayer) map.removeLayer(baseLayer);
   baseLayer = BASES[k]().addTo(map); baseLayer.bringToBack();
   prefs.base = k; savePrefs();
@@ -860,8 +858,6 @@ function setTheme(t) {
   document.documentElement.dataset.theme = t; prefs.theme = t; savePrefs();
   const b = $('themeBtn'); b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon');
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = t === 'dark' ? '#0d1b2e' : '#04264b';
-  const wantDark = t === 'dark';
-  if (wantDark && prefs.base === 'osm') setBase('dark'); else if (!wantDark && prefs.base === 'dark') setBase('osm');
 }
 $('themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
@@ -874,44 +870,6 @@ function togglePanel() {
   else { prefs.panel = !prefs.panel; savePrefs(); applyPanel(); }
 }
 $('panelToggle').addEventListener('click', togglePanel);
-
-/* ================= Recherche d'adresse ================= */
-(() => {
-  const input = $('geoSearch'), list = $('geoResults'); let items = [], active = -1, token = 0, pin;
-  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); active = -1; };
-  const go = it => {
-    close(); input.value = it.label; input.blur();
-    map.flyTo([it.lat, it.lon], it.zoom, { duration: .8 });
-    if (pin) map.removeLayer(pin);
-    pin = L.circleMarker([it.lat, it.lon], { radius: 9, color: '#fff', weight: 3, fillColor: '#12b5f0', fillOpacity: 1, interactive: false }).addTo(map);
-    setTimeout(() => { if (pin) { map.removeLayer(pin); pin = null; } }, 8000);
-  };
-  const show = () => {
-    list.textContent = '';
-    if (!items.length) { list.insertAdjacentHTML('beforeend', '<li aria-disabled="true">Aucun résultat. Vérifiez l’orthographe.</li>'); }
-    items.forEach((it, i) => { const li = document.createElement('li'); li.setAttribute('role', 'option'); li.textContent = it.label; if (it.sub) { const s = document.createElement('small'); s.textContent = it.sub; li.appendChild(s); } li.addEventListener('mousedown', e => { e.preventDefault(); go(it); }); list.appendChild(li); });
-    list.hidden = false; input.setAttribute('aria-expanded', 'true');
-  };
-  const query = debounce(async q => {
-    const my = ++token;
-    const coord = q.match(/^\s*(-?\d{1,2}[.,]\d+)\s*[;, ]\s*(-?\d{1,3}[.,]\d+)\s*$/); // coordonnées « lat, lon »
-    if (coord) { items = [{ label: `${coord[1]}, ${coord[2]}`, sub: 'Coordonnées', lat: +coord[1].replace(',', '.'), lon: +coord[2].replace(',', '.'), zoom: 18 }]; return show(); }
-    try {
-      const r = await fetch(`https://data.geopf.fr/geocodage/completion/?text=${encodeURIComponent(q)}&terr=METROPOLE,DOMTOM&type=StreetAddress,PositionOfInterest&maximumResponses=6`);
-      const j = await r.json(); if (my !== token) return;
-      items = (j.results || []).map(x => ({ label: x.fulltext, sub: x.kind === 'municipality' ? 'Commune' : x.city || '', lat: x.y, lon: x.x, zoom: x.kind === 'municipality' ? 14 : 18 }));
-      show();
-    } catch (e) { if (my === token) { items = []; list.innerHTML = '<li aria-disabled="true">La recherche est indisponible hors connexion.</li>'; list.hidden = false; } }
-  }, 260);
-  input.addEventListener('input', () => { const q = input.value.trim(); if (q.length < 3) { close(); return; } query(q); });
-  input.addEventListener('keydown', e => {
-    const opts = [...list.querySelectorAll('[role=option]')];
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!opts.length) return; active = (active + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length; opts.forEach((o, i) => o.setAttribute('aria-selected', String(i === active))); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (items[active >= 0 ? active : 0] && !list.hidden) go(items[active >= 0 ? active : 0]); }
-    else if (e.key === 'Escape') { close(); input.blur(); }
-  });
-  input.addEventListener('blur', () => setTimeout(close, 120));
-})();
 
 /* ================= Outils de carte ================= */
 $('fitBtn').addEventListener('click', fitAll);
@@ -1387,9 +1345,11 @@ async function restoreModel() {
   if (rec && rec.buffer && !modelTouched) await openModel(rec.buffer, rec.name, null, { quiet: true, noSave: true });
 }
 
+{ const sp = $('splash'); if (sp) { const end = () => sp.remove(); sp.addEventListener('animationend', e => { if (e.animationName === 'sp-out') end(); }); sp.addEventListener('click', end); setTimeout(end, 7000); } }
 window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour les tests et la console
 
 /* ================= Aide et raccourcis ================= */
+$('tutoBtn').addEventListener('click', () => $('tuto').showModal());
 $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace version ${VERSION}`; $('help').showModal(); });
 addEventListener('keydown', e => {
   if (!$('v3d').hidden) {

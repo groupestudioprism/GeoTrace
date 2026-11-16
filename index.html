@@ -23,26 +23,28 @@
   } catch (e) { document.documentElement.dataset.theme = 'light'; }
 </script>
 </head>
-<body>
+<body class="on-welcome">
+<div id="splash" aria-hidden="true">
+  <div class="sp-card">
+    <i class="sp-ring r1"></i><i class="sp-ring r2"></i>
+    <img src="assets/logo-geotrace.png" alt="" width="260" height="318">
+  </div>
+</div>
+<script>addEventListener('load', function () { var s = document.getElementById('splash'); if (s) setTimeout(function () { s.classList.add('go'); }, 650); });</script>
 <noscript><p style="padding:24px">GeoTrace a besoin de JavaScript pour fonctionner.</p></noscript>
 
 <header id="top">
   <button class="icon-btn only-mobile" id="panelToggle" type="button" aria-label="Afficher la liste des photos" aria-expanded="false" data-ic="list"></button>
   <a class="brand" href="./" aria-label="GeoTrace, accueil">
-    <img src="assets/symbol.png" alt="" width="36" height="31">
+    <img src="assets/symbol.png" alt="" width="30" height="36">
     <span class="wordmark"><span class="w-geo">Geo</span><span class="w-trace">Trace</span></span>
   </a>
 
   <a class="sturno" href="https://www.sturno.com" target="_blank" rel="noopener" aria-label="Application STURNO">
-    <img class="st-logo" src="assets/logo-sturno.svg" alt="" width="30" height="30">
+    <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="30" height="30">
     <b>STURNO</b>
   </a>
 
-  <div class="search" role="search">
-    <span class="si" data-ic="search"></span>
-    <input id="geoSearch" type="search" placeholder="Rechercher une adresse" autocomplete="off" spellcheck="false" aria-label="Rechercher une adresse ou une commune" aria-controls="geoResults" aria-expanded="false" role="combobox">
-    <ul id="geoResults" role="listbox" hidden></ul>
-  </div>
 
   <span class="grow"></span>
   <span class="sub" id="sub" aria-live="polite"></span>
@@ -54,8 +56,6 @@
         <legend>Fond de carte</legend>
         <label><input type="radio" name="base" value="ortho"> Photo aérienne IGN</label>
         <label><input type="radio" name="base" value="plan"> Plan IGN</label>
-        <label><input type="radio" name="base" value="osm"> Plan clair</label>
-        <label><input type="radio" name="base" value="dark"> Plan sombre</label>
       </fieldset>
       <fieldset>
         <legend>Calques</legend>
@@ -86,6 +86,7 @@
   </div>
 
   <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
+  <button class="btn" id="tutoBtn" type="button" title="Comment fonctionne GeoTrace"><span data-ic="help"></span>Tuto</button>
   <button class="icon-btn" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
   <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
 </header>
@@ -207,7 +208,7 @@
   <div id="welcome">
     <svg class="contours" id="contours" aria-hidden="true" preserveAspectRatio="xMidYMid slice"></svg>
     <div class="w-in">
-      <img class="w-logo" src="assets/logo-geotrace.png" alt="GeoTrace" width="320" height="174">
+      <img class="w-logo" src="assets/logo-geotrace.png" alt="GeoTrace" width="190" height="232">
       <h1>Vos photos de chantier, replacées sur la carte.</h1>
       <p class="lead">GeoTrace lit la position et la direction de chaque photo, puis la dessine là où elle a été prise. Aucun compte, aucune installation.</p>
       <ol class="steps" aria-label="Comment ça marche">
@@ -238,7 +239,7 @@
       </details>
 
       <div class="owner">
-        <img class="st-logo" src="assets/logo-sturno.svg" alt="" width="34" height="34">
+        <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="34" height="34">
         <span>Application GeoTrace de <b>STURNO</b>, pour le suivi des chantiers de réseaux.</span>
       </div>
 
@@ -309,6 +310,23 @@
     </figure>
   </div>
 </div>
+
+<dialog id="tuto" class="tuto">
+  <form method="dialog">
+    <h2>Utiliser GeoTrace</h2>
+    <ol class="tuto-steps">
+      <li><b>Ouvrir les photos.</b> Choisissez un dossier, des photos ou un ZIP, ou collez un lien Nextcloud. Les photos géolocalisées se placent sur la carte ; le cône montre la direction de prise de vue.</li>
+      <li><b>Parcourir.</b> Cliquez un repère pour voir la photo. Filtrez par date, appareil, favori ou texte. « Fond de carte » règle la photo aérienne, le plan et les calques.</li>
+      <li><b>Mesurer.</b> Le bouton règle (ou la touche M) mesure une longueur, puis une surface dès trois points.</li>
+      <li><b>Ouvrir la maquette.</b> « Maquette 3D » charge le fichier IFC de Revit. Placez-le sur la carte, tournez-le, réglez son altitude, puis enregistrez le calage.</li>
+      <li><b>Voir les photos en 3D.</b> « Photos en 3D » place chaque photo dans la maquette. Cliquez une vignette de la barre, ou un repère dans la scène, pour voler jusqu’à la prise de vue.</li>
+      <li><b>Superposer.</b> « Superposer » fond la photo et la maquette. Échap ou ✕ revient à la 3D. Si l’alignement n’est pas parfait, réglez-le une fois avec les flèches puis cliquez « Enregistrer pour l’équipe » : tout le monde le retrouve.</li>
+      <li><b>Exporter.</b> GeoJSON, KML, CSV ou ZIP des photos affichées.</li>
+    </ol>
+    <p class="hint">Raccourcis : touche ? ou bouton ⓘ.</p>
+    <button class="btn primary">Fermer</button>
+  </form>
+</dialog>
 
 <dialog id="help">
   <form method="dialog">

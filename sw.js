@@ -1,10 +1,10 @@
 /* GeoTrace – cache de l'application pour un démarrage rapide et hors connexion.
    Les fonds de carte ne sont pas mis en cache : ils demandent une connexion. */
-const CACHE = 'geotrace-v1.9.0';
+const CACHE = 'geotrace-v1.10.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js',
-  'assets/symbol.png', 'assets/logo-sturno.svg', 'assets/logo-geotrace.png', 'assets/favicon.png',
+  'assets/symbol.png', 'assets/sturno-emblem.png', 'assets/logo-geotrace.png', 'assets/favicon.png',
   'vendor/leaflet/leaflet.css', 'vendor/leaflet/MarkerCluster.css', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.markercluster.js',
   'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png', 'vendor/leaflet/images/marker-icon.png',
   'vendor/exifr.js', 'vendor/jszip.min.js',
