@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -60,6 +60,7 @@ const IC = {
   minus: '<path d="M5 12h14"/>',
   rotate: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-9.5h.01"/>',
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   cube: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
 };
@@ -1078,6 +1079,7 @@ async function maq() {
 const saveCalage = () => { const m = Maq && Maq.state.model; if (m) store.set('geotrace:calage:' + m.name, Maq.state.geo.auto ? null : Object.assign(JSON.parse(Maq.exportCalage()), { fp: modelFp })); }; // un placement automatique se relit dans la maquette, on ne le fige pas
 function setMaqPanel(on) { $('maqPanel').hidden = !on; $('maqBtn').setAttribute('aria-expanded', String(on)); }
 $('maqBtn').addEventListener('click', () => setMaqPanel($('maqPanel').hidden));
+$('vue3dBtn').addEventListener('click', () => open3d(null));
 $('maqClose').addEventListener('click', () => setMaqPanel(false));
 $('maqPick').addEventListener('click', () => $('maqFile').click());
 $('maqFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) openModel(await f.arrayBuffer(), f.name); });
@@ -1121,6 +1123,7 @@ async function openModel(buffer, name, calText, opts = {}) {
 function maqUi(info) {
   const M = Maq, m = M && M.state.model;
   $('maqEmpty').hidden = !!m; $('maqLoaded').hidden = !m;
+  $('vue3dBtn').hidden = !m;
   calLayer.clearLayers();
   if (!m) return;
   if (info) { $('maqName').textContent = m.name; $('maqInfo').textContent = `${m.kind}, ${fmt(info.meshes, 0)} éléments, ${fmt(info.size[0], 0)} × ${fmt(info.size[1], 0)} m, hauteur ${fmt(info.size[2], 0)} m`; }

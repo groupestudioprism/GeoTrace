@@ -351,7 +351,7 @@ dialog .hint { color: var(--muted); }
   #layersBtn svg, #exportBtn svg { margin: 0; }
   #top .grow { display: none; }
   #themeBtn, #helpBtn, #exportBtn { display: none; }
-  #maqBtn { font-size: 0; gap: 0; padding: 0 10px; }
+  #maqBtn, #vue3dBtn { font-size: 0; gap: 0; padding: 0 10px; }
   #maqPanel { left: 10px; right: 10px; width: auto; top: 56px; }
   #maqPlan { left: 10px; width: calc(100% - 20px); }
   #v3Pip { width: 190px; }
