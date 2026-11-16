@@ -132,7 +132,7 @@ Les erreurs de position et d'orientation des photos se règlent une seule fois, 
 Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet pour la photo, puis réglage du projet pour le type d'appareil.
 
 ## Version 1.10.0 : logo, lancement, mode sombre, Tuto
-- Logo GeoTrace repris à l'identique du croquis « version retenue » (`assets/logo-geotrace.png`, pastille `assets/symbol.png`, icônes). Logo STURNO officiel (`assets/logo-sturno.png`, `assets/sturno-emblem.png`).
+- Logo GeoTrace redessiné proprement, d’après le croquis « version retenue » (épingle, pastille bâtiments, trois calques) (`assets/logo-geotrace.png`, pastille `assets/symbol.png`, icônes). Logo STURNO officiel (`assets/logo-sturno.png`, `assets/sturno-emblem.png`).
 - Animation du logo à chaque lancement ou rafraîchissement (cliquez pour passer ; désactivée si le système demande moins d'animations).
 - Mode sombre appliqué à l'accueil, aux fenêtres, aux fiches et aux menus.
 - Bouton « Tuto » dans l'espace de travail ; l'accueil n'affiche plus les boutons réservés au travail sur les photos.
