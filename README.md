@@ -104,3 +104,7 @@ Reprise après un rafraîchissement : les photos ouvertes depuis un dossier, des
 - Repères photo en 3D : pastille d'appareil photo à la couleur de l'appareil (téléphone, tablette, drone), taille constante à l'écran, pied vertical jusqu'au sol, agrandie au survol. Toutes les photos de la zone sont affichées.
 - Entrée en douceur dans la vue 3D (la caméra descend vers la vue d'ensemble).
 - Animations : accueil, menus, panneau maquette, vue 3D, visionneuse, messages, boutons. Elles sont coupées si le système demande moins de mouvement.
+
+## Version 1.7.1 : nouveau logo
+
+Logo redessiné d'après le croquis retenu : épingle bleu foncé avec les trois bâtiments de la maquette dans un cercle blanc, trois calques (fond IGN, photos, maquette) en losanges bleus, lettres larges « GEO » (marine) et « TRACE » (bleu clair). Source vectorielle : `assets/logo-geotrace.svg`. Les icônes (favicon, application installée, iOS) sont régénérées à partir du même dessin.

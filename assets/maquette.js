@@ -665,7 +665,7 @@ export function v3Near() { return v3 ? v3.near() : []; }
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }
-export function v3Camera() { return v3 ? { camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2 } : null; }
+export function v3Camera() { return v3 ? { camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
 export function close3D() {
   if (!v3) return;
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();
