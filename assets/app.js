@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1097,10 +1097,12 @@ function maqUi(info) {
   geo.hidden = !gr;
   if (gr) {
     const lab = gr.crs ? M.crsLabel(gr.crs) : (gr.crsName || 'inconnu');
+    const usable = !!(gr.crs && M.georefPairs());
     $('maqGeoTxt').textContent = !gr.crs ? `Ce fichier est géoréférencé dans un système que GeoTrace ne connaît pas (${lab}). Placez la maquette avec des points de calage.`
+      : !usable && !g.auto ? `Le fichier indique un système (${M.crsLabel(gr.crs)}) mais pas de vraie position : la maquette est à l’origine (0 ; 0). Dans Revit, donnez au projet les coordonnées du géomètre puis ré-exportez, ou placez la maquette avec des points de calage.`
       : g.auto ? `Placée d’après les coordonnées enregistrées dans Revit (${M.crsLabel(g.auto)}).`
       : `Ce fichier contient des coordonnées géographiques (${lab}). Vous pouvez y placer la maquette automatiquement.`;
-    $('maqUseGeo').hidden = !gr.crs || !!g.auto;
+    $('maqUseGeo').hidden = !usable || !!g.auto;
     const sel = $('maqCrs'), multi = gr.candidates.length > 1;
     $('maqCrsRow').hidden = !multi;
     if (multi) { sel.textContent = ''; gr.candidates.forEach(c => sel.add(new Option(M.crsLabel(c), c))); sel.value = g.auto || gr.crs; }

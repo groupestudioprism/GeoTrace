@@ -53,7 +53,7 @@ export const applyTo = (sol, m) => {
 /* ================= Projections françaises (Lambert conique conforme à 2 parallèles) =================
    Lambert-93 (EPSG:2154) et les zones Coniques Conformes CC42 à CC50 (EPSG:3942 à 3950), toutes en RGF93. */
 const A = 6378137, F_ELL = 1 / 298.257222101, E2 = 2 * F_ELL - F_ELL * F_ELL, E = Math.sqrt(E2);
-export const CRS_LIST = [{ code: 'EPSG:2154', label: 'Lambert-93' }]
+export const CRS_LIST = [{ code: 'EPSG:2154', label: 'Lambert-93' }, { code: 'EPSG:3857', label: 'Web Mercator (EPSG:3857)', noGuess: true }]
   .concat(Array.from({ length: 9 }, (_, i) => ({ code: 'EPSG:' + (3942 + i), label: `CC${42 + i} (RGF93)` })));
 const lccCache = {};
 function lccParams(code) {
@@ -71,12 +71,15 @@ function lccParams(code) {
   const Fc = m(p1) / (n * Math.pow(t(p1), n)), r0 = A * Fc * Math.pow(t(p0), n);
   return (lccCache[code] = { t, n, Fc, r0, fe, fn, lon0: 3 * RAD });
 }
+const MERC = 6378137;
 export function latLonToProj(code, lat, lon) {
+  if (code === 'EPSG:3857') return [MERC * lon * RAD, MERC * Math.log(Math.tan(Math.PI / 4 + lat * RAD / 2))];
   const k = lccParams(code); if (!k) return null;
   const r = A * k.Fc * Math.pow(k.t(lat * RAD), k.n), th = k.n * (lon * RAD - k.lon0);
   return [k.fe + r * Math.sin(th), k.fn + k.r0 - r * Math.cos(th)];
 }
 export function projToLatLon(code, x, y) {
+  if (code === 'EPSG:3857') return [(2 * Math.atan(Math.exp(y / MERC)) - Math.PI / 2) / RAD, x / MERC / RAD];
   const k = lccParams(code); if (!k) return null;
   const dx = x - k.fe, dy = k.r0 - (y - k.fn), r = Math.sign(k.n) * Math.hypot(dx, dy);
   const gamma = Math.atan2(Math.sign(k.n) * dx, Math.sign(k.n) * dy);
@@ -92,7 +95,7 @@ export function projToLatLon(code, x, y) {
 /* Rend le code EPSG d'un nom de système (« EPSG:2154 », « RGF93 / Lambert-93 », « CC48 »…), ou null. */
 export function crsFromName(name) {
   const s = String(name || '').toUpperCase();
-  let m = s.match(/EPSG[:\s]*(\d{4,5})/); if (m) { const c = 'EPSG:' + m[1]; return lccParams(c) ? c : null; }
+  let m = s.match(/EPSG[:\s]*(\d{4,5})/); if (m) { const c = 'EPSG:' + m[1]; return lccParams(c) || c === 'EPSG:3857' ? c : null; }
   if (/LAMBERT[- ]?93/.test(s)) return 'EPSG:2154';
   m = s.match(/\bCC\s?(4[2-9]|50)\b/); if (m) return 'EPSG:' + (3942 + (+m[1] - 42));
   return null;
@@ -101,6 +104,7 @@ export function crsFromName(name) {
 export function guessCrs(x, y) {
   const out = [];
   for (const c of CRS_LIST) {
+    if (c.noGuess) continue;
     const ll = projToLatLon(c.code, x, y); if (!ll) continue;
     if (ll[0] > 41 && ll[0] < 52 && ll[1] > -6 && ll[1] < 10) {
       const back = latLonToProj(c.code, ll[0], ll[1]);
