@@ -192,6 +192,6 @@ export function init(ctx) {
   render(); list();
   Dev.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show, visible: Ph.visible });
   Net.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show, visible: Ph.visible, tab: Dev.tab });
-  Ph.init({ onChange, getZones, getDevs: Dev.getDevs, getNets: Net.getNets, categories: ctx.categories || (() => []), setPhase3d: ctx.setPhase3d, applyFilter: () => { render(); Dev.refresh(); Net.refresh(); } });
+  Ph.init({ status, onChange, getZones, getDevs: Dev.getDevs, getNets: Net.getNets, categories: ctx.categories || (() => []), setPhase3d: ctx.setPhase3d, applyFilter: () => { render(); Dev.refresh(); Net.refresh(); } });
   document.querySelectorAll('#chTabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab !== 'n') Net.stop(); Dev.tab(b.dataset.tab); }));
 }

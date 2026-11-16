@@ -178,3 +178,9 @@ Dans **Chantier**, l'onglet **Réseaux** fait apparaître les réseaux existants
 - Chaque réseau peut être rattaché à des phases. Les réseaux sont enregistrés avec le calage (`chantier.nets`).
 
 Les réseaux de distribution des villes (eau, assainissement, gaz, électricité) ne sont pas en données ouvertes : ils ne sont fournis que par les exploitants, via la DT-DICT, en plans PDF ou DWG. Ces plans se retracent ici ou s'importent s'ils sont fournis en GeoJSON ou KML.
+
+## Version 1.16.0 : phases lues dans le planning PDF
+
+Dans l'onglet **Phases**, « Importer les phases du planning » lit le planning PDF (diagramme de Gantt exporté de MS Project ou d'un outil équivalent) : numéro, nom, durée et dates de chaque tâche. Si les dates ne sont pas écrites dans le tableau, elles sont déduites de la position des barres sur l'échelle des semaines. On coche les tâches à transformer en phases (les titres en majuscules sont cochés d'office), avec leurs dates et la page du planning.
+
+La lecture suppose un planning en tableau (colonnes N°, Nom, Durée, Début, Fin) suivi du diagramme. Un planning présenté autrement ne se lit pas toujours : les phases se créent alors à la main. La lecture utilise PDF.js (dossier `vendor/pdfjs`) et se fait dans le navigateur.

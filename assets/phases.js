@@ -6,13 +6,13 @@ const PALETTE = ['#1f6fb5', '#e0922b', '#2f8f63', '#8a5fd0', '#d6402b', '#0aa5b8
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const uid = () => 'p' + Math.random().toString(36).slice(2, 8);
 
-let phases = [], proj = null, cur = null, ctx = {}, planning = null, openId = null, planName = '';
+let phases = [], proj = null, cur = null, ctx = {}, planning = null, planBlob = null, openId = null, planName = '', tasks = null;
 const listeners = [];
 
 const readLocal = () => { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); return j && Array.isArray(j.phases) ? j.phases : null; } catch (e) { return null; } };
 const clean = p => p && typeof p.id === 'string' && typeof p.name === 'string';
 const norm = p => ({ id: p.id, name: p.name, start: p.start || '', end: p.end || '', color: p.color || PALETTE[0], page: +p.page > 0 ? Math.round(+p.page) : 0,
-  zones: Array.isArray(p.zones) ? p.zones : [], devs: Array.isArray(p.devs) ? p.devs : [], nets: Array.isArray(p.nets) ? p.nets : [], cats: Array.isArray(p.cats) ? p.cats : [], els: Array.isArray(p.els) ? p.els.filter(Number.isFinite) : [] });
+  task: p.task || null, zones: Array.isArray(p.zones) ? p.zones : [], devs: Array.isArray(p.devs) ? p.devs : [], nets: Array.isArray(p.nets) ? p.nets : [], cats: Array.isArray(p.cats) ? p.cats : [], els: Array.isArray(p.els) ? p.els.filter(Number.isFinite) : [] });
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, phases })); } catch (e) { /* stockage indisponible */ } ctx.onChange && ctx.onChange(); };
 const sorted = () => phases.map((p, i) => [p, i]).sort((a, b) => (a[0].start || '9999').localeCompare(b[0].start || '9999') || a[1] - b[1]).map(x => x[0]);
 
@@ -54,7 +54,7 @@ export function addElement(phaseId, expressID) {
 export function setPlanning(blob, name) {
   if (planning) { try { URL.revokeObjectURL(planning); } catch (e) { /* ignoré */ } }
   planning = blob ? URL.createObjectURL(blob.type === 'application/pdf' ? blob : new Blob([blob], { type: 'application/pdf' })) : null;
-  planName = name || ''; render();
+  planBlob = blob || null; tasks = null; planName = name || ''; render();
 }
 export function openPlanning(page) {
   if (!planning) return false;
@@ -70,7 +70,7 @@ function render() {
   const ul = $('phList'); if (!ul) return;
   $('phEmpty').hidden = phases.length > 0;
   $('phPlan').innerHTML = planning
-    ? `<b>Planning</b> ${esc(planName)} <button type="button" class="link" id="phSee">Voir</button>`
+    ? `<b>Planning</b> ${esc(planName)} <button type="button" class="link" id="phSee">Voir</button> <button type="button" class="link" id="phImp">Importer les phases du planning</button>`
     : '<b>Planning</b> Aucun PDF trouvé dans le dossier.';
   const sel = $('phCur'); sel.innerHTML = '<option value="">Toutes les phases</option>' + sorted().map(p => `<option value="${p.id}"${p.id === cur ? ' selected' : ''}>${esc(p.name)}${p.start ? ' · ' + fmtDate(p.start) : ''}</option>`).join('');
   const zones = ctx.getZones ? ctx.getZones() : [], devs = ctx.getDevs ? ctx.getDevs() : [], nets = ctx.getNets ? ctx.getNets() : [];
@@ -98,7 +98,14 @@ export function init(c) {
     phases.push(p); openId = p.id; save(); render();
   });
   $('phCur').addEventListener('change', e => setCurrent(e.target.value || null));
-  $('phPlan').addEventListener('click', e => { if (e.target.id === 'phSee') openPlanning(0); });
+  $('phPlan').addEventListener('click', e => { if (e.target.id === 'phSee') openPlanning(0); else if (e.target.id === 'phImp') openImport(); });
+  $('piClose').addEventListener('click', () => { $('piView').hidden = true; });
+  $('piView').addEventListener('click', e => { if (e.target.id === 'piView') $('piView').hidden = true; });
+  $('piFind').addEventListener('input', drawTasks);
+  $('piList').addEventListener('change', e => { const li = e.target.closest('li'); if (li && tasks) { const t = tasks.find(x => x.n === +li.dataset.n); if (t) t.on = e.target.checked; count(); } });
+  $('piAll').addEventListener('click', () => { const q = norm2($('piFind').value); tasks.forEach(t => { if (!q || norm2(t.name).includes(q)) t.on = true; }); drawTasks(); });
+  $('piNone').addEventListener('click', () => { tasks.forEach(t => { t.on = false; }); drawTasks(); });
+  $('piGo').addEventListener('click', doImport);
   $('phPick').addEventListener('change', e => { const f = e.target.files[0]; if (f) { setPlanning(f, f.name); } e.target.value = ''; });
   $('plClose').addEventListener('click', closePlanning);
   $('plView').addEventListener('click', e => { if (e.target.id === 'plView') closePlanning(); });
@@ -122,3 +129,33 @@ export function init(c) {
   render();
 }
 export const refresh = render;
+
+/* ---------- import des phases depuis le planning PDF ---------- */
+const norm2 = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const fr = d => d ? d.split('-').reverse().join('/') : '';
+async function openImport() {
+  if (!planBlob) return;
+  $('piView').hidden = false; $('piMsg').textContent = 'Lecture du planning…'; $('piList').innerHTML = ''; $('piGo').disabled = true;
+  try {
+    if (!tasks) {
+      const m = await import('./planning.js'), r = await m.readPlanning(planBlob);
+      if (!r || !r.tasks.length) { $('piMsg').textContent = 'Ce planning n’a pas pu être lu automatiquement (tableau de tâches non reconnu). Créez les phases à la main : « Ajouter une phase », puis indiquez sa page.'; return; }
+      tasks = r.tasks.filter(t => t.name).map(t => ({ ...t, on: /[A-ZÉÈ]{3}/.test(t.name) && t.name === t.name.toUpperCase() }));
+      tasks.dated = r.dated; tasks.total = r.total;
+    }
+    drawTasks();
+  } catch (e) { console.warn('planning', e); $('piMsg').textContent = 'Lecture du planning impossible sur cet appareil. Créez les phases à la main.'; }
+}
+function drawTasks() {
+  const q = norm2($('piFind').value), have = new Set(phases.map(p => p.task).filter(Boolean));
+  $('piMsg').textContent = `${tasks.length} tâches lues, ${tasks.dated} avec dates. Cochez celles qui deviennent des phases (les titres en majuscules sont déjà cochés).`;
+  $('piList').innerHTML = tasks.filter(t => !q || norm2(t.name).includes(q)).map(t => `<li data-n="${t.n}"><label><input type="checkbox"${t.on ? ' checked' : ''}${have.has(t.n) ? ' disabled' : ''}> <b>${t.n}</b> ${esc(t.name)} <small>${t.start ? fr(t.start) + (t.end && t.end !== t.start ? ' → ' + fr(t.end) : '') : 'dates non lues'}${have.has(t.n) ? ' · déjà importée' : ''}</small></label></li>`).join('');
+  count();
+}
+function count() { const n = tasks.filter(t => t.on).length; $('piGo').disabled = !n; $('piGo').textContent = n ? `Créer ${n} phase${n > 1 ? 's' : ''}` : 'Créer les phases'; }
+function doImport() {
+  const have = new Set(phases.map(p => p.task).filter(Boolean)); let k = 0;
+  tasks.filter(t => t.on && !have.has(t.n)).forEach(t => { phases.push(norm({ id: uid(), name: t.name.slice(0, 40), start: t.start, end: t.end, page: 1, task: t.n, color: PALETTE[phases.length % PALETTE.length] })); k++; });
+  save(); apply(); render(); $('piView').hidden = true;
+  ctx.status && ctx.status(`${k} phase(s) créée(s) depuis le planning. Complétez leur contenu dans « Contenu de la phase ».`, { ms: 6000 });
+}

@@ -605,3 +605,10 @@ body.on-welcome .pop-wrap { display: none; }
 #ntList li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 6px; }
 #ntList li.on { border-color: var(--bleu); box-shadow: 0 0 0 1px var(--bleu) inset; }
 #chTabN #ntFetch { align-self: flex-start; }
+
+#piView { position: fixed; inset: 0; z-index: 3000; background: rgba(7,17,30,.72); display: flex; align-items: center; justify-content: center; padding: 16px; } #piView[hidden] { display: none; }
+.pi-box { width: min(760px, 100%); } .pi-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; } .pi-body .hint { margin: 0; color: var(--muted); font-size: .84rem; }
+.pi-bar { display: flex; align-items: center; gap: 12px; } .pi-bar input { flex: 1; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; background: var(--panel); color: var(--ink); }
+#piList { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; border: 1px solid var(--line); border-radius: 10px; }
+#piList li { border-bottom: 1px solid var(--line); } #piList li:last-child { border: 0; } #piList label { display: block; padding: 6px 10px; font-size: .86rem; cursor: pointer; } #piList small { color: var(--muted); margin-left: 6px; }
+.pi-foot { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; }
