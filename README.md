@@ -192,3 +192,9 @@ Le panneau « Chantier » a une hauteur stable et reste au-dessus du bandeau des
 ## Version 1.16.2 : un projet, ses propres données
 
 Les zones, déviations, réseaux et phases gardées dans le navigateur sont maintenant rangées par projet (nom de la maquette). Ouvrir une autre maquette ne ramène plus les phases du projet précédent, et les retrouver en rouvrant le premier. Si l'équipe a enregistré un calage avec ses phases, elles s'affichent à l'ouverture.
+
+## Version 1.17.0 : repérage de réseaux sur photo
+
+Dans la visionneuse, le bouton « Repérer » ouvre la photo en mode dessin. On trace à la main des conduites (réseau neuf ou existant, diamètre), on pose des regards, des accessoires (rond, losange, triangle, carré avec une lettre) et des textes. Sept réseaux sont proposés : AEP, EU et EP en neuf et en existant, et « À abandonner » en pointillé. Aucun automatisme : pas de raccordement, de croisement ni de légende calculés.
+
+La molette ou le pincement zoome, le fond se déplace au doigt ou à la souris (ou clic droit, ou barre d'espace). Annuler et rétablir sont disponibles (Ctrl+Z et Ctrl+Y). « Exporter l'image » enregistre la photo avec le dessin. Le repérage est gardé dans le navigateur pour chaque photo, et le bouton affiche le nombre d'objets dessinés.
