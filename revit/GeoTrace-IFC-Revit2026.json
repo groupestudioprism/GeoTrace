@@ -1,0 +1,28 @@
+{
+  "Name": "GeoTrace",
+  "IFCVersion": 25,
+  "IFCFileType": 0,
+  "SpaceBoundaries": 0,
+  "SitePlacement": 0,
+  "ActivePhaseId": {
+    "IntegerValue": -1
+  },
+  "ExportBaseQuantities": false,
+  "SplitWallsAndColumns": false,
+  "ExportInternalRevitPropertySets": false,
+  "ExportIFCCommonPropertySets": true,
+  "Export2DElements": false,
+  "VisibleElementsOfCurrentView": true,
+  "Use2DRoomBoundaryForVolume": false,
+  "UseFamilyAndTypeNameForReference": false,
+  "ExportPartsAsBuildingElements": false,
+  "ExportSolidModelRep": false,
+  "ExportSchedulesAsPsets": false,
+  "ExportUserDefinedPsets": false,
+  "ExportUserDefinedParameterMapping": false,
+  "UseActiveViewGeometry": false,
+  "IncludeSiteElevation": true,
+  "IncludeSteelElements": false,
+  "IsBuiltIn": false,
+  "IsInSession": false
+}

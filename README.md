@@ -38,6 +38,10 @@ Le bouton **Maquette** place sur la carte une maquette 3D exportée de Revit, pu
 5. Deux points suffisent pour placer et orienter la maquette. Plus de points, plus loin les uns des autres, donnent un calage plus sûr. L'écart moyen est affiché : en dessous de 1 m, c'est bon.
 6. **Vue 3D** : la maquette sur la photo aérienne, avec les repères des photos de chantier. Le bouton « Voir dans la maquette » d'une fiche photo place la caméra là où la photo a été prise. « Superposer » affiche la photo en transparence sur la maquette pour comparer.
 
+### Réglage d'export prêt à l'emploi (Revit 2026)
+
+[`revit/GeoTrace-IFC-Revit2026.json`](revit/GeoTrace-IFC-Revit2026.json) : IFC 4 Reference View, coordonnées partagées, sans lignes 2D ni propriétés Revit internes (fichier plus léger). Dans Revit : Fichier, Exporter, IFC, *Modifier la configuration*, icône *Importer*, choisir le fichier, puis sélectionner « GeoTrace ». Exportez depuis une vue 3D où seuls les éléments voulus sont visibles.
+
 ### Placer la maquette depuis Revit (sans cliquer de points)
 
 Si Revit connaît la position de l'ouvrage, GeoTrace la lit dans le fichier IFC et place la maquette tout seul (« Placée d'après les coordonnées enregistrées dans Revit »).
