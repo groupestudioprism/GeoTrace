@@ -198,3 +198,7 @@ Les zones, déviations, réseaux et phases gardées dans le navigateur sont main
 Dans la visionneuse, le bouton « Repérer » ouvre la photo en mode dessin. On trace à la main des conduites (réseau neuf ou existant, diamètre), on pose des regards, des accessoires (rond, losange, triangle, carré avec une lettre) et des textes. Sept réseaux sont proposés : AEP, EU et EP en neuf et en existant, et « À abandonner » en pointillé. Aucun automatisme : pas de raccordement, de croisement ni de légende calculés.
 
 La molette ou le pincement zoome, le fond se déplace au doigt ou à la souris (ou clic droit, ou barre d'espace). Annuler et rétablir sont disponibles (Ctrl+Z et Ctrl+Y). « Exporter l'image » enregistre la photo avec le dessin. Le repérage est gardé dans le navigateur pour chaque photo, et le bouton affiche le nombre d'objets dessinés.
+
+## Version 1.17.1 : repérage réécrit en version simple
+
+Le fichier `assets/repere.js` est réécrit dans un style simple et très commenté (fonctions courtes, noms clairs, boucles classiques), pour servir de point de départ à la lecture du code. Le comportement et l'affichage sont identiques. Les repérages enregistrés avec la 1.17.0 sont convertis automatiquement à l'ouverture.
