@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.8.1';
+const VERSION = '1.9.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1281,7 +1281,7 @@ const HINT_FREE = $('v3Hint').textContent;
 const HINT_LOCK = 'Superposition : Glisser : orienter · Maj + glisser : déplacer · Molette : zoom · Double-clic : annuler le calage · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
-  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Clear').hidden = !on;
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
   const x = $('v3Close'); x.title = x.ariaLabel = on ? 'Revenir à la vue 3D' : 'Fermer';
 }
 /* Sortir de la superposition sans quitter la 3D. */
@@ -1306,6 +1306,7 @@ async function alignPhoto(id) {
 $('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
 $('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos du même type d’appareil.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
 $('v3Clear').addEventListener('click', () => { if (Maq) Maq.v3ClearAll(); showNote('Réglages de toutes les photos annulés.'); setTimeout(() => showNote(''), 3500); });
+$('v3Save').addEventListener('click', () => { $('maqExport').click(); showNote('Fichier de calage enregistré. Déposez-le à côté de la maquette sur Nextcloud : tout le monde verra la maquette bien placée.'); setTimeout(() => showNote(''), 7000); });
 $('v3In').addEventListener('click', () => Maq && Maq.v3Zoom(1.4));
 $('v3Out').addEventListener('click', () => Maq && Maq.v3Zoom(1 / 1.4));
 $('v3Top').addEventListener('click', () => Maq && Maq.v3Top());

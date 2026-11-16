@@ -120,3 +120,13 @@ Logo redessiné d'après le croquis retenu : épingle bleu foncé avec les trois
 ## Version 1.8.1
 
 « Appliquer à toutes » ne concerne plus que les photos du même type d'appareil (drone ou téléphone) : leurs erreurs de position et d'orientation ne sont pas les mêmes.
+
+## Version 1.9.0 : calage des photos fourni avec le projet
+
+Les erreurs de position et d'orientation des photos se règlent une seule fois, par la personne qui prépare le projet. En superposition :
+
+1. Calez une photo (un point sur la maquette, puis le même point sur la photo). Pour toutes les photos du même appareil, cliquez sur « Appliquer à toutes ».
+2. Cliquez sur « Enregistrer pour l'équipe » : le fichier `nom.geotrace.json` (le même que le calage de la maquette) contient maintenant aussi les réglages des photos.
+3. Déposez-le à côté de la maquette sur Nextcloud. Collaborateurs et clients voient la maquette bien placée, sans rien régler.
+
+Ordre de priorité : réglage fait sur cet ordinateur, puis réglage du projet pour la photo, puis réglage du projet pour le type d'appareil.

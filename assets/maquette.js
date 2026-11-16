@@ -233,11 +233,13 @@ export function exportCalage() {
   return JSON.stringify({ geotrace: 'calage', version: 1, maquette: state.model ? state.model.name : null,
     fixScale: state.geo.fixScale, angle: state.geo.angle,
     points: state.geo.pairs.map(p => ({ maquette: p.m.map(v => +v.toFixed(3)), lat: +p.ll[0].toFixed(8), lon: +p.ll[1].toFixed(8) })),
-    resultat: state.sol && !state.sol.placeholder ? { echelle: +state.sol.s.toFixed(5), rotation_deg: +(state.sol.theta / RAD).toFixed(3), ecart_moyen_m: +state.sol.rms.toFixed(3) } : null }, null, 2);
+    resultat: state.sol && !state.sol.placeholder ? { echelle: +state.sol.s.toFixed(5), rotation_deg: +(state.sol.theta / RAD).toFixed(3), ecart_moyen_m: +state.sol.rms.toFixed(3) } : null,
+    vues: collectVues() }, null, 2);
 }
 export function importCalage(text) {
   const j = JSON.parse(text);
   if (!j || j.geotrace !== 'calage' || !Array.isArray(j.points)) throw new Error('format');
+  projVues = j.vues && typeof j.vues === 'object' ? j.vues : null;
   state.geo = { fixScale: j.fixScale !== false, angle: +j.angle || 0,
     pairs: j.points.filter(p => Array.isArray(p.maquette) && Number.isFinite(p.lat) && Number.isFinite(p.lon)).map(p => ({ m: [+p.maquette[0], +p.maquette[1]], ll: [p.lat, p.lon] })) };
 }
@@ -432,7 +434,27 @@ const adjKey = p => 'geotrace:vue:' + (p.key || p.name);
 const SHARED = 'geotrace:vue:*commun:'; // + type d'appareil : une erreur de drone n'est pas celle d'un téléphone
 const sharedKey = p => SHARED + (p.dev || 'phone');
 /* Réglage propre à la photo s'il existe, sinon réglage commun (appliqué à toutes les photos), sinon aucun. */
-const loadAdj = p => { try { const own = localStorage.getItem(adjKey(p)); return Object.assign(ADJ0(), JSON.parse(own || localStorage.getItem(sharedKey(p)) || '{}')); } catch (e) { return ADJ0(); } };
+/* Réglages fournis avec le projet (fichier .geotrace.json) : { photos: { clé: réglage }, commun: { drone|phone: réglage } }. */
+let projVues = null;
+const loadAdj = p => {
+  try {
+    const own = localStorage.getItem(adjKey(p)) || localStorage.getItem(sharedKey(p));
+    const pv = projVues && ((projVues.photos && projVues.photos[p.key || p.name]) || (projVues.commun && projVues.commun[p.dev || 'phone']));
+    return Object.assign(ADJ0(), own ? JSON.parse(own) : (pv || {}));
+  } catch (e) { return ADJ0(); }
+};
+/* Tous les réglages de photos enregistrés sur cet ordinateur, pour le fichier de calage de l'équipe. */
+function collectVues() {
+  const out = { photos: {}, commun: {} };
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i); if (!k || !k.startsWith('geotrace:vue:')) continue;
+      const v = JSON.parse(localStorage.getItem(k)), id = k.slice('geotrace:vue:'.length);
+      if (id.startsWith('*commun:')) out.commun[id.slice(8)] = v; else out.photos[id] = v;
+    }
+  } catch (e) { /* stockage indisponible */ }
+  return (Object.keys(out.photos).length || Object.keys(out.commun).length) ? out : null;
+}
 const saveAdj = (p, a) => { try { localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
 /* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
 function shareAdj(lk, photos) {
@@ -443,7 +465,7 @@ function shareAdj(lk, photos) {
   } catch (e) { return 0; }
 }
 /* Remet toutes les photos sans réglage. */
-function clearAdj(photos) { try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
+function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
 export async function open3D(host, { photos = [], focus = null, onPhoto, onElement, onNote }) {
