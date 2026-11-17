@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.22.0';
+const VERSION = '1.23.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -443,7 +443,7 @@ function finish() {
   $('dFrom').max = $('dTo').max = dates.length ? isoDay(dates[dates.length - 1]) : '';
   $('addBtn').disabled = false; $('exportBtn').disabled = false;
   refresh(true);
-  setTimeout(autoProjectCalib, 600); setTimeout(() => { if (!mdClosed && photos.some(p => p.lat != null)) showDraw(true); }, 900); // le projet se cale tout seul dès qu'il est ouvert
+  setTimeout(autoProjectCalib, 600); setTimeout(refreshNetLayer, 1200); // le projet se cale tout seul dès qu'il est ouvert
   const withGps = placedOf(photos).length;
   if (!withGps) status('Aucune de ces photos ne contient de position GPS. Elles restent dans la liste.', { ms: 7000 });
 }
@@ -802,7 +802,7 @@ async function openPlan() {
       if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
     },
     onSend3D: items => sendRepTo3D(PLAN_KEY, items),
-    onClose: () => { if (mdCtl) mdCtl.refresh(); setTimeout(() => URL.revokeObjectURL(url), 2000); if (!$('viewer').hidden) paintOver(); }
+    onClose: () => { refreshNetLayer(); setTimeout(() => URL.revokeObjectURL(url), 2000); if (!$('viewer').hidden) paintOver(); }
   });
 }
 /* Zone du plan : calculée d'après les photos tant qu'aucun dessin n'y est fait, puis figée. */
@@ -820,54 +820,51 @@ function ensurePlanPose() {
   if (!planPose || planPose.plan.z !== G.pose.plan.z || planPose.plan.x0 !== G.pose.plan.x0 || planPose.plan.y0 !== G.pose.plan.y0 || planPose.w !== G.pose.w || planPose.h !== G.pose.h) { planPose = G.pose; store.set('geotrace:planpose', planPose); }
   return planPose;
 }
-// Dessin des réseaux directement sur la carte (barre d'outils « Réseaux »)
-let mdCtl = null, mdClosed = false;
-async function ensureMapDraw() {
-  if (mdCtl) return mdCtl;
-  const PL = await import('./plan.js'); planGeom = PL.planGeometry;
-  const MD = await import('./mapdraw.js');
-  mdCtl = await MD.initMapDraw({
-    map, bar: $('mdBar'), status,
-    getRec: () => reps[PLAN_KEY], getPose: () => ensurePlanPose(),
-    setRec: rec => { if (rec && (rec.objs || []).length) reps[PLAN_KEY] = rec; else delete reps[PLAN_KEY]; saveReps(); if (!$('viewer').hidden) paintOver(); },
-    openPlan
-  });
-  return mdCtl;
-}
-let planGeom = null;
-async function showDraw(on) {
+// Les réseaux dessinés sur le plan, aussi visibles sur la carte principale
+let netCtl = null, planGeom = null;
+async function refreshNetLayer() {
   try {
-    const c = await ensureMapDraw(); c.show(on);
-    $('planBtn').setAttribute('aria-pressed', String(on));
-  } catch (e) { console.error(e); status('Le dessin sur la carte n’a pas pu démarrer.', { ms: 4000 }); }
+    if (!netCtl) {
+      if (!reps[PLAN_KEY]) return;
+      const NL = await import('./netlayer.js');
+      netCtl = await NL.initNetLayer({ map, getRec: () => reps[PLAN_KEY], getPose: () => planPose, onPick: () => openPlan() });
+    }
+    netCtl.refresh();
+  } catch (e) { console.warn('réseaux sur la carte', e); }
 }
-$('planBtn').addEventListener('click', () => { const on = !(mdCtl && mdCtl.visible()); mdClosed = !on; showDraw(on); });
-$('mdBar').addEventListener('click', e => { if (e.target.closest('[data-md=close]')) { mdClosed = true; $('planBtn').setAttribute('aria-pressed', 'false'); } });
+$('planBtn').addEventListener('click', () => openPlan());
 // Dessins du repérage (et ceux des autres photos reportés ici) posés sur la photo de la visionneuse
 let ovlOn = store.get('geotrace:ovl', true);
+const ovlF = Object.assign({ plan: true, own: true, others: true }, store.get('geotrace:ovlf', {}));
 async function paintOver() {
   const cv = $('vOver'), img = $('vImg'), p = vList[vIdx], b = $('vOvl');
   if (!cv || !p) return;
   const mine = reps[p.key] && reps[p.key].v === 2 && (reps[p.key].objs || []).length;
-  const oth = planEntry().length > 0 || photos.some(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null);
-  b.hidden = !(mine || oth); b.setAttribute('aria-pressed', String(!!ovlOn));
+  const othPhotos = photos.some(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null);
+  const hasPlan = planEntry().length > 0;
+  // le menu « Annotations » n'apparaît que s'il y a quelque chose à montrer
+  $('vOvlWrap').hidden = !(mine || othPhotos || hasPlan);
+  $('ofPlan').closest('label').hidden = !hasPlan; $('ofOwn').closest('label').hidden = !mine; $('ofOthers').closest('label').hidden = !othPhotos;
+  const anyOn = (hasPlan && ovlF.plan) || (mine && ovlF.own) || (othPhotos && ovlF.others);
+  b.setAttribute('aria-pressed', String(!!anyOn));
   cv.hidden = true;
-  if (!ovlOn || b.hidden || !img.naturalWidth) return;
+  if (!anyOn || $('vOvlWrap').hidden || !img.naturalWidth) return;
   const my = vToken;
   if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { return; } }
   if (my !== vToken) return;
   let M = null; try { M = await maq(); } catch (e) { M = null; }
-  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ photo: poseOf(o, M), data: reps[o.key] })).concat(planEntry().map(e => ({ photo: e.photo, data: e.data })));
+  const others = (ovlF.others ? photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ photo: poseOf(o, M), data: reps[o.key] })) : [])
+    .concat(ovlF.plan ? planEntry().map(e => ({ photo: e.photo, data: e.data, solid: true })) : []);
   const k = Math.min(1, 2400 / img.naturalWidth);
-  Rep.paintOverlay(cv, { w: Math.round(img.naturalWidth * k), h: Math.round(img.naturalHeight * k), data: reps[p.key], photo: poseOf(p, M), others, showOthers: true });
+  Rep.paintOverlay(cv, { w: Math.round(img.naturalWidth * k), h: Math.round(img.naturalHeight * k), data: ovlF.own ? reps[p.key] : null, photo: poseOf(p, M), others, showOthers: others.length > 0 });
   cv.style.width = img.clientWidth + 'px'; cv.style.height = img.clientHeight + 'px';
   cv.hidden = false;
 }
-$('vOvl').addEventListener('click', () => { ovlOn = !ovlOn; store.set('geotrace:ovl', ovlOn); paintOver(); });
+[['ofPlan', 'plan'], ['ofOwn', 'own'], ['ofOthers', 'others']].forEach(([id, k]) => { $(id).checked = !!ovlF[k]; $(id).addEventListener('change', () => { ovlF[k] = $(id).checked; store.set('geotrace:ovlf', ovlF); paintOver(); }); });
 window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
 /* Calage de tout le projet : points communs entre toutes les photos voisines, réglage de toutes les photos ensemble */
 let pcLayer = null, pcRun = null, scanCloud = null;
-function paintScanBtn() { const b = $('scanBtn'); if (b) { b.hidden = !(scanCloud && scanCloud.n > 0); b.textContent = 'Scan 3D (' + (scanCloud ? Math.round(scanCloud.n / 100) / 10 + ' k points' : '') + ')'; } }
+function paintScanBtn() { const b = $('scanBtn'); if ($('d3Scan')) $('d3Scan').hidden = !(scanCloud && scanCloud.n > 0); if (b) { b.hidden = !(scanCloud && scanCloud.n > 0); b.textContent = 'Scan 3D (' + (scanCloud ? Math.round(scanCloud.n / 100) / 10 + ' k points' : '') + ')'; } }
 // Scan déjà calculé pour ces photos : on le retrouve sans refaire le calage
 async function restoreScan() {
   const list = photos.filter(p => p.lat != null && p.heading != null);
@@ -1052,7 +1049,9 @@ function popover(btnId, menuId) {
   m.addEventListener('click', e => e.stopPropagation());
 }
 function closeMenus() { document.querySelectorAll('.menu').forEach(m => { m.hidden = true; }); document.querySelectorAll('[aria-controls$=Menu]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
-popover('layersBtn', 'layersMenu'); popover('exportBtn', 'exportMenu');
+popover('layersBtn', 'layersMenu'); popover('exportBtn', 'exportMenu'); popover('d3Btn', 'd3Menu'); popover('hmBtn', 'hmMenu'); popover('vOvl', 'vOvlMenu');
+// Les entrées des menus 3D et aide déclenchent les boutons d'origine (cachés), dont tout le reste du code dépend
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { closeMenus(); const t = $(b.dataset.go); if (t) t.click(); }));
 document.addEventListener('click', closeMenus);
 
 document.querySelectorAll('input[name=base]').forEach(r => r.addEventListener('change', () => setBase(r.value)));
@@ -1602,15 +1601,15 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: ['#chBtn', '#chPanel'], t: 'Phases', x: 'L’onglet Phases découpe le chantier : dates, installations et déviations présentes, éléments de la maquette construits pendant la phase, et page du planning PDF (trouvé dans le dossier ou choisi à la main). « Afficher cette phase » filtre la carte ; en vue 3D, le sélecteur Phase montre l’avancement, et un clic sur un élément permet de l’ajouter à une phase.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=p]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Réseaux existants', x: 'L’onglet Réseaux : « Récupérer les données ouvertes de la vue » charge les canalisations et lignes électriques de l’IGN et d’OpenStreetMap ; « Importer un fichier » lit un GeoJSON ou KML (WGS 84 ou Lambert-93) ; ou tracez-les d’après un plan DT-DICT, avec profondeur et diamètre. En 3D, la case « Réseaux enterrés » les montre sous le sol.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=n]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: '#map', t: 'Repérer les réseaux sur une photo', x: 'Ouvrez une photo en grand puis « Repérer » : dessinez conduites, branchements, regards, accessoires et textes, avec raccords et montages automatiques. « Envoyer en 3D » place le repérage dans la vue 3D, et les dessins des autres photos apparaissent en transparence pour les modifier ou les prolonger.' },
-    { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
-    { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
+    { sel: ['#d3Btn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
+    { sel: '#d3Btn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
       demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },
-    { sel: '#vue3dBtn', t: 'Se placer et superposer', x: 'Dans la vue 3D, « Se placer ici » met la caméra à la position de la photo. « Superposer » fond ensuite la photo et la maquette pour les comparer : réglez l’opacité avec le curseur. Échap ou ✕ revient à la 3D.',
+    { sel: '#d3Btn', t: 'Se placer et superposer', x: 'Dans la vue 3D, « Se placer ici » met la caméra à la position de la photo. « Superposer » fond ensuite la photo et la maquette pour les comparer : réglez l’opacité avec le curseur. Échap ou ✕ revient à la 3D.',
       demo: demoPip('<button type="button">Se placer ici</button><button type="button" class="on">Superposer</button>', 'Boutons en bas à droite de la vue 3D, sous la photo.') },
-    { sel: '#vue3dBtn', t: 'Régler une fois pour toute l’équipe', x: 'Si l’alignement n’est pas parfait, décalez la maquette avec les flèches du clavier ou la souris. « Appliquer à toutes » reprend ce réglage pour les photos du même type d’appareil ; « Enregistrer pour l’équipe » l’écrit dans le fichier de calage à déposer à côté de la maquette. Collègues et clients n’ont plus rien à régler.',
+    { sel: '#d3Btn', t: 'Régler une fois pour toute l’équipe', x: 'Si l’alignement n’est pas parfait, décalez la maquette avec les flèches du clavier ou la souris. « Appliquer à toutes » reprend ce réglage pour les photos du même type d’appareil ; « Enregistrer pour l’équipe » l’écrit dans le fichier de calage à déposer à côté de la maquette. Collègues et clients n’ont plus rien à régler.',
       demo: demoPip('<button type="button">Appliquer à toutes</button><button type="button">Enregistrer pour l’équipe</button><button type="button">Tout annuler</button>', 'Ils apparaissent dès que vous modifiez le réglage.') },
     { sel: '#exportBtn', t: 'Exporter', x: 'Exportez les photos affichées en GeoJSON (QGIS, ArcGIS), KML (Google Earth), CSV avec coordonnées Lambert-93, ou ZIP avec les photos. Le bouton s’active quand des photos sont ouvertes.' },
-    { sel: ['#themeBtn', '#helpBtn'], t: 'Thème et aide', x: 'La lune ou le soleil bascule entre mode clair et mode sombre. Le point d’interrogation liste les raccourcis clavier. Ce tuto se rouvre avec le bouton « Tuto ».' },
+    { sel: ['#themeBtn', '#hmBtn'], t: 'Thème et aide', x: 'La lune ou le soleil bascule entre mode clair et mode sombre. Le point d’interrogation liste les raccourcis clavier. Ce tuto se rouvre depuis le menu « ? ».' },
   ];
   const tourOpened = {}; let i = 0, open = false;
   const el = id => document.getElementById(id);

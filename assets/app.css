@@ -696,13 +696,9 @@ body.on-welcome .pop-wrap { display: none; }
 #pcBox[hidden] { display: none; }
 #pcBox progress { width: 100%; }
 
+.vh { display: none !important; }
 /* Dessin des réseaux sur la carte */
-.md-bar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); z-index: 1100; max-width: calc(100% - 24px); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px; background: var(--panel, #fff); color: var(--ink, #14202e); box-shadow: 0 6px 24px rgba(0, 0, 0, .28); border: 1px solid var(--line, rgba(0, 0, 0, .12)); }
-.md-bar[hidden] { display: none; }
-.md-bar b { margin-right: 4px; }
-.md-bar select { max-width: 220px; padding: 5px 6px; border-radius: 8px; border: 1px solid var(--line, rgba(0, 0, 0, .2)); background: transparent; color: inherit; font: inherit; }
-.md-bar [aria-pressed=true] { background: #12b5f0; color: #04202e; border-color: #12b5f0; }
-.md-hint { flex-basis: 100%; font-size: 12px; opacity: .75; }
-
-.md-on .leaflet-marker-pane *, .md-on .leaflet-shadow-pane * { pointer-events: none !important; }
-.md-add .leaflet-overlay-pane path { pointer-events: none !important; }
+#vOvlMenu { min-width: 250px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+#vOvlMenu label { display: flex; gap: 8px; align-items: center; font-size: .9rem; cursor: pointer; }
+#vOvlWrap { position: relative; }
+.menu button small { display: block; font-weight: 400; opacity: .7; }

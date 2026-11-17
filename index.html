@@ -78,12 +78,21 @@
     </div>
   </div>
 
+  <button class="btn" id="planBtn" type="button" title="Dessiner les réseaux sur la carte aérienne, avec tous les outils du repérage : ils se placent dans toutes les photos."><span data-ic="zone"></span>Réseaux</button>
   <button class="btn" id="chBtn" type="button" title="Dessiner les installations de chantier et les déviations" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span>Chantier</button>
-  <button class="btn" id="maqBtn" type="button" title="Placer une maquette Revit (IFC) sur la carte" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette 3D</button>
-  <button class="btn" id="planBtn" type="button" title="Dessiner les réseaux directement sur la carte : ils se placent dans toutes les photos." aria-pressed="false"><span data-ic="zone"></span>Réseaux</button>
-  <button class="btn" id="scanBtn" type="button" hidden title="Ouvre le scan 3D du chantier, calculé à partir des points communs entre les photos.">Scan 3D</button>
-  <button class="btn" id="pcBtn" type="button" title="Le projet se cale automatiquement à l’ouverture. Ce bouton refait le calage.">Recaler le projet</button>
-  <button class="btn" id="vue3dBtn" type="button" title="Voir les photos dans la maquette en 3D"><span data-ic="eye"></span>Photos en 3D</button>
+  <div class="pop-wrap">
+    <button class="btn" id="d3Btn" type="button" title="Maquette, photos en 3D, scan 3D, calage des photos" aria-expanded="false" aria-controls="d3Menu"><span data-ic="cube"></span>3D</button>
+    <div class="menu" id="d3Menu" hidden>
+      <button type="button" data-go="vue3dBtn"><b>Photos en 3D</b><small>Les photos dans la maquette</small></button>
+      <button type="button" data-go="scanBtn" id="d3Scan" hidden><b>Scan 3D</b><small>Nuage de points en couleur</small></button>
+      <button type="button" data-go="maqBtn"><b>Maquette Revit</b><small>Importer et placer un fichier IFC</small></button>
+      <button type="button" data-go="pcBtn"><b>Recaler les photos</b><small>Refait le calage du projet</small></button>
+    </div>
+  </div>
+  <button class="btn vh" id="maqBtn" type="button" aria-expanded="false" aria-controls="maqPanel">Maquette 3D</button>
+  <button class="btn vh" id="scanBtn" type="button" hidden>Scan 3D</button>
+  <button class="btn vh" id="pcBtn" type="button">Recaler le projet</button>
+  <button class="btn vh" id="vue3dBtn" type="button">Photos en 3D</button>
 
   <div class="pop-wrap">
     <button class="btn" id="exportBtn" type="button" title="Exporter les photos affichées (ouvrez d’abord des photos)" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
@@ -96,8 +105,15 @@
   </div>
 
   <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
-  <button class="btn" id="tutoBtn" type="button" title="Comment fonctionne GeoTrace"><span data-ic="help"></span>Tuto</button>
-  <button class="icon-btn" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
+  <div class="pop-wrap">
+    <button class="icon-btn" id="hmBtn" type="button" aria-label="Aide" aria-expanded="false" aria-controls="hmMenu" data-ic="help"></button>
+    <div class="menu right" id="hmMenu" hidden>
+      <button type="button" data-go="tutoBtn"><b>Visite guidée</b><small>Comment fonctionne GeoTrace</small></button>
+      <button type="button" data-go="helpBtn"><b>Aide et raccourcis</b><small>Touches du clavier, version</small></button>
+    </div>
+  </div>
+  <button class="btn vh" id="tutoBtn" type="button">Tuto</button>
+  <button class="icon-btn vh" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
   <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
 </header>
 
@@ -131,21 +147,6 @@
   <section class="mapwrap" aria-label="Carte">
     <div id="map"></div>
 
-    <div class="md-bar" id="mdBar" hidden role="toolbar" aria-label="Dessiner les réseaux sur la carte">
-      <b>Réseaux</b>
-      <button class="btn small" type="button" data-md="line" aria-pressed="false">Conduite</button>
-      <button class="btn small" type="button" data-md="mh" aria-pressed="false">Regard</button>
-      <button class="btn small" type="button" data-md="acc" aria-pressed="false">Accessoire</button>
-      <button class="btn small" type="button" data-md="sel" aria-pressed="false">Supprimer…</button>
-      <select id="mdPipe" aria-label="Type de conduite" hidden></select>
-      <select id="mdMh" aria-label="Type de regard" hidden></select>
-      <select id="mdAcc" aria-label="Type d’accessoire" hidden></select>
-      <button class="btn small primary" type="button" data-md="fin" id="mdFin" hidden>Terminer</button>
-      <button class="btn small" type="button" data-md="undo">Annuler</button>
-      <button class="btn small" type="button" data-md="plan" title="Retoucher le plan en plein écran, avec tous les outils du repérage">Plan détaillé</button>
-      <button class="btn small" type="button" data-md="close" aria-label="Fermer">✕</button>
-      <span class="md-hint" id="mdHint">Choisissez un outil pour dessiner sur la carte.</span>
-    </div>
     <div class="tools" role="toolbar" aria-label="Outils de carte">
       <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
       <button class="tool" id="measureBtn" type="button" aria-label="Mesurer (M)" title="Mesurer (M)" aria-pressed="false" data-ic="ruler"></button>
@@ -352,7 +353,14 @@
     <span class="v-sep"></span>
     <button class="vb" id="vZoomOut" type="button" aria-label="Zoom arrière" data-ic="minus"></button>
     <button class="vb" id="vZoomIn" type="button" aria-label="Zoom avant" data-ic="plus"></button>
-    <button class="vb wide" id="vOvl" type="button" aria-pressed="true" title="Afficher ou masquer les dessins sur la photo">Dessins</button>
+    <div class="pop-wrap" id="vOvlWrap">
+      <button class="vb wide" id="vOvl" type="button" aria-pressed="true" aria-expanded="false" aria-controls="vOvlMenu" title="Choisir les annotations affichées sur la photo">Annotations</button>
+      <div class="menu right" id="vOvlMenu" hidden>
+        <label><input type="checkbox" id="ofPlan" checked> Réseaux dessinés sur la carte</label>
+        <label><input type="checkbox" id="ofOwn" checked> Repérage de cette photo</label>
+        <label><input type="checkbox" id="ofOthers" checked> Repérages des autres photos</label>
+      </div>
+    </div>
     <button class="vb wide" id="vRep" type="button" title="Dessiner conduites, regards et accessoires sur la photo">Repérer</button>
     <button class="vb" id="vRotate" type="button" aria-label="Pivoter" data-ic="rotate"></button>
     <button class="vb" id="vReset" type="button" aria-label="Taille d’origine" data-ic="fit"></button>

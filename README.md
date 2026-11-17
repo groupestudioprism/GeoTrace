@@ -224,15 +224,12 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
-## Version 1.22.0 : dessiner les réseaux directement sur la carte
+## Version 1.23.0 : en-tête simplifié, Réseaux = plan avec tous les outils, filtre d'annotations
 
-La barre **Réseaux** s'ouvre toute seule sur la carte quand on lance le projet (bouton « Réseaux » en haut pour l'ouvrir ou la fermer). On y choisit Conduite, Regard ou Accessoire (avec son type), on clique sur la carte, et le dessin est placé en coordonnées terrain : il apparaît ensuite dans toutes les photos (« Dessins » dans la visionneuse, transparence dans « Repérer »).
-- Conduite : un clic par point, double-clic, Entrée ou « Terminer » pour finir. Échap annule.
-- « Supprimer… » : cliquez un dessin pour le supprimer. « Annuler » revient en arrière.
-- Pendant le dessin, les repères des photos ne captent plus les clics (sinon ils déplaçaient la carte).
-- « Plan détaillé » ouvre le plan en plein écran avec tous les outils du repérage (branchements, textes, légendes, accroches).
-- Le bouton « Plan » de la version 1.21.0 devient « Réseaux ».
-- Nouveau fichier : `assets/mapdraw.js`.
+- **Réseaux** (en haut) ouvre directement le plan aérien en vue de dessus avec les mêmes outils que le repérage d'une photo. La barre de dessin sur la carte de la 1.22.0 est supprimée.
+- Les réseaux dessinés s'affichent en lecture seule sur la carte (`assets/netlayer.js`, remplace `mapdraw.js`).
+- En-tête réduit : Fond de carte, Réseaux, Chantier, **3D** (menu : photos en 3D, scan 3D, maquette, nuage de points), Exporter, thème, **?** (menu : tuto, aide).
+- Dans la visionneuse, le menu **Annotations** filtre ce qui se voit sur la photo : réseaux du plan, dessins de cette photo, dessins des autres photos. Plus besoin d'ouvrir l'onglet Repérage pour les voir. Le choix est mémorisé.
 
 ## Version 1.21.0 : dessiner sur le plan, les dessins se placent dans toutes les photos
 

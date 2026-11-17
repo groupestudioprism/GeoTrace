@@ -1212,14 +1212,15 @@ export function paintOverlay(cv, o) {
   const u = o.w / 1000;
   const cam = o.photo ? makeCamera(o.photo, { w: o.w, h: o.h }) : null;
   if (o.showOthers && cam) {
-    const objs = [];
+    const objs = [], solid = [];
     (o.others || []).forEach(function (x) {
       if (!x.data || x.data.v !== 2 || !x.data.objs) { return; }
       const ca = makeCamera(x.photo, { w: x.data.w, h: x.data.h });
       if (!ca) { return; }
-      x.data.objs.forEach(function (ob) { const p = C.projectObject(JSON.parse(JSON.stringify(ob)), ca, cam); if (p) { objs.push(p); } });
+      x.data.objs.forEach(function (ob) { const p = C.projectObject(JSON.parse(JSON.stringify(ob)), ca, cam); if (p) { (x.solid ? solid : objs).push(p); } });
     });
     if (objs.length) { c.save(); c.globalAlpha = 0.55; C.draw(c, { w: o.w, h: o.h, objects: objs }, u, { ui: false }); c.restore(); }
+    if (solid.length) { c.save(); c.globalAlpha = 0.92; C.draw(c, { w: o.w, h: o.h, objects: solid }, u, { ui: false }); c.restore(); }
   }
   if (o.data && o.data.v === 2 && o.data.objs && o.data.objs.length) {
     const sx = o.w / o.data.w;
