@@ -17,12 +17,16 @@ export function planGeometry(bounds, fixed) {
     // plan déjà dessiné : on garde exactement la même zone, sinon les dessins glisseraient
     z = fixed.plan.z; tx0 = fixed.plan.x0 / 256; ty0 = fixed.plan.y0 / 256; tx1 = tx0 + fixed.w / 256 - 1; ty1 = ty0 + fixed.h / 256 - 1;
   } else {
-    const [[la0, lo0], [la1, lo1]] = bounds, MAXPX = 3072;
+    const [[la0, lo0], [la1, lo1]] = bounds, MAXPX = 5120;
     let x0, x1, y0, y1;
-    for (; z >= 15; z--) {
+    for (z = 19; z >= 14; z--) {
       x0 = planGeo.lon2px(lo0, z); x1 = planGeo.lon2px(lo1, z); y0 = planGeo.lat2px(la1, z); y1 = planGeo.lat2px(la0, z);
       if (x1 - x0 <= MAXPX && y1 - y0 <= MAXPX) { break; }
     }
+    if (z < 14) { z = 14; }
+    // zone trop grande même au zoom 14 : on garde la partie centrale
+    if (x1 - x0 > MAXPX) { const m = (x0 + x1) / 2; x0 = m - MAXPX / 2; x1 = m + MAXPX / 2; }
+    if (y1 - y0 > MAXPX) { const m = (y0 + y1) / 2; y0 = m - MAXPX / 2; y1 = m + MAXPX / 2; }
     // on cale sur des tuiles entières (256 px) pour ne rien déformer
     tx0 = Math.floor(x0 / 256); tx1 = Math.floor(x1 / 256); ty0 = Math.floor(y0 / 256); ty1 = Math.floor(y1 / 256);
   }
