@@ -224,6 +224,10 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.25.1 : maquette alignée sur le calage du projet
+
+En vue superposée, une photo sans réglage propre utilise maintenant le calage automatique du projet (hauteur, cap et décalage corrigés d'après les autres photos) au lieu de la position brute du drone. Les photos voisines placent ainsi la maquette au même endroit. Un réglage manuel ou le fichier de calage de l'équipe restent prioritaires.
+
 ## Version 1.25.0 : la maquette ne bouge plus dans la vue 3D
 
 Avant, la maquette était tournée (angle du nord) et déplacée pour se poser sur la carte. Maintenant elle reste exactement dans ses coordonnées d'origine. Ce sont le terrain, les photos, les réseaux et la caméra qui sont placés autour d'elle. En vue superposée, la photo est derrière et la maquette, intacte, est devant : la caméra reprend la position, le cap, l'inclinaison et le champ de la photo.

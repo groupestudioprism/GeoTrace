@@ -458,7 +458,9 @@ const loadAdj = p => {
   try {
     const own = localStorage.getItem(adjKey(p)) || localStorage.getItem(sharedKey(p));
     const pv = projVues && ((projVues.photos && projVues.photos[p.key || p.name]) || (projVues.commun && projVues.commun[p.dev || 'phone']));
-    return Object.assign(ADJ0(), own ? JSON.parse(own) : (pv || {}));
+    // sans réglage propre ni fichier d'équipe : le calage automatique du projet (hauteur, cap, décalage corrigés d'après les autres photos)
+    const rv = localStorage.getItem('geotrace:rvue:' + (p.key || p.name));
+    return Object.assign(ADJ0(), own ? JSON.parse(own) : (pv || (rv ? JSON.parse(rv) : {})));
   } catch (e) { return ADJ0(); }
 };
 /* Tous les réglages de photos enregistrés sur cet ordinateur, pour le fichier de calage de l'équipe. */
