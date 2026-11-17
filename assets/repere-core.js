@@ -1360,19 +1360,21 @@ export function projectObject(o, fromCam, toCam) {
   };
   const c = JSON.parse(snapshot([o]))[0];
   if (o.type === 'line') {
-    const pts = o.pts.map(conv);
+    const gs = o.pts.map(p => fromCam.toGround(p.x, p.y));
+    const pts = gs.map(g => (g ? toCam.toPixel(g.lat, g.lon, 0) : null));
     if (pts.some(q => !q)) { return null; }
-    c.pts = pts.map((q, i) => ({ x: q.x, y: q.y }));
+    // g : le point sur le terrain, gardé pour caler la photo
+    c.pts = pts.map((q, i) => ({ x: q.x, y: q.y, g: [gs[i].lat, gs[i].lon] }));
   } else if (o.type === 'manhole') {
-    const q = conv({ x: o.cx, y: o.cy }), r = conv({ x: o.cx + o.rx, y: o.cy });
+    const q = conv({ x: o.cx, y: o.cy }), r = conv({ x: o.cx + o.rx, y: o.cy }), g0 = fromCam.toGround(o.cx, o.cy);
     if (!q) { return null; }
-    c.cx = q.x; c.cy = q.y;
+    c.cx = q.x; c.cy = q.y; c.g = [g0.lat, g0.lon];
     const rr = r ? Math.hypot(r.x - q.x, r.y - q.y) : o.rx;
     c.rx = c.ry = clamp(rr, 2, 400);
   } else if (o.type === 'acc') {
-    const q = conv(o);
+    const q = conv(o), g0 = fromCam.toGround(o.x, o.y);
     if (!q) { return null; }
-    c.x = q.x; c.y = q.y;
+    c.x = q.x; c.y = q.y; c.g = [g0.lat, g0.lon];
   } else { return null; }
   return c;
 }

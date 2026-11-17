@@ -23,7 +23,7 @@
    ===================================================================== */
 
 import * as C from './repere-core.js';
-import { makeCamera } from './photoproj.js';
+import { makeCamera, solveAdj } from './photoproj.js';
 
 export const NETS = C.S.networks; // gardé pour compatibilité
 
@@ -55,6 +55,9 @@ let ghosts = null;     // { ph: {w,h,objects}, cams, recs } : dessins des autres
 let curCam = null;     // la caméra de la photo ouverte (ou null)
 let others = [];       // les autres photos : { key, name, photo, rec }
 let hintText = '';
+let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, zoom, décalages), les mêmes que dans la vue 3D
+let calib = null;      // calage en cours : { pairs, pending, start }
+let sendTimer = null;
 
 const CFG = 'geotrace:repere:cfg';
 
@@ -73,6 +76,21 @@ function screenToPhoto(x, y) { return { x: (x - view.x) / view.scale, y: (y - vi
 function eventToPhoto(e) { const r = canvasRect(); return screenToPhoto(e.clientX - r.left, e.clientY - r.top); }
 // Une distance en pixels d'écran, convertie en pixels de photo
 const tolPx = n => n / view.scale;
+
+// La photo avec ses réglages fins : c'est elle qui sert à construire la caméra
+const poseFor = () => Object.assign({}, info.photo, { adj: curAdj });
+const ADJ0 = () => ({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 });
+
+// Un réglage a changé : on refait la caméra, les dessins des autres photos, et on le retient
+function applyAdj(a, keep) {
+  curAdj = Object.assign(ADJ0(), a);
+  curCam = makeCamera(poseFor(), { w: ph.w, h: ph.h });
+  computeGhosts();
+  render();
+  if (keep !== false && info.onAdj) { info.onAdj(curAdj); }
+  // Si le repérage est déjà en 3D, il doit suivre le nouveau réglage
+  if (keep !== false && sentFlag) { clearTimeout(sendTimer); sendTimer = setTimeout(function () { if (info && curCam) { sendTo3D(true); } }, 500); }
+}
 
 function say(text) { hintText = text || ''; const h = root && q('#rpHint'); if (h) { h.textContent = hintText; } }
 
@@ -134,6 +152,7 @@ function render() {
   }
   C.draw(ctx, ph, u, { ui: true, selected: selId ? [selId] : [], hs: hs });
   drawDraft(u);
+  drawCalib(u);
   updateButtons();
 }
 
@@ -153,6 +172,18 @@ function drawDraft(u) {
   ctx.setLineDash([]);
   draft.pts.forEach(function (p) { ctx.beginPath(); ctx.arc(p.x, p.y, 3.4 * u, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.6 * u; ctx.stroke(); });
   if (hoverSnap) { ctx.beginPath(); ctx.arc(hoverSnap.pos.x, hoverSnap.pos.y, 7 * u, 0, 7); ctx.strokeStyle = '#12b5f0'; ctx.lineWidth = 2 * u; ctx.stroke(); }
+  ctx.restore();
+}
+
+// Calage : le point choisi sur le dessin fantôme (rond) et les points déjà placés (croix)
+function drawCalib(u) {
+  if (!calib) { return; }
+  ctx.save();
+  ctx.lineWidth = 2 * u; ctx.strokeStyle = '#ff2d8a';
+  calib.pairs.forEach(function (q) {
+    ctx.beginPath(); ctx.moveTo(q.px.x - 7 * u, q.px.y); ctx.lineTo(q.px.x + 7 * u, q.px.y); ctx.moveTo(q.px.x, q.px.y - 7 * u); ctx.lineTo(q.px.x, q.px.y + 7 * u); ctx.stroke();
+  });
+  if (calib.pending) { ctx.beginPath(); ctx.arc(calib.pending.at.x, calib.pending.at.y, 9 * u, 0, 7); ctx.stroke(); }
   ctx.restore();
 }
 
@@ -209,6 +240,7 @@ function undo(dir) {
 /* ---------- 6. La souris et le doigt ---------- */
 
 function setTool(t) {
+  if (calib) { endCalib(true); }
   if (draft) { draft = null; }
   tool = t;
   canvas.dataset.tool = t;
@@ -253,6 +285,7 @@ function onPointerDown(e) {
     return;
   }
 
+  if (tool === 'calib') { return downCalib(p, tol); }
   if (tool === 'select') { return downSelect(e, p, u, tol); }
 
   if (tool === 'line') {
@@ -283,6 +316,54 @@ function onPointerDown(e) {
     const old = ph.objects.find(o => o.type === 'legend');
     if (old) { old.x = p.x; old.y = p.y; selId = old.id; commit(); } else { addObject({ id: C.uid(), type: 'legend', x: p.x, y: p.y, fs: 0 }); }
   }
+}
+
+/* Caler la photo : on clique un point d'un dessin fantôme, puis l'endroit où il devrait être sur cette photo.
+   Chaque nouveau couple de points affine le réglage (1 couple : cap et inclinaison, 2 ou plus : roulis et zoom aussi). */
+function ghostAnchors() {
+  const out = [];
+  if (!ghosts) { return out; }
+  ghosts.ph.objects.forEach(function (o) {
+    if (o.type === 'line') { o.pts.forEach(p => { if (p.g) { out.push({ x: p.x, y: p.y, g: p.g }); } }); }
+    else if (o.type === 'manhole' && o.g) { out.push({ x: o.cx, y: o.cy, g: o.g }); }
+    else if (o.type === 'acc' && o.g && !o.auto) { out.push({ x: o.x, y: o.y, g: o.g }); }
+  });
+  return out;
+}
+function downCalib(p, tol) {
+  if (!calib.pending) {
+    let best = null, bd = tolPx(40);
+    ghostAnchors().forEach(function (a) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; best = a; } });
+    if (!best) { say('Cliquez d’abord un point (sommet, regard, accessoire) d’un dessin en transparence.'); return; }
+    calib.pending = { g: best.g, at: { x: best.x, y: best.y } };
+    say('Maintenant, cliquez l’endroit où ce point doit se trouver sur cette photo.');
+    render();
+    return;
+  }
+  calib.pairs.push({ g: calib.pending.g, px: { x: p.x, y: p.y } });
+  calib.pending = null;
+  const a = solveAdj(Object.assign({}, info.photo, { adj: calib.start }), { w: ph.w, h: ph.h }, calib.pairs);
+  applyAdj(a, false);
+  const n = calib.pairs.length;
+  say(n + ' point' + (n > 1 ? 's' : '') + ' placé' + (n > 1 ? 's' : '') + (n === 1 ? ' (cap et inclinaison réglés). Un 2e point règle aussi le roulis et le zoom.' : '.') + ' Continuez ou terminez le calage.');
+  syncPanel();
+}
+function startCalib() {
+  if (!ghosts) { say('Aucun dessin d’une autre photo dans cette vue : rien pour caler.'); return; }
+  if (draft) { draft = null; }
+  tool = 'calib'; canvas.dataset.tool = 'calib'; selId = null; gSel = null;
+  calib = { pairs: [], pending: null, start: Object.assign({}, curAdj) };
+  say('Cliquez un point d’un dessin en transparence, puis l’endroit où il doit se trouver sur cette photo.');
+  syncPanel(); render();
+}
+// ok = true : on garde le réglage ; false : on revient au réglage d'avant
+function endCalib(ok) {
+  if (!calib) { return; }
+  const c = calib;
+  calib = null; tool = 'select'; canvas.dataset.tool = 'select';
+  if (ok && c.pairs.length) { applyAdj(curAdj, true); say('Photo calée. Le réglage est aussi utilisé dans la vue 3D.'); }
+  else { applyAdj(c.start, false); say(''); }
+  syncPanel(); render();
 }
 
 // Outil Sélection : poignées, étiquettes, objets, dessins des autres photos
@@ -509,6 +590,7 @@ function panelDraw() {
   h += '<div class="rp-grp"><h4>Accessoire</h4><select data-a="acc">' + accOptions(armed.acc) + '</select>' +
     '<p class="hint">Purge, vidange, ventouse, poteau incendie, compteur… posés sur une conduite d’eau : le montage complet est créé.</p></div>';
   h += ghostBlock();
+  h += calibBlock();
   return h;
 }
 function ghostBlock() {
@@ -521,6 +603,22 @@ function ghostBlock() {
   else if (!n) { msg = 'Aucun dessin des autres photos ne tombe dans cette vue.'; }
   else { msg = n + ' objet' + (n > 1 ? 's' : '') + ' venant de ' + np + ' autre' + (np > 1 ? 's' : '') + ' photo' + (np > 1 ? 's' : '') + '. Cliquez-en un (outil Sélection) pour le modifier, le prolonger ou le reprendre ici.'; }
   return '<div class="rp-grp"><h4>Autres photos</h4>' + chk('showGhosts', showGhosts, 'Afficher leurs dessins (transparents)', 'g') + '<p class="hint">' + esc(msg) + '</p></div>';
+}
+
+function calibBlock() {
+  if (!curCam) { return ''; }
+  const a = curAdj || ADJ0();
+  const sl = (f, label, min, max, step, unit) => '<label class="rp-f"><span>' + label + ' : <b>' + (Math.round(a[f] * 100) / 100) + unit + '</b></span><input type="range" data-adj="' + f + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + a[f] + '"></label>';
+  let h = '<div class="rp-grp"><h4>Caler la photo</h4>';
+  if (calib) {
+    h += '<p class="hint">Calage en cours : ' + calib.pairs.length + ' point(s) placé(s).</p>' +
+      '<div class="rp-row"><button class="btn small primary" data-do="calib-ok" type="button">Terminer</button><button class="btn small" data-do="calib-undo" type="button">Retirer le dernier</button><button class="btn small" data-do="calib-cancel" type="button">Annuler</button></div>';
+  } else {
+    h += '<p class="hint">Si les dessins des autres photos ne tombent pas au bon endroit, la position ou le cap de cette photo est légèrement faux (GPS, boussole). Calez-la sur eux : le réglage sert aussi dans la vue 3D.</p>' +
+      '<div class="rp-row"><button class="btn small" data-do="calib" type="button"' + (ghosts ? '' : ' disabled') + '>Caler sur un dessin</button><button class="btn small" data-do="adj-reset" type="button">Remettre à zéro</button></div>' +
+      '<details class="rp-det"><summary>Réglage fin</summary>' + sl('yaw', 'Cap', -45, 45, 0.1, '°') + sl('pitch', 'Inclinaison', -30, 30, 0.1, '°') + sl('roll', 'Roulis', -15, 15, 0.1, '°') + sl('zoom', 'Zoom', 0.6, 1.6, 0.01, '×') + sl('e', 'Décalage est', -40, 40, 0.5, ' m') + sl('n', 'Décalage nord', -40, 40, 0.5, ' m') + sl('z', 'Hauteur', -40, 40, 0.5, ' m') + '</details>';
+  }
+  return h + '</div>';
 }
 
 function panelObj() {
@@ -672,6 +770,15 @@ function onAction(act) {
     say('Tracé parallèle créé' + (r.branches ? ' avec ' + r.branches + ' branchement' + (r.branches > 1 ? 's' : '') : '') + '.');
     selId = r.line.id; commit(); return;
   }
+  if (act === 'calib') { return startCalib(); }
+  if (act === 'calib-ok') { return endCalib(true); }
+  if (act === 'calib-cancel') { return endCalib(false); }
+  if (act === 'calib-undo' && calib) {
+    calib.pairs.pop(); calib.pending = null;
+    applyAdj(calib.pairs.length ? solveAdj(Object.assign({}, info.photo, { adj: calib.start }), { w: ph.w, h: ph.h }, calib.pairs) : calib.start, false);
+    syncPanel(); return;
+  }
+  if (act === 'adj-reset') { applyAdj(ADJ0(), true); say('Réglages de la photo remis à zéro.'); syncPanel(); return; }
   if (act === 'ext-end' || act === 'ext-start') { return startExtension(act === 'ext-start'); }
   if (act === 'adopt' && gSel) { return adoptGhost(); }
   if (act === 'gdel' && gSel) { return deleteGhostSource(); }
@@ -788,7 +895,16 @@ function buildScreen() {
   root.querySelector('.rp-tabs').addEventListener('click', function (e) { const b = e.target.closest('button'); if (b) { tab = b.dataset.tab; syncPanel(); } });
   const panel = q('#rpPanel');
   panel.addEventListener('input', function (e) { if (e.target.dataset.f && e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT') { onField(e, false); } });
-  panel.addEventListener('change', function (e) { onField(e, true); });
+  panel.addEventListener('change', function (e) { if (e.target.dataset.adj) { return; } onField(e, true); });
+  // Curseurs de réglage fin : la caméra est refaite à chaque mouvement
+  panel.addEventListener('input', function (e) {
+    const f = e.target.dataset.adj;
+    if (!f) { return; }
+    const a = Object.assign({}, curAdj); a[f] = Number(e.target.value);
+    applyAdj(a, true);
+    const b = e.target.parentNode.querySelector('b');
+    if (b) { b.textContent = (Math.round(a[f] * 100) / 100) + (f === 'zoom' ? '×' : (f === 'e' || f === 'n' || f === 'z') ? ' m' : '°'); }
+  });
   panel.addEventListener('click', function (e) { const b = e.target.closest('[data-do]'); if (b) { onAction(b.dataset.do); } });
 
   q('#rpFinish').addEventListener('click', finishLine);
@@ -821,10 +937,11 @@ function buildScreen() {
     const key = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && key === 'z') { e.preventDefault(); undo(e.shiftKey ? 1 : -1); }
     else if (ctrl && key === 'y') { e.preventDefault(); undo(1); }
+    else if (e.key === 'Enter' && calib) { endCalib(true); }
     else if (e.key === 'Enter' && draft) { finishLine(); }
     else if (e.key === 'Escape') {
       e.stopPropagation();
-      if (draft) { draft = null; render(); } else if (tool !== 'select') { setTool('select'); } else if (selId || gSel) { selId = null; gSel = null; syncPanel(); render(); } else { close(); }
+      if (calib) { endCalib(false); } else if (draft) { draft = null; render(); } else if (tool !== 'select') { setTool('select'); } else if (selId || gSel) { selId = null; gSel = null; syncPanel(); render(); } else { close(); }
     } else if ((e.key === 'Delete' || e.key === 'Backspace') && selId) { e.preventDefault(); onAction('del'); }
   }, true);
 }
@@ -910,7 +1027,7 @@ function readRecord(data, w, h) {
 export function open(options) {
   if (!root) { buildScreen(); }
   info = options;
-  ph = null; img = null; selId = null; gSel = null; draft = null; hover = null; hoverSnap = null; ghosts = null;
+  ph = null; img = null; calib = null; clearTimeout(sendTimer); selId = null; gSel = null; draft = null; hover = null; hoverSnap = null; ghosts = null;
   tool = 'select'; tab = 'draw'; canvas.dataset.tool = 'select';
   fixArmed();
   q('#rpName').textContent = options.name || 'Photo';
@@ -925,7 +1042,9 @@ export function open(options) {
     const rec = readRecord(options.data, pic.naturalWidth, pic.naturalHeight);
     ph = { w: pic.naturalWidth, h: pic.naturalHeight, objects: rec.objs };
     sentFlag = rec.sent;
-    curCam = makeCamera(options.photo, { w: ph.w, h: ph.h });
+    curAdj = Object.assign(ADJ0(), (options.photo && options.photo.adj) || {});
+    calib = null;
+    curCam = makeCamera(poseFor(), { w: ph.w, h: ph.h });
     // Les autres photos : on garde seulement celles qui ont un repérage au nouveau format
     others = (options.others || []).map(o => ({ key: o.key, name: o.name, photo: o.photo, rec: o.data && o.data.v === 2 ? JSON.parse(JSON.stringify(o.data)) : null })).filter(o => o.rec);
     computeGhosts();
@@ -945,7 +1064,9 @@ export function open(options) {
 export function close() {
   if (!root || root.hidden) { return; }
   if (textEditor) { closeTextEditor(true); }
+  if (calib) { endCalib(true); }
   if (draft) { draft = null; }
+  clearTimeout(sendTimer);
   root.hidden = true;
   img = null;
   const f = info && info.onClose;

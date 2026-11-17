@@ -95,8 +95,9 @@ export function makeCamera(photo, size) {
       ax.f[1] + ax.r[1] * nx * tv * aspect + ax.u[1] * ny * tv,
       ax.f[2] + ax.r[2] * nx * tv * aspect + ax.u[2] * ny * tv
     ];
-    if (d[2] >= -0.01) {
-      return null; // le regard passe au-dessus de l'horizon
+    // Trop près de l'horizon (moins de 1,5° sous l'horizontale), la position sur le sol n'est plus fiable
+    if (d[2] / Math.hypot(d[0], d[1], d[2]) > -0.026) {
+      return null;
     }
     const t = -pos[2] / d[2];
     if (t > 400) {
@@ -122,4 +123,64 @@ export function makeCamera(photo, size) {
   };
 
   return cam;
+}
+
+
+/* Cale la photo à partir de points connus : pairs = [{ g: [lat, lon], px: { x, y } }]
+   g est un point du terrain, px l'endroit où il doit apparaître sur la photo.
+   Comme dans la vue 3D : 1 point règle le cap et l'inclinaison, 2 points ou plus règlent aussi le roulis et le zoom.
+   Renvoie les nouveaux réglages (yaw, pitch, roll, zoom changent, le reste est gardé). */
+export function solveAdj(photo, size, pairs) {
+  const a0 = adjOf(photo);
+  if (!pairs.length) { return a0; }
+  const full = pairs.length >= 2;
+  const k = full ? 4 : 2;
+  const get = x => Object.assign({}, a0, { yaw: x[0], pitch: x[1], roll: full ? x[2] : a0.roll, zoom: full ? Math.exp(x[3]) : a0.zoom });
+  const res = function (x) {
+    const cam = makeCamera(Object.assign({}, photo, { adj: get(x) }), size);
+    const out = [];
+    pairs.forEach(function (q) {
+      const px = cam ? cam.toPixel(q.g[0], q.g[1], 0) : null;
+      out.push(px ? (px.x - q.px.x) / size.w : 3, px ? (px.y - q.px.y) / size.w : 3);
+    });
+    if (full) { out.push(x[2] * 0.004, (x[3] - Math.log(a0.zoom)) * 0.3); }
+    return out;
+  };
+  let x = [a0.yaw, a0.pitch, a0.roll, Math.log(a0.zoom)];
+  let lam = 1e-3, r = res(x), cost = r.reduce((t, v) => t + v * v, 0);
+  for (let it = 0; it < 40; it++) {
+    const J = [];
+    for (let j = 0; j < k; j++) {
+      const y = x.slice(), h = j === 3 ? 1e-3 : 0.02;
+      y[j] += h;
+      const r2 = res(y);
+      J.push(r2.map((v, i) => (v - r[i]) / h));
+    }
+    const A = Array.from({ length: k }, (_, i) => Array.from({ length: k }, (_, j) => J[i].reduce((t, v, m) => t + v * J[j][m], 0) + (i === j ? lam : 0)));
+    const b = J.map(row => -row.reduce((t, v, m) => t + v * r[m], 0));
+    for (let i = 0; i < k; i++) { // élimination de Gauss
+      let m = i;
+      for (let j = i + 1; j < k; j++) { if (Math.abs(A[j][i]) > Math.abs(A[m][i])) { m = j; } }
+      [A[i], A[m]] = [A[m], A[i]]; [b[i], b[m]] = [b[m], b[i]];
+      if (Math.abs(A[i][i]) < 1e-14) { continue; }
+      for (let j = i + 1; j < k; j++) {
+        const f = A[j][i] / A[i][i];
+        for (let l = i; l < k; l++) { A[j][l] -= f * A[i][l]; }
+        b[j] -= f * b[i];
+      }
+    }
+    const dx = Array(k).fill(0);
+    for (let i = k - 1; i >= 0; i--) {
+      let t = b[i];
+      for (let j = i + 1; j < k; j++) { t -= A[i][j] * dx[j]; }
+      dx[i] = Math.abs(A[i][i]) < 1e-14 ? 0 : t / A[i][i];
+    }
+    const y = x.slice();
+    for (let j = 0; j < k; j++) { y[j] += dx[j]; }
+    const r2 = res(y), c2 = r2.reduce((t, v) => t + v * v, 0);
+    if (c2 < cost) { const gain = cost - c2; x = y; r = r2; cost = c2; lam = Math.max(lam / 3, 1e-9); if (gain < 1e-14) { break; } } else { lam *= 5; }
+  }
+  const out = get(x);
+  out.zoom = Math.max(0.3, Math.min(4, out.zoom));
+  return out;
 }

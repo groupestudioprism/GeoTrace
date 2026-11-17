@@ -223,3 +223,11 @@ Le repérage sur photo reprend toutes les options de l'outil « Repérage de ré
 Quand on ouvre une photo, les repérages des autres photos proches apparaissent en transparence, reportés dans la vue. Avec l'outil Sélection on peut les déplacer, les prolonger, les reprendre dans la photo ouverte ou les supprimer : la modification est enregistrée sur la photo d'origine (et la 3D si elle y était envoyée).
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
+
+## Version 1.18.1 : recalage des photos pour les superpositions
+
+Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le cap et l'inclinaison de chaque photo. Ces valeurs sont approximatives (surtout sur drone : GPS à quelques mètres, boussole à quelques degrés, sol supposé plat), ce qui décale les superpositions.
+
+- Le repérage utilise maintenant les **mêmes réglages fins par photo que la vue 3D** (cap, inclinaison, roulis, zoom, décalages, y compris ceux du fichier de calage de l'équipe). Un réglage fait d'un côté vaut de l'autre.
+- Onglet Dessiner, **« Caler la photo »** : « Caler sur un dessin » (cliquer un point d'un dessin en transparence, puis l'endroit où il doit tomber sur la photo ; un point règle cap et inclinaison, deux ou plus règlent aussi roulis et zoom) et curseurs de réglage fin. Les dessins des autres photos et la 3D suivent immédiatement.
+- Les points trop proches de l'horizon (moins de 1,5° sous l'horizontale) ne sont plus projetés : leur position au sol n'est pas fiable.

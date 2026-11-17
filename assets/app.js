@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.18.0';
+const VERSION = '1.18.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -728,7 +728,7 @@ function closeViewer() {
 /* Repérage sur photo : annotation simple, rangée par photo dans le navigateur */
 let Rep = null;
 const reps = store.get('geotrace:repere', {});
-const poseOf = p => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel });
+const poseOf = (p, M) => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, adj: M ? M.photoAdj(p) : undefined });
 const repCount = d => !d ? 0 : Array.isArray(d) ? d.length : (d.objs || []).length;
 function saveReps() { store.set('geotrace:repere', reps); paintRepBtn(); }
 // Envoie (ou retire, si items vaut null) le repérage d'une photo dans la vue 3D
@@ -741,15 +741,18 @@ async function openRepere() {
   const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
   if (!src) { status('Cette photo ne peut pas être repérée dans le navigateur.', { ms: 4000 }); return; }
   if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Repérage indisponible.', { ms: 4000 }); return; } }
+  // Les réglages fins de chaque photo (ceux de la vue 3D) servent aussi ici : même caméra des deux côtés
+  let M = null; try { M = await maq(); } catch (e) { M = null; }
   // Les autres photos qui ont déjà un repérage (au nouveau format) : leurs dessins sont montrés dans celle-ci
-  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o), data: reps[o.key] }));
+  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
   Rep.open({
-    name: p.name, src, data: reps[p.key], photo: poseOf(p), others,
+    name: p.name, src, data: reps[p.key], photo: poseOf(p, M), others,
+    onAdj: a => { if (M) M.savePhotoAdj(p, a); },
     onSave: d => { if (d.objs.length) reps[p.key] = d; else delete reps[p.key]; saveReps(); },
     onSaveOther: (key, d) => {
       reps[key] = d; saveReps();
       const o = photos.find(x => x.key === key);
-      if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o)); if (items) sendRepTo3D(key, items); }
+      if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
     },
     onSend3D: items => sendRepTo3D(p.key, items)
   });

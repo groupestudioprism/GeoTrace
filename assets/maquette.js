@@ -473,7 +473,9 @@ function collectVues() {
   } catch (e) { /* stockage indisponible */ }
   return (Object.keys(out.photos).length || Object.keys(out.commun).length) ? out : null;
 }
+export const photoAdj = p => loadAdj(p);
 const saveAdj = (p, a) => { try { localStorage.setItem(adjKey(p), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } };
+export const savePhotoAdj = (p, a) => saveAdj(p, a);
 /* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
 function shareAdj(lk, photos) {
   try {
