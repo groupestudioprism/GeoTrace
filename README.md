@@ -224,6 +224,10 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.27.0 : le repérage passe dans Chantier › Réseaux
+
+Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
+
 ## Version 1.26.0 : réglage repris par les photos voisines
 
 Nouveau bouton **Aux photos voisines** en vue superposée : le réglage de la photo ouverte (cap, décalage, hauteur, zoom) est repris par les photos du même appareil prises dans les 2 minutes autour. Elles ont la même dérive de compas et de GPS : une photo bien calée corrige ses voisines mal reliées par le calage automatique.

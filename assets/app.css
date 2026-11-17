@@ -702,3 +702,8 @@ body.on-welcome .pop-wrap { display: none; }
 #vOvlMenu label { display: flex; gap: 8px; align-items: center; font-size: .9rem; cursor: pointer; }
 #vOvlWrap { position: relative; }
 .menu button small { display: block; font-weight: 400; opacity: .7; }
+.rp-list { list-style: none; margin: 6px 0; padding: 0; max-height: 240px; overflow: auto; display: grid; gap: 2px; }
+.rp-item { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rp-item:hover, .rp-item:focus-visible { background: var(--hover, rgba(127,127,127,.15)); }
+.rp-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-item em { font-style: normal; opacity: .7; flex: none; } .rp-item.done em { color: var(--accent, #1a6fd1); opacity: 1; }

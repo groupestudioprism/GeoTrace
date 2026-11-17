@@ -191,6 +191,11 @@
           </div>
           <label class="ch-field">Type à l’import <select id="ntImpType" class="ch-ty" aria-label="Type des réseaux importés"></select></label>
           <details class="ch-more"><summary>Quelles données ?</summary><p>IGN (canalisations, lignes électriques) et OpenStreetMap, pour la zone affichée. Les réseaux de distribution des villes ne sont pas publics : tracez-les d’après les plans de la DT-DICT, ou importez un GeoJSON ou KML.</p></details>
+          <h3>Repérage sur photos</h3>
+          <p class="hint">Choisissez une photo pour dessiner conduites, branchements, regards, accessoires et textes.</p>
+          <input type="search" id="rpFilter" class="ch-ty" placeholder="Filtrer les photos" aria-label="Filtrer les photos">
+          <ul id="rpList" class="rp-list"></ul>
+          <p class="hint ch-empty" id="rpEmpty">Ajoutez des photos pour les repérer.</p>
           <h3>Tracer un réseau</h3>
           <div class="ch-types" id="ntTypes"></div>
           <h3>Réseaux</h3>
@@ -357,7 +362,6 @@
         <label><input type="checkbox" id="ofOthers" checked> Repérages des autres photos</label>
       </div>
     </div>
-    <button class="vb wide" id="vRep" type="button" title="Dessiner conduites, regards et accessoires sur la photo">Repérer</button>
     <button class="vb" id="vRotate" type="button" aria-label="Pivoter" data-ic="rotate"></button>
     <button class="vb" id="vReset" type="button" aria-label="Taille d’origine" data-ic="fit"></button>
     <span class="v-sep"></span>
