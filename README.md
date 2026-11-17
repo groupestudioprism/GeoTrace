@@ -226,7 +226,7 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 ## Version 1.23.0 : en-tête simplifié, Réseaux = plan avec tous les outils, filtre d'annotations
 
-- **Réseaux** (en haut) ouvre directement le plan aérien en vue de dessus avec les mêmes outils que le repérage d'une photo. La barre de dessin sur la carte de la 1.22.0 est supprimée.
+- **Réseaux** (en haut) ouvre directement le plan aérien (sur un chantier long de plusieurs km, il couvre la zone visible de la carte au moment du clic : zoomez sur le secteur à dessiner avant de cliquer) en vue de dessus avec les mêmes outils que le repérage d'une photo. La barre de dessin sur la carte de la 1.22.0 est supprimée.
 - Les réseaux dessinés s'affichent en lecture seule sur la carte (`assets/netlayer.js`, remplace `mapdraw.js`).
 - En-tête réduit : Fond de carte, Réseaux, Chantier, **3D** (menu : photos en 3D, scan 3D, maquette, nuage de points), Exporter, thème, **?** (menu : tuto, aide).
 - Dans la visionneuse, le menu **Annotations** filtre ce qui se voit sur la photo : réseaux du plan, dessins de cette photo, dessins des autres photos. Plus besoin d'ouvrir l'onglet Repérage pour les voir. Le choix est mémorisé.

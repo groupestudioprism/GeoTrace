@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.23.2';
+const VERSION = '1.23.3';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -816,11 +816,18 @@ function ensurePlanPose() {
   if (planPose && hasDraw) return planPose;
   const located = photos.filter(o => o.lat != null && o.lon != null);
   let bounds;
-  if (located.length) {
+  // chantier long (pipeline sur plusieurs km) : on prend la zone visible de la carte, sinon le plan serait trop dézoomé pour dessiner
+  const spanM = located.length ? Math.max((Math.max(...located.map(o => o.lat)) - Math.min(...located.map(o => o.lat))) * 111320, (Math.max(...located.map(o => o.lon)) - Math.min(...located.map(o => o.lon))) * 111320 * Math.cos(located[0].lat * Math.PI / 180)) : 0;
+  if (located.length && spanM < 800) {
     const la = located.map(o => o.lat), lo = located.map(o => o.lon), mLat = 90 / 111320, mLon = 90 / (111320 * Math.cos(la[0] * Math.PI / 180));
     bounds = [[Math.min(...la) - mLat, Math.min(...lo) - mLon], [Math.max(...la) + mLat, Math.max(...lo) + mLon]];
-  } else if (map.getZoom() >= 15) { const b = map.getBounds(); bounds = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]; }
-  else return planPose;
+  } else if (located.length || map.getZoom() >= 15) {
+    const c0 = map.getCenter(), c = { lat: c0.lat, lng: c0.lng }, z = map.getZoom();
+    if (z >= 16) { const b = map.getBounds(); bounds = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]; }
+    else {
+      if (located.length) { let best = null, bd = 1e9; located.forEach(o => { const d = (o.lat - c.lat) ** 2 + (o.lon - c.lng) ** 2; if (d < bd) { bd = d; best = o; } }); c.lat = best.lat; c.lng = best.lon; }
+      const dLat = 350 / 111320, dLon = 350 / (111320 * Math.cos(c.lat * Math.PI / 180)); bounds = [[c.lat - dLat, c.lng - dLon], [c.lat + dLat, c.lng + dLon]]; }
+  } else return planPose;
   const G = planGeom(bounds);
   if (!planPose || planPose.plan.z !== G.pose.plan.z || planPose.plan.x0 !== G.pose.plan.x0 || planPose.plan.y0 !== G.pose.plan.y0 || planPose.w !== G.pose.w || planPose.h !== G.pose.h) { planPose = G.pose; store.set('geotrace:planpose', planPose); }
   return planPose;
