@@ -452,3 +452,6 @@ export function buildNets(nets, toEN, colors) {
   group.traverse(o => { if (o.isMesh) o.userData.keepGeo = true; });
   return { group };
 }
+
+// outils de modélisation partagés avec les installations de chantier et la signalisation (site3d.js)
+export { B, mat as nmat, V };

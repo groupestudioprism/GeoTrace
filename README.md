@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.31.0 : installations de chantier et déviations en 3D détaillée
+
+- Nouveau module `assets/site3d.js`, aux cotes réelles (fiches fabricants et gammes réglementaires de signalisation temporaire).
+- Zones : bungalows 6,055 × 2,435 m (ossature, panneaux, porte, fenêtres 1,20 × 1,20 à barreaux et volet, marchepied, passages de fourches), conteneurs 20 pieds (pièces de coin, portes à crémones), palettes chargées, bennes amovibles (nervures, potence, rouleaux), fardeaux de tuyaux creux à emboîture, mini-pelle, fourgons et voitures, clôture mobile 3,50 × 2,00 m sur plots béton avec colliers, portail avec panneau « Chantier interdit au public ».
+- Déviations : panneaux sur chevalet lesté avec leurs pictogrammes (AK5 travaux et panonceau de distance, AK17, B0, B14, KC1 « Déviation », « Route barrée », KD22, K8 dans les virages, « Piétons »), barrages K2 rayés en travers des routes fermées, cônes K5a de 750 mm à deux bandes, barrières de cheminement piéton, feux tricolores de chantier sur chariot.
+
 ## Version 1.30.0 : réseaux en 3D détaillée, à l'échelle réelle
 
 - Nouveau moteur `assets/net3d.js` : chaque élément du repérage est modélisé d'après les fiches techniques fabricants (PAM, Bayard, AVK, Wavin, Huot, fabricants de tuyaux PEHD et béton).
