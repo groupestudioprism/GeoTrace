@@ -84,7 +84,7 @@ export function makeCamera(photo, size) {
   const vfov = 2 * Math.atan(Math.tan(verticalFov(photo, aspect) * RAD / 2) / a.zoom);
   const tv = Math.tan(vfov / 2);
 
-  const cam = { frame: frame, size: size };
+  const cam = { frame: frame, size: size, pos: pos };
 
   // Point de la photo -> position sur le sol, en latitude / longitude (ou null)
   cam.toGround = function (px, py) {

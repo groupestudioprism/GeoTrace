@@ -58,6 +58,7 @@ let hintText = '';
 let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, zoom, décalages), les mêmes que dans la vue 3D
 let calib = null;      // calage en cours : { pairs, pending, start }
 let sendTimer = null;
+let autoBusy = false;  // calage automatique en cours
 
 const CFG = 'geotrace:repere:cfg';
 
@@ -93,6 +94,31 @@ function applyAdj(a, keep) {
 }
 
 function say(text) { hintText = text || ''; const h = root && q('#rpHint'); if (h) { h.textContent = hintText; } }
+
+
+// Calage automatique : compare cette photo à ses voisines et corrige cap, inclinaison, position, hauteur
+async function autoCal() {
+  if (autoBusy || !info || !info.neighbors || !curCam) { return; }
+  autoBusy = true; syncPanel();
+  const mine = info;
+  try {
+    say('Recherche des photos voisines…');
+    const list = await info.neighbors();
+    if (!list.length) { say('Aucune photo voisine (moins de 120 m, avec position GPS) : calage impossible.'); return; }
+    const refs = [];
+    for (const n of list) {
+      const im = await new Promise(function (ok) { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = n.src; });
+      if (im) { refs.push({ photo: n.photo, img: im }); }
+    }
+    const A = await import('./autocal.js');
+    const r = await A.autoCalibrate({ photo: poseFor(), img: img, refs: refs, onProgress: say });
+    if (info !== mine) { return; }
+    if (r.error) { say('Calage automatique non appliqué : ' + r.error); return; }
+    applyAdj(r.adj, true);
+    say('Photo recalée sur ' + refs.length + ' voisine' + (refs.length > 1 ? 's' : '') + ' (' + r.n + ' points, écart ' + r.med.toFixed(1) + ' px). Cap ' + r.delta.yaw.toFixed(1) + '°, inclinaison ' + r.delta.pitch.toFixed(1) + '°, décalage ' + Math.hypot(r.delta.e, r.delta.n).toFixed(1) + ' m.');
+  } catch (e) { console.error(e); say('Le calage automatique a échoué.'); }
+  finally { autoBusy = false; if (root && info) { syncPanel(); } }
+}
 
 
 /* ---------- 3. Les réglages enregistrés ---------- */
@@ -615,6 +641,7 @@ function calibBlock() {
       '<div class="rp-row"><button class="btn small primary" data-do="calib-ok" type="button">Terminer</button><button class="btn small" data-do="calib-undo" type="button">Retirer le dernier</button><button class="btn small" data-do="calib-cancel" type="button">Annuler</button></div>';
   } else {
     h += '<p class="hint">Si les dessins des autres photos ne tombent pas au bon endroit, la position ou le cap de cette photo est légèrement faux (GPS, boussole). Calez-la sur eux : le réglage sert aussi dans la vue 3D.</p>' +
+      '<div class="rp-row"><button class="btn small primary" data-do="autocal" type="button"' + (autoBusy || !info.neighbors ? ' disabled' : '') + '>' + (autoBusy ? 'Calage…' : 'Recaler automatiquement') + '</button></div>' +
       '<div class="rp-row"><button class="btn small" data-do="calib" type="button"' + (ghosts ? '' : ' disabled') + '>Caler sur un dessin</button><button class="btn small" data-do="adj-reset" type="button">Remettre à zéro</button></div>' +
       '<details class="rp-det"><summary>Réglage fin</summary>' + sl('yaw', 'Cap', -45, 45, 0.1, '°') + sl('pitch', 'Inclinaison', -30, 30, 0.1, '°') + sl('roll', 'Roulis', -15, 15, 0.1, '°') + sl('zoom', 'Zoom', 0.6, 1.6, 0.01, '×') + sl('e', 'Décalage est', -40, 40, 0.5, ' m') + sl('n', 'Décalage nord', -40, 40, 0.5, ' m') + sl('z', 'Hauteur', -40, 40, 0.5, ' m') + '</details>';
   }
@@ -770,6 +797,7 @@ function onAction(act) {
     say('Tracé parallèle créé' + (r.branches ? ' avec ' + r.branches + ' branchement' + (r.branches > 1 ? 's' : '') : '') + '.');
     selId = r.line.id; commit(); return;
   }
+  if (act === 'autocal') { return autoCal(); }
   if (act === 'calib') { return startCalib(); }
   if (act === 'calib-ok') { return endCalib(true); }
   if (act === 'calib-cancel') { return endCalib(false); }

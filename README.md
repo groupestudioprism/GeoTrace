@@ -224,6 +224,15 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.18.2 : calage automatique des photos
+
+Mesuré sur 224 photos drone réelles : l'erreur de placement vient surtout du GPS, de la hauteur et du cap de chaque photo (environ 2 % de la distance, soit 20 à 150 px sur une photo de 2400 px).
+
+- Onglet Dessiner, **« Caler la photo » > « Recaler automatiquement »** : la photo est comparée aux 3 photos voisines les plus proches (moins de 120 m). Le programme les redresse comme si elles étaient prises du même point, mesure le décalage sur plusieurs centaines d'endroits, puis corrige cap, inclinaison, position et hauteur.
+- Sur les photos de test, l'écart médian passe d'environ 20 à 150 px à 2 à 15 px. Le réglage est enregistré comme les autres : la vue 3D en profite aussi.
+- Si les photos ont trop peu de détails en commun (champ uni, ciel), ou si la correction trouvée est invraisemblable, rien n'est modifié et un message l'explique.
+- Limites : sol supposé plat, points proches de l'horizon non projetés.
+
 ## Version 1.18.1 : recalage des photos pour les superpositions
 
 Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le cap et l'inclinaison de chaque photo. Ces valeurs sont approximatives (surtout sur drone : GPS à quelques mètres, boussole à quelques degrés, sol supposé plat), ce qui décale les superpositions.
