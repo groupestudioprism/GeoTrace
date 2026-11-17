@@ -1360,11 +1360,15 @@ export function projectObject(o, fromCam, toCam) {
   };
   const c = JSON.parse(snapshot([o]))[0];
   if (o.type === 'line') {
-    const gs = o.pts.map(p => fromCam.toGround(p.x, p.y));
-    const pts = gs.map(g => (g ? toCam.toPixel(g.lat, g.lon, 0) : null));
-    if (pts.some(q => !q)) { return null; }
-    // g : le point sur le terrain, gardé pour caler la photo
-    c.pts = pts.map((q, i) => ({ x: q.x, y: q.y, g: [gs[i].lat, gs[i].lon] }));
+    // Un point trop près de l'horizon ou derrière la photo ne bloque plus tout le tracé : on garde les points
+    // qui se projettent (le tracé est simplement raccourci).
+    const keep = [];
+    o.pts.forEach(function (p) {
+      const g = fromCam.toGround(p.x, p.y), q = g ? toCam.toPixel(g.lat, g.lon, 0) : null;
+      if (q) { keep.push({ x: q.x, y: q.y, g: [g.lat, g.lon] }); }
+    });
+    if (keep.length < 2) { return null; }
+    c.pts = keep;
   } else if (o.type === 'manhole') {
     const q = conv({ x: o.cx, y: o.cy }), r = conv({ x: o.cx + o.rx, y: o.cy }), g0 = fromCam.toGround(o.cx, o.cy);
     if (!q) { return null; }

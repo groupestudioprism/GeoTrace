@@ -224,6 +224,12 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.19.4 : les dessins modifiés ou lointains réapparaissent sur les autres photos
+
+- Quand un dessin a été « repris » dans une photo puis **modifié ou prolongé sur sa photo d'origine**, il réapparaît en transparence sur la photo qui l'avait repris (avant, il restait caché).
+- Un tracé dont un seul point est hors champ, derrière la photo ou trop près de l'horizon n'est plus supprimé en entier : on reporte les points qui se projettent.
+- Le panneau « Autres photos » indique combien de dessins ne peuvent pas être reportés (hors champ ou trop près de l'horizon).
+
 ## Version 1.19.3 : calage du projet nettement plus précis
 
 - **Mesure plus fine** : les points communs sont maintenant mesurés au sous-pixel et une 4e passe est faite sur des images plus grandes (720 px).

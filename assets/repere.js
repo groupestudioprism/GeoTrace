@@ -60,6 +60,7 @@ let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, 
 let calib = null;      // calage en cours : { pairs, pending, start }
 let sendTimer = null;
 let ref = null;        // photo de référence affichée en haut à gauche pendant le calage par points
+let ghostSkipped = 0;  // dessins des autres photos qui ne se reportent pas ici (hors champ, trop loin, trop près de l'horizon)
 let autoBusy = false;  // calage automatique en cours
 
 const CFG = 'geotrace:repere:cfg';
@@ -225,21 +226,34 @@ fixArmed();
 /* ---------- 4. Afficher ---------- */
 
 // Les dessins des autres photos, reportés dans cette photo
+// Empreinte de la géométrie d'un objet (pour savoir s'il a changé sur sa photo d'origine)
+function sigOf(o) {
+  const r = v => Math.round(v);
+  if (o.type === 'line') { return o.pts.map(p => r(p.x) + ',' + r(p.y)).join(';'); }
+  if (o.type === 'manhole') { return r(o.cx) + ',' + r(o.cy) + ',' + r(o.rx); }
+  if (o.type === 'acc') { return r(o.x) + ',' + r(o.y); }
+  return String(o.id);
+}
 function computeGhosts() {
   ghosts = null;
   if (!curCam || !others.length) { return; }
   const objs = [], cams = {}, recs = {};
+  let skipped = 0;
   others.forEach(function (o) {
     if (!o.rec || !o.rec.objs || !o.rec.objs.length) { return; }
     const cam = makeCamera(o.photo, { w: o.rec.w, h: o.rec.h });
     if (!cam) { return; }
     cams[o.key] = cam; recs[o.key] = o;
     o.rec.objs.forEach(function (ob) {
-      if (ph.objects.some(x => x.from === o.key + ':' + ob.id)) { return; } // déjà repris ici
+      // Déjà repris ici ? Seulement si le dessin n'a pas changé depuis sur sa photo d'origine
+      // (sinon, par exemple s'il a été prolongé, on le montre de nouveau).
+      const adopted = ph.objects.find(x => x.from === o.key + ':' + ob.id);
+      if (adopted && (!adopted.fromSig || adopted.fromSig === sigOf(ob))) { return; }
       const p = C.projectObject(ob, cam, curCam);
-      if (p) { p.gk = o.key; objs.push(p); }
+      if (p) { p.gk = o.key; objs.push(p); } else if (ob.type !== 'text' && ob.type !== 'legend') { skipped++; }
     });
   });
+  ghostSkipped = skipped;
   if (objs.length) { ghosts = { ph: { w: ph.w, h: ph.h, objects: objs }, cams: cams, recs: recs }; }
 }
 
@@ -719,8 +733,8 @@ function ghostBlock() {
   let msg;
   if (!curCam) { msg = 'Cette photo n’a pas de position ou de direction : les autres photos ne peuvent pas y être reportées.'; }
   else if (!others.some(o => o.rec && o.rec.objs && o.rec.objs.length)) { msg = 'Aucune autre photo n’a encore de repérage.'; }
-  else if (!n) { msg = 'Aucun dessin des autres photos ne tombe dans cette vue.'; }
-  else { msg = n + ' objet' + (n > 1 ? 's' : '') + ' venant de ' + np + ' autre' + (np > 1 ? 's' : '') + ' photo' + (np > 1 ? 's' : '') + '. Cliquez-en un (outil Sélection) pour le modifier, le prolonger ou le reprendre ici.'; }
+  else if (!n) { msg = 'Aucun dessin des autres photos ne tombe dans cette vue' + (ghostSkipped ? ' (' + ghostSkipped + ' hors champ ou trop près de l’horizon)' : '') + '.'; }
+  else { msg = n + ' objet' + (n > 1 ? 's' : '') + ' venant de ' + np + ' autre' + (np > 1 ? 's' : '') + ' photo' + (np > 1 ? 's' : '') + '. Cliquez-en un (outil Sélection) pour le modifier, le prolonger ou le reprendre ici.' + (ghostSkipped ? ' ' + ghostSkipped + ' autre(s) hors champ ou trop près de l’horizon.' : ''); }
   return '<div class="rp-grp"><h4>Autres photos</h4>' + chk('showGhosts', showGhosts, 'Afficher leurs dessins (transparents)', 'g') + '<p class="hint">' + esc(msg) + '</p></div>';
 }
 
@@ -952,6 +966,8 @@ function adoptGhost() {
   if (!g) { return; }
   const c = clone(g);
   c.id = C.uid(); c.from = gSel.key + ':' + g.id; delete c.gk;
+  const srcRec = others.find(x => x.key === gSel.key), srcObj = srcRec && srcRec.rec.objs.find(x => x.id === g.id);
+  if (srcObj) { c.fromSig = sigOf(srcObj); }
   if (c.pts) { c.pts = c.pts.map(p => ({ x: p.x, y: p.y })); }
   ph.objects.push(c);
   selId = c.id; gSel = null; tab = 'obj';
