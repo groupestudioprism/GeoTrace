@@ -486,6 +486,13 @@ function shareAdj(lk, photos) {
     saveAdj(lk.p, a); return n;
   } catch (e) { return 0; }
 }
+/* Applique le réglage de la photo ouverte aux photos du même appareil prises dans les 2 minutes autour (même vol : même dérive de compas et de GPS). */
+function shareNear(lk, photos) {
+  const t0 = lk.p.t; if (t0 == null) return 0;
+  let n = 0;
+  photos.forEach(p => { if (p === lk.p || p.t == null || (p.dev || 'phone') !== (lk.p.dev || 'phone') || Math.abs(p.t - t0) > 120) return; saveAdj(p, Object.assign({}, lk.adj)); n++; });
+  saveAdj(lk.p, lk.adj); return n;
+}
 /* Remet toutes les photos sans réglage. */
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
@@ -748,6 +755,7 @@ export function v3FromPhoto(id, aspect) { return v3 ? v3.fromPhoto(id, aspect) :
 export function v3Near() { return v3 ? v3.near() : []; }
 export function v3Zoom(f) { if (v3) v3.zoom(f); }
 export function v3Top() { if (v3) v3.top(); }
+export function v3ShareNear() { return v3 && v3.lock ? shareNear(v3.lock, v3.photos) : 0; }
 export function v3Share() { return v3 && v3.lock ? shareAdj(v3.lock, v3.photos) : 0; }
 export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock) { v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; v3.applyLock(); } }
 export function v3Release() { if (v3) v3.release(); }

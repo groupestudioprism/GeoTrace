@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.25.1';
+const VERSION = '1.26.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1333,7 +1333,7 @@ async function open3d(focusId) {
   map.closePopup();
   const ph = placedOf(visible());
   await Promise.all(ph.slice(0, 80).map(p => ensureThumb(p).catch(() => {})));
-  const list = ph.map(p => ({ id: p.id, name: p.name, key: p.key, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, tex: p.kind === 'local' ? p.thumb : null }));
+  const list = ph.map(p => ({ id: p.id, name: p.name, key: p.key, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, t: p.date ? +p.date / 1000 : null, tex: p.kind === 'local' ? p.thumb : null }));
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
@@ -1399,7 +1399,7 @@ const HINT_FREE = $('v3Hint').textContent;
 const HINT_LOCK = 'Superposition : Glisser : orienter · Maj + glisser : déplacer · Molette : zoom · Double-clic : annuler le calage · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
-  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Near').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
   const x = $('v3Close'); x.title = x.ariaLabel = on ? 'Revenir à la vue 3D' : 'Fermer';
 }
 /* Sortir de la superposition sans quitter la 3D. */
@@ -1422,6 +1422,7 @@ async function alignPhoto(id) {
   if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) setBlend(true);
 }
 $('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
+$('v3Near').addEventListener('click', () => { const n = Maq ? Maq.v3ShareNear() : 0; showNote(n ? `Réglage appliqué aux ${n} photos prises dans les 2 minutes autour.` : 'Aucune autre photo prise dans les 2 minutes autour.'); setTimeout(() => showNote(''), 3500); });
 $('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos du même type d’appareil.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
 $('v3Clear').addEventListener('click', () => { if (Maq) Maq.v3ClearAll(); showNote('Réglages de toutes les photos annulés.'); setTimeout(() => showNote(''), 3500); });
 $('v3Save').addEventListener('click', () => { $('maqExport').click(); showNote('Fichier de calage enregistré. Déposez-le à côté de la maquette sur Nextcloud : tout le monde verra la maquette bien placée.'); setTimeout(() => showNote(''), 7000); });
