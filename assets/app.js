@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.19.0';
+const VERSION = '1.19.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -441,6 +441,7 @@ function finish() {
   $('dFrom').max = $('dTo').max = dates.length ? isoDay(dates[dates.length - 1]) : '';
   $('addBtn').disabled = false; $('exportBtn').disabled = false;
   refresh(true);
+  setTimeout(autoProjectCalib, 600); // le projet se cale tout seul dès qu'il est ouvert
   const withGps = placedOf(photos).length;
   if (!withGps) status('Aucune de ces photos ne contient de position GPS. Elles restent dans la liste.', { ms: 7000 });
 }
@@ -742,6 +743,7 @@ function sendRepTo3D(key, items) {
 }
 async function openRepere() {
   const p = vList[vIdx]; if (!p) return;
+  if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
   const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
   if (!src) { status('Cette photo ne peut pas être repérée dans le navigateur.', { ms: 4000 }); return; }
   if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Repérage indisponible.', { ms: 4000 }); return; } }
@@ -794,7 +796,17 @@ $('vOvl').addEventListener('click', () => { ovlOn = !ovlOn; store.set('geotrace:
 window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
 /* Calage de tout le projet : points communs entre toutes les photos voisines, réglage de toutes les photos ensemble */
 let pcLayer = null, pcRun = null;
-async function projectCalib() {
+const PCSIG = 'geotrace:pcsig';
+const pcSig = list => list.map(p => p.key).sort().join('|');
+// Au chargement d'un projet : calage automatique, sauf si ces mêmes photos ont déjà été calées
+function autoProjectCalib() {
+  const list = photos.filter(p => p.lat != null && p.heading != null);
+  if (list.length < 2 || pcRun) return;
+  let done = null; try { done = localStorage.getItem(PCSIG); } catch (e) { /* stockage indisponible */ }
+  if (done === pcSig(list)) return;
+  projectCalib(true);
+}
+async function projectCalib(auto) {
   if (pcRun) return;
   const list = photos.filter(p => p.lat != null && p.heading != null);
   if (list.length < 2) { status('Il faut au moins 2 photos avec position GPS et direction.', { ms: 4000 }); return; }
@@ -822,8 +834,10 @@ async function projectCalib() {
   catch (e) { console.error(e); r = { error: 'Le calage a échoué.' }; }
   box.hidden = true; pcRun = null;
   if (!r || r.cancelled) { status('Calage du projet arrêté : rien n’a été modifié.', { ms: 4000 }); return; }
+  if (r.error && auto) { status('Calage automatique impossible : ' + r.error, { ms: 6000 }); return; }
   if (r.error) { status('Calage du projet : ' + r.error, { ms: 6000 }); return; }
   // On enregistre le réglage de chaque photo (calage des réseaux), puis on montre le nuage de points sur la carte
+  try { localStorage.setItem(PCSIG, pcSig(list)); } catch (e) { /* stockage indisponible */ }
   for (const k in r.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(r.adjs[k])); } catch (e) { /* stockage indisponible */ } }
   if (pcLayer) { pcLayer.remove(); pcLayer = null; }
   if (window.L && map && r.points.length) {
@@ -833,7 +847,7 @@ async function projectCalib() {
   status('Projet calé : ' + r.stats.photos + ' photos, ' + r.stats.pairs + ' paires, ' + r.stats.obs + ' points communs. Écart moyen ' + r.stats.before.toFixed(1) + ' → ' + r.stats.after.toFixed(1) + ' px. Les dessins sont recalculés à l’ouverture.', { ms: 9000 });
   if (!$('viewer').hidden) paintOver();
 }
-$('pcBtn').addEventListener('click', projectCalib);
+$('pcBtn').addEventListener('click', () => projectCalib(false));
 function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
 $('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);

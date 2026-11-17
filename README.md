@@ -224,6 +224,10 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.19.1 : calage automatique à l'ouverture du projet
+
+Plus besoin de cliquer : dès que les photos sont chargées, le calage du projet se lance tout seul (fenêtre de progression, bouton « Arrêter »). Si les mêmes photos ont déjà été calées, il n'est pas refait ; si on en ajoute ou qu'on ouvre un autre projet, il se relance. Le bouton « Recaler le projet » force un nouveau calage. L'ouverture du repérage attend la fin du calage.
+
 ## Version 1.19.0 : calage de tout le projet (nuage de points commun)
 
 Bouton **« Calage projet »** (barre du haut). Le site compare toutes les photos voisines entre elles (6 plus proches, moins de 150 m), retrouve les détails visibles sur deux photos (les « points communs », qui forment un nuage) puis règle **toutes les photos en même temps** (cap, inclinaison, position, hauteur) pour que ces points tombent au même endroit du sol vus de chaque photo. Le GPS et la boussole servent de rappel : une photo mal reliée reste proche de ses valeurs d'origine. Trois passes de plus en plus fines.
