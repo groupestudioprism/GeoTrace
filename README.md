@@ -224,6 +224,15 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.20.0 : scan 3D du chantier et calage des vues de dessus
+
+**Scan 3D.** Le nuage de points n'est plus plat. Après le calage du projet, GeoTrace cherche les points communs entre les photos voisines en supposant que le sol est à plusieurs hauteurs (0, 4, 9, 16 et 28 m : sol, toits, arbres, talus). Les deux rayons de chaque point se croisent dans l'espace : on obtient sa position et sa hauteur, avec la couleur prise sur les photos. Les croisements peu nets sont écartés. Le résultat est gardé dans le navigateur avec le projet.
+- Bouton **Scan 3D** (en haut, à côté de « Recaler le projet ») : ouvre la vue 3D avec le nuage de points en couleur, **sans avoir besoin d'une maquette**. Avec une maquette, le scan s'affiche avec elle.
+- Dans la vue 3D, la case **Scan 3D** l'affiche ou le masque.
+- Limite : le scan est clairsemé (quelques centaines à quelques milliers de points par zone), plus dense là où les photos se recoupent bien.
+
+**Vues de dessus (drone à la verticale).** Elles avaient peu de points communs avec les vues obliques (la hauteur de vol mal connue décale le sol de 10 à 25 m) et le calage partait sur une mauvaise solution (cap de 12°). Maintenant, pour ces paires, on essaie plusieurs rotations et plusieurs décalages avant de chercher les points communs : 111 points communs au lieu de 18 entre les photos 222 et 223, et les dessins d'une photo oblique tombent beaucoup plus près de leur vraie place sur la vue de dessus. Une vue de dessus compare aussi plus de voisines (14 au lieu de 10, jusqu'à 260 m).
+
 ## Version 1.19.5 : correction de l'affichage de la photo dans la visionneuse
 
 Sur grand écran, la photo de la visionneuse dépassait de son cadre (image rognée en haut et en bas) depuis l'ajout des dessins sur la photo. Elle est de nouveau entière et centrée.

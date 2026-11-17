@@ -488,21 +488,33 @@ function shareAdj(lk, photos) {
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, cloud = null, onPhoto, onElement, onNote }) {
   close3D();
-  const m = state.model; if (!m || !state.sol || !state.frame) return null;
+  const m = state.model, modelOk = !!(m && state.sol && state.frame), hasCloud = !!(cloud && cloud.n > 0);
+  if (!modelOk && !hasCloud) return null;
+  if (!state.frame) setFrameAt(cloud.lat0, cloud.lon0);   // sans maquette : le scan donne le repère
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement); renderer.domElement.className = 'v3-canvas';
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0xbcd3e6);
   scene.add(new THREE.AmbientLight(0xffffff, 1.7)); const dl = new THREE.DirectionalLight(0xffffff, 1.8); dl.position.set(-60, -80, 120); scene.add(dl);
-  const holder = new THREE.Group(); holder.add(m.group.clone()); applyTransform(holder); scene.add(holder);
+  const holder = new THREE.Group(); if (modelOk) { holder.add(m.group.clone()); applyTransform(holder); } scene.add(holder);
+  // scan 3D : nuage de points en couleur, posé dans le même repère que le reste
+  let scanObj = null;
+  if (hasCloud) {
+    const o = state.frame.toEN(cloud.lat0, cloud.lon0), pos = new Float32Array(cloud.n * 3), col = new Float32Array(cloud.n * 3);
+    for (let i = 0; i < cloud.n; i++) { pos[3 * i] = cloud.xyz[3 * i] + o[0]; pos[3 * i + 1] = cloud.xyz[3 * i + 1] + o[1]; pos[3 * i + 2] = cloud.xyz[3 * i + 2]; col[3 * i] = cloud.rgb[3 * i] / 255; col[3 * i + 1] = cloud.rgb[3 * i + 1] / 255; col[3 * i + 2] = cloud.rgb[3 * i + 2] / 255; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    scanObj = new THREE.Points(g, new THREE.PointsMaterial({ size: 4.5, sizeAttenuation: false, vertexColors: true }));
+    scanObj.name = 'scan'; scanObj.frustumCulled = false; scene.add(scanObj);
+  }
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 30000); camera.up.set(0, 0, 1);
   const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000; controls.zoomToCursor = true; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   // emprise terrain de la maquette et des photos proches
-  const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+  const bb = new THREE.Box3(); if (modelOk) bb.setFromObject(holder); if (scanObj) { scanObj.geometry.computeBoundingBox(); bb.union(scanObj.geometry.boundingBox); }
+  const c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
   const radius = Math.max(60, Math.max(sz.x, sz.y) * 0.9);
   const bounds = [c.x - radius * 1.2, c.y - radius * 1.2, c.x + radius * 1.2, c.y + radius * 1.2];
-  v3 = { host, renderer, scene, camera, controls, holder, raf: 0, dead: false, photoMeshes: [], ground: null, onPhoto, onElement, center: c, radius, lock: null };
+  v3 = { host, renderer, scene, camera, controls, holder, scanObj, raf: 0, dead: false, photoMeshes: [], ground: null, onPhoto, onElement, center: c, radius, lock: null };
   const headingOf = p => p.heading != null ? p.heading : Math.atan2(c.x - p._e, c.y - p._n) / RAD;
   // photos : repère de l'appareil, plan de l'image à sa place dans le champ, et pyramide de vue
   const markers = new THREE.Group(); scene.add(markers);
@@ -734,6 +746,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   return v3;
 }
 export function v3Nets(on) { if (!v3) return; v3.netsOn = on; v3.syncVis(); }
+export function v3Scan(on) { if (v3 && v3.scanObj) v3.scanObj.visible = on; }
 export function v3Ground(on) { if (!v3) return; v3.groundOn = on; v3.syncVis(); }
 export function v3Cancel() { return v3 ? v3.cancel() : false; }
 export function v3Overview() { if (v3) v3.overview(); }

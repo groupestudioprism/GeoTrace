@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.19.5';
+const VERSION = '1.20.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -35,6 +35,8 @@ async function idbDo(mode, fn) { const db = await idbOpen(); return new Promise(
 const idbSet = rec => idbDo('readwrite', s => s.put(rec, 'derniere')).catch(e => console.warn('maquette non mémorisée', e));
 const idbDel = () => idbDo('readwrite', s => s.delete('derniere')).catch(() => {});
 const idbGet = () => idbDo('readonly', s => s.get('derniere')).catch(() => null);
+const scanSet = rec => idbDo('readwrite', s => s.put(rec, 'scan')).catch(e => console.warn('scan non mémorisé', e));
+const scanGet = () => idbDo('readonly', s => s.get('scan')).catch(() => null);
 
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 
@@ -796,7 +798,15 @@ async function paintOver() {
 $('vOvl').addEventListener('click', () => { ovlOn = !ovlOn; store.set('geotrace:ovl', ovlOn); paintOver(); });
 window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
 /* Calage de tout le projet : points communs entre toutes les photos voisines, réglage de toutes les photos ensemble */
-let pcLayer = null, pcRun = null;
+let pcLayer = null, pcRun = null, scanCloud = null;
+function paintScanBtn() { const b = $('scanBtn'); if (b) { b.hidden = !(scanCloud && scanCloud.n > 0); b.textContent = 'Scan 3D (' + (scanCloud ? Math.round(scanCloud.n / 100) / 10 + ' k points' : '') + ')'; } }
+// Scan déjà calculé pour ces photos : on le retrouve sans refaire le calage
+async function restoreScan() {
+  const list = photos.filter(p => p.lat != null && p.heading != null);
+  if (list.length < 2) return;
+  const rec = await scanGet();
+  if (rec && rec.cloud && rec.sig === pcSig(list)) { scanCloud = rec.cloud; paintScanBtn(); }
+}
 const PCSIG = 'geotrace:pcsig';
 const pcSig = list => list.map(p => p.key).sort().join('|');
 // Au chargement d'un projet : calage automatique, sauf si ces mêmes photos ont déjà été calées
@@ -804,7 +814,7 @@ function autoProjectCalib() {
   const list = photos.filter(p => p.lat != null && p.heading != null);
   if (list.length < 2 || pcRun) return;
   let done = null; try { done = localStorage.getItem(PCSIG); } catch (e) { /* stockage indisponible */ }
-  if (done === pcSig(list)) return;
+  if (done === pcSig(list)) { restoreScan().then(() => { if (!scanCloud) projectCalib(true); }); return; }
   projectCalib(true);
 }
 async function projectCalib(auto) {
@@ -840,6 +850,7 @@ async function projectCalib(auto) {
   // On enregistre le réglage de chaque photo (calage des réseaux), puis on montre le nuage de points sur la carte
   try { localStorage.setItem(PCSIG, pcSig(list)); } catch (e) { /* stockage indisponible */ }
   for (const k in r.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(r.adjs[k])); } catch (e) { /* stockage indisponible */ } }
+  if (r.scan && r.scan.n > 0) { scanCloud = r.scan; scanSet({ sig: pcSig(list), cloud: r.scan }); paintScanBtn(); }
   if (pcLayer) { pcLayer.remove(); pcLayer = null; }
   if (window.L && map && r.points.length) {
     const rend = L.canvas({ padding: 0.3 });
@@ -1315,7 +1326,7 @@ const setPlan = (blob, name) => { pendingPlan = { blob, name }; if (Chantier) Ch
 import('./chantier.js').then(m => { Chantier = m; m.init({ map, status, stopOthers: () => measureOn(false), categories: () => Maq ? Maq.modelCategories() : [], setPhase3d: (list, cur) => { if (Maq) { Maq.setPhasesData(list); Maq.setPhase(cur); } fillPhase3d(); } }); m.onPhase(() => fillPhase3d()); if (pendingPlan) m.setPlanning(pendingPlan.blob, pendingPlan.name); if (Maq) m.setProject(Maq.getProjChantier(), Maq.state.model ? Maq.state.model.name : ''); }).catch(e => console.warn('chantier', e));
 async function open3d(focusId) {
   const M = await maq();
-  if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
+  if (!M.isPlaced() && !(scanCloud && scanCloud.n > 0)) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
   if (!$('viewer').hidden) closeViewer();
   map.closePopup();
   const ph = placedOf(visible());
@@ -1324,10 +1335,11 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden';
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, cloud: scanCloud, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
-  fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; }
+  fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; $('v3ScanL').hidden = !(scanCloud && scanCloud.n > 0); $('v3Scan').checked = true; }
+  $('v3Title').textContent = M.isPlaced() ? 'Maquette en 3D' : 'Scan 3D du chantier';
   buildStrip();
   $('v3Ground').checked = true;
   if (focusId) alignPhoto(focusId);
@@ -1418,6 +1430,8 @@ $('maq3d').addEventListener('click', () => open3d(null));
 $('v3Over').addEventListener('click', () => { if (Maq) Maq.v3Overview(); setBlend(false); $('v3List').querySelectorAll('.on').forEach(b => b.classList.remove('on')); });
 $('v3Nets').addEventListener('change', e => Maq && Maq.v3Nets(e.target.checked));
 $('v3Ground').addEventListener('change', e => Maq && Maq.v3Ground(e.target.checked));
+$('v3Scan').addEventListener('change', e => Maq && Maq.v3Scan(e.target.checked));
+$('scanBtn').addEventListener('click', () => open3d(null));
 $('v3Here').addEventListener('click', () => alignPhoto($('v3Pip').dataset.pid));
 $('v3Blend').addEventListener('click', e => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';

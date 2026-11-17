@@ -268,3 +268,37 @@ export function bestYaw(A, B, camA, photoB, adj, S, T, STEP) {
   });
   return best;
 }
+
+/* Vue de dessus contre une vue oblique : les erreurs de hauteur de l'oblique décalent tout le sol de 10 à 25 m.
+   On essaie quelques rotations ET quelques décalages de la vue de dessus et on garde la combinaison qui
+   donne le plus de points communs cohérents. Renvoie { dy, de, dn } à ajouter au réglage de B. */
+export function bestPose(A, B, camA, photoB, adj, S, T, STEP) {
+  const shifts = [[0, 0], [14, 0], [-14, 0], [0, 14], [0, -14], [10, 10], [-10, 10], [10, -10], [-10, -10], [26, 0], [-26, 0], [0, 26], [0, -26]];
+  const trial = function (dy, sh) {
+    const a2 = Object.assign({}, adj, { yaw: (adj.yaw || 0) + dy, e: (adj.e || 0) + sh[0], n: (adj.n || 0) + sh[1] });
+    const cam = makeCamera(Object.assign({}, photoB, { adj: a2 }), { w: B.w, h: B.h });
+    if (!cam) { return -1; }
+    const wp = warp(A, B, camA, cam);
+    if (wp.ok < B.w * B.h * 0.05) { return -1; }
+    let sc = 0;
+    track(wp, B, S, T, STEP).forEach(q => { sc += q.sc - 0.5; });
+    return sc;
+  };
+  // 1) rotation seule (comme avant)
+  let best = { dy: 0, de: 0, dn: 0 }, bestScore = -1;
+  [0, -8, 8, -16, 16, -26, 26].forEach(function (dy) {
+    const sc = trial(dy, [0, 0]);
+    if (sc > bestScore + 0.5 || (sc > bestScore && dy === 0)) { bestScore = sc; best = { dy: dy, de: 0, dn: 0 }; }
+  });
+  // 2) avec décalage : on ne le garde que s'il fait nettement mieux que la rotation seule
+  const base = bestScore;
+  [0, -9, 9, -18, 18].forEach(function (dy) {
+    shifts.forEach(function (sh) {
+      if (!sh[0] && !sh[1]) { return; }
+      const sc = trial(dy, sh);
+      if (sc > bestScore && sc > 1.6 * Math.max(base, 5)) { bestScore = sc; best = { dy: dy, de: sh[0], dn: sh[1] }; }
+    });
+  });
+  best.score = bestScore;
+  return best;
+}

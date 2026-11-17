@@ -19,7 +19,7 @@
    ===================================================================== */
 
 import { makeCamera } from './photoproj.js';
-import { gray, warp, track, isNadir, bestYaw } from './autocal.js';
+import { gray, warp, track, isNadir, bestYaw, bestPose } from './autocal.js';
 
 const NAMES = ['yaw', 'pitch', 'e', 'n', 'z', 'roll', 'zoom'];
 const K = NAMES.length;
@@ -37,6 +37,16 @@ const pause = () => new Promise(r => setTimeout(r, 0));
 function dist(a, b) {
   const k = Math.PI / 180, R = 6371008.8;
   return Math.hypot((a.lon - b.lon) * k * R * Math.cos(a.lat * k), (a.lat - b.lat) * k * R);
+}
+
+// Couleurs d'une photo réduite à W px de large (RGBA)
+function colorOf(img, W) {
+  try {
+    const h = Math.round(W * img.naturalHeight / img.naturalWidth), c = document.createElement('canvas');
+    c.width = W; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, W, h);
+    return { d: x.getImageData(0, 0, W, h).data, w: W, h: h };
+  } catch (e) { return null; }
 }
 
 // Image à 720 px de large, en octets (3e passage)
@@ -81,7 +91,7 @@ export async function calibrateProject(opt) {
     const g = gray(img, 480), g8 = new Uint8Array(g.g.length);
     for (let k = 0; k < g8.length; k++) { g8[k] = g.g[k]; }
     const full = { g: g8, w: g.w, h: g.h };
-    P.push({ key: ph.key, pose: ph.pose, im: { 480: full, 240: half(full), 720: up(img) }, adj: Object.assign({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 }, ph.pose.adj || {}) });
+    P.push({ key: ph.key, pose: ph.pose, col: colorOf(img, 480), im: { 480: full, 240: half(full), 720: up(img) }, adj: Object.assign({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 }, ph.pose.adj || {}) });
     await pause();
   }
   if (P.length < 2) { return { error: 'Il faut au moins 2 photos avec position GPS et direction.' }; }
@@ -93,9 +103,9 @@ export async function calibrateProject(opt) {
     // Voisines : proches ET d'inclinaison semblable (une vue de dessus se compare mal à une vue très rasante).
     // Une vue de dessus a plus de voisines et un rayon plus large.
     const nad = isNadir(p.pose), near = [];
-    P.forEach(function (q, j) { if (j !== i) { const d = dist(p.pose, q.pose); if (d < (nad ? 220 : 150)) { near.push([d + 2 * Math.abs((p.pose.pitch || 0) - (q.pose.pitch || 0)), j]); } } });
+    P.forEach(function (q, j) { if (j !== i) { const d = dist(p.pose, q.pose); if (d < (nad ? 260 : 150)) { near.push([d + (nad ? 0.4 : 2) * Math.abs((p.pose.pitch || 0) - (q.pose.pitch || 0)), j]); } } });
     near.sort((a, b) => a[0] - b[0]);
-    near.slice(0, nad ? 10 : 6).forEach(function (n) {
+    near.slice(0, nad ? 14 : 6).forEach(function (n) {
       const a = Math.min(i, n[1]), b = Math.max(i, n[1]), k = a + '_' + b;
       if (!seen[k]) { seen[k] = 1; pairs.push({ a: a, b: b, obs: [] }); }
     });
@@ -119,8 +129,8 @@ export async function calibrateProject(opt) {
       let cw = cb;
       if (rd === 0 && (isNadir(Object.assign({}, P[pr.a].pose, { adj: P[pr.a].adj })) || isNadir(Object.assign({}, P[pr.b].pose, { adj: P[pr.b].adj })))) {
         // vue de dessus : cap peu fiable, on cherche la rotation qui superpose le mieux les deux photos
-        const dy = bestYaw(A, B, ca, P[pr.b].pose, P[pr.b].adj, R.S, R.T, R.step);
-        if (dy) { cw = makeCamera(Object.assign({}, P[pr.b].pose, { adj: Object.assign({}, P[pr.b].adj, { yaw: P[pr.b].adj.yaw + dy }) }), { w: B.w, h: B.h }); }
+        const bp = bestPose(A, B, ca, P[pr.b].pose, P[pr.b].adj, R.S, R.T, R.step), ab = P[pr.b].adj;
+        cw = makeCamera(Object.assign({}, P[pr.b].pose, { adj: Object.assign({}, ab, { yaw: ab.yaw + bp.dy, e: ab.e + bp.de, n: ab.n + bp.dn }) }), { w: B.w, h: B.h });
       }
       const wp = warp(A, B, ca, cw);
       if (wp.ok < B.w * B.h * 0.05) { continue; }
@@ -146,9 +156,14 @@ export async function calibrateProject(opt) {
     points = r.points;
   }
 
+  const scanPairs = await scanPass(P, pairs, say, stop);
+  if (scanPairs === null) { return { cancelled: true }; }
+  const scan = triangulate(P, scanPairs);
+  stats.scanPts = scan.n;
+  stats.pairObs = pairs.map(pr => [P[pr.a].key, P[pr.b].key, pr.obs.length]);
   const adjs = {};
   P.forEach(p => { adjs[p.key] = p.adj; });
-  return { adjs: adjs, stats: stats, points: points };
+  return { adjs: adjs, stats: stats, points: points, scan: scan };
 }
 
 /* Moindres carrés pondérés (Levenberg-Marquardt) sur les 5 paramètres de chaque photo.
@@ -266,4 +281,82 @@ function cholSolve(A, g, N, lambda) {
   for (let i = 0; i < N; i++) { let s = g[i]; for (let k = 0; k < i; k++) { s -= L[i * N + k] * y[k]; } y[i] = s / L[i * N + i]; }
   for (let i = N - 1; i >= 0; i--) { let s = y[i]; for (let k = i + 1; k < N; k++) { s -= L[k * N + i] * d[k]; } d[i] = s / L[i * N + i]; }
   return d;
+}
+
+
+/* Balayage de plans pour le scan 3D : une fois les photos réglées, on cherche les points communs en supposant
+   que le sol est à 0, 4, 9, 16, 28 m de hauteur (toits, arbres, talus…). Un point n'est gardé que s'il se croise
+   à peu près à la hauteur du plan où on l'a trouvé. */
+const PLANES = [0, 4, 9, 16, 28];
+async function scanPass(P, pairs, say, stop) {
+  const W = 480, out = [];
+  // les 3 meilleures paires de chaque photo (le plus de points communs déjà trouvés, et un vrai écart entre les prises de vue)
+  const per = P.map(() => []);
+  pairs.forEach((pr, i) => { if (pr.obs.length >= 8) { per[pr.a].push([pr.obs.length, i]); per[pr.b].push([pr.obs.length, i]); } });
+  const pick = new Set();
+  per.forEach(l => { l.sort((x, y) => y[0] - x[0]); l.slice(0, 4).forEach(x => pick.add(x[1])); });
+  const list = [...pick];
+  for (let n = 0; n < list.length; n++) {
+    if (stop()) { return null; }
+    const pr = pairs[list[n]], A = P[pr.a].im[W], B = P[pr.b].im[W];
+    if (n % 3 === 0) { say('Scan 3D : paire ' + (n + 1) + '/' + list.length + '…', 0.85 + 0.14 * n / list.length); await pause(); }
+    const obs = [];
+    PLANES.forEach(function (h) {
+      const mk = (i, sz) => { const a = Object.assign({}, P[i].adj); a.z = a.z - h; return makeCamera(Object.assign({}, P[i].pose, { adj: a }), sz); };
+      const ca = mk(pr.a, { w: A.w, h: A.h }), cb = mk(pr.b, { w: B.w, h: B.h });
+      if (!ca || !cb) { return; }
+      const wp = warp(A, B, ca, cb);
+      if (wp.ok < B.w * B.h * 0.05) { return; }
+      track(wp, B, 6, 21, 12).forEach(function (f) {
+        if (f.sc < 0.6) { return; }
+        const pa = ca.toPixel(f.lat, f.lon, 0);
+        if (pa) { obs.push({ au: pa.x / A.w, av: pa.y / A.h, bu: f.qx / B.w, bv: f.qy / B.h, h: h }); }
+      });
+    });
+    out.push({ a: pr.a, b: pr.b, obs: obs });
+  }
+  return out;
+}
+
+/* Scan 3D : chaque point commun est vu par deux photos. Les deux rayons se croisent en un point de l'espace,
+   avec sa hauteur. On garde les croisements nets (les rayons passent à moins de 0,8 m l'un de l'autre,
+   avec un angle d'au moins 2°) et on prend la couleur des deux photos.
+   Résultat : { n, lat0, lon0, xyz: Float32Array (est, nord, hauteur en m autour de lat0/lon0), rgb: Uint8Array } */
+function triangulate(P, pairs) {
+  const lat0 = P.reduce((a, p) => a + p.pose.lat, 0) / P.length, lon0 = P.reduce((a, p) => a + p.pose.lon, 0) / P.length;
+  const k = Math.PI / 180, R = 6371008.8, cl = Math.cos(lat0 * k);
+  const toEN = (la, lo) => [(lo - lon0) * k * R * cl, (la - lat0) * k * R];
+  const cams = P.map(p => { const im = p.im[720]; return makeCamera(Object.assign({}, p.pose, { adj: p.adj }), { w: im.w, h: im.h }); });
+  const xyz = [], rgb = [];
+  const col = (p, u, v) => { const c = p.col; if (!c) { return [150, 150, 150]; } const x = Math.min(c.w - 1, Math.max(0, Math.round(u * c.w))), y = Math.min(c.h - 1, Math.max(0, Math.round(v * c.h))), i = 4 * (y * c.w + x); return [c.d[i], c.d[i + 1], c.d[i + 2]]; };
+  pairs.forEach(function (pr) {
+    const ca = cams[pr.a], cb = cams[pr.b]; if (!ca || !cb) { return; }
+    const A = P[pr.a].im[720], B = P[pr.b].im[720];
+    pr.obs.forEach(function (o) {
+      const ra = ca.ray(o.au * A.w, o.av * A.h), rb = cb.ray(o.bu * B.w, o.bv * B.h);
+      const oa = toEN(ra.lat, ra.lon), ob = toEN(rb.lat, rb.lon);
+      const p0 = [oa[0], oa[1], ra.h], q0 = [ob[0], ob[1], rb.h], u = ra.d, v = rb.d;
+      const w = [p0[0] - q0[0], p0[1] - q0[1], p0[2] - q0[2]];
+      const a = 1, b = u[0] * v[0] + u[1] * v[1] + u[2] * v[2], c = 1, d = u[0] * w[0] + u[1] * w[1] + u[2] * w[2], e = v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
+      const den = a * c - b * b;
+      if (den < 1.2e-3) { return; }                       // rayons presque parallèles (angle < 2°)
+      const s = (b * e - c * d) / den, t = (a * e - b * d) / den;
+      if (s < 3 || t < 3 || s > 500 || t > 500) { return; }
+      const P1 = [p0[0] + s * u[0], p0[1] + s * u[1], p0[2] + s * u[2]], P2 = [q0[0] + t * v[0], q0[1] + t * v[1], q0[2] + t * v[2]];
+      if (Math.hypot(P1[0] - P2[0], P1[1] - P2[1], P1[2] - P2[2]) > 0.8) { return; }
+      const X = (P1[0] + P2[0]) / 2, Y = (P1[1] + P2[1]) / 2, Z = (P1[2] + P2[2]) / 2;
+      if (Z < -4 || Z > 70 || (o.h != null && Math.abs(Z - o.h) > 2.5)) { return; }
+      xyz.push(X, Y, Z);
+      const c1 = col(P[pr.a], o.au, o.av), c2 = col(P[pr.b], o.bu, o.bv);
+      rgb.push((c1[0] + c2[0]) >> 1, (c1[1] + c2[1]) >> 1, (c1[2] + c2[2]) >> 1);
+    });
+  });
+  // on enlève les doublons (même case de 0,25 m)
+  const seen = new Set(), ox = [], oc = [];
+  for (let i = 0; i < xyz.length; i += 3) {
+    const key = Math.round(xyz[i] * 4) + '_' + Math.round(xyz[i + 1] * 4) + '_' + Math.round(xyz[i + 2] * 4);
+    if (seen.has(key)) { continue; }
+    seen.add(key); ox.push(xyz[i], xyz[i + 1], xyz[i + 2]); oc.push(rgb[i], rgb[i + 1], rgb[i + 2]);
+  }
+  return { n: ox.length / 3, lat0: lat0, lon0: lon0, xyz: new Float32Array(ox), rgb: new Uint8Array(oc) };
 }

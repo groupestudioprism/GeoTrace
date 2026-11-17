@@ -113,6 +113,14 @@ export function makeCamera(photo, size) {
     return { lat: ll[0], lon: ll[1], e: e, n: n };
   };
 
+  // Rayon d'un point de la photo : origine (latitude, longitude, hauteur) et direction (est, nord, haut)
+  cam.ray = function (px, py) {
+    const nx = (px / size.w - 0.5) * 2, ny = (0.5 - py / size.h) * 2;
+    const d = [0, 1, 2].map(i => ax.f[i] + ax.r[i] * nx * tv * aspect + ax.u[i] * ny * tv);
+    const l = Math.hypot(d[0], d[1], d[2]), ll = frame.toLL(pos[0], pos[1]);
+    return { lat: ll[0], lon: ll[1], h: pos[2], d: [d[0] / l, d[1] / l, d[2] / l] };
+  };
+
   // Position sur le sol (latitude / longitude) -> point de la photo (ou null)
   cam.toPixel = function (lat, lon, z) {
     const en = frame.toEN(lat, lon);
