@@ -54,7 +54,7 @@ async function ensure() {
   if (!C) { status('Le moteur de repérage n’a pas pu se charger.', { ms: 4000 }); return false; }
   const cfg = (() => { try { return JSON.parse(localStorage.getItem('geotrace:rsxarm') || 'null') || {}; } catch (e) { return {}; } })();
   armed = Object.assign({ pipe: null, mh: null, acc: null }, cfg);
-  fixArmed(); fillPalette(); fixU(); if (ph.objects.length) C.syncAll(ph); recap(); draw();
+  C.onSymLoad(draw); fixArmed(); fillPalette(); fixU(); if (ph.objects.length) C.syncAll(ph); recap(); draw();
   return true;
 }
 function fixArmed() {
@@ -165,7 +165,7 @@ function onClick(e) {
     const def = C.accOf(armed.acc); if (!def) return;
     const kit = C.placeAcc(ph, p, def, u, tolPx(14) + 8 * u);
     if (kit) { status(kit.msg, { ms: 4500 }); sel = kit.sel.id; commit(kit.objs); return; }
-    add(C.newAcc(p, def, u));
+    const na = C.newAcc(p, def, u); if (/COMPTEUR/.test(def.sym || '')) na.showLabel = false; C.alignAcc(na, ph, tolPx(18)); add(na);
   } else if (tool === 'text') {
     openTed(p, e.containerPoint);
   }
@@ -226,7 +226,7 @@ function onDragMove(e) {
   else if (d.kind === 'move') {
     const dx = p.x - d.last.x, dy = p.y - d.last.y; d.last = p; const o = d.o;
     if (o.type === 'line') o.pts.forEach(q => { q.x += dx; q.y += dy; delete q.link; });
-    else if (o.type === 'manhole') { o.cx += dx; o.cy += dy; } else { o.x += dx; o.y += dy; if (o.lp) { o.lp.x += dx; o.lp.y += dy; } }
+    else if (o.type === 'manhole') { o.cx += dx; o.cy += dy; } else { o.x += dx; o.y += dy; if (o.lp) { o.lp.x += dx; o.lp.y += dy; } if (o.type === 'acc') C.alignAcc(o, ph, tolPx(18)); }
     C.syncAll(ph, [o]);
   }
   draw();
@@ -299,13 +299,47 @@ function fillPalette() {
   if (!C) return;
   $('rsPipe').innerHTML = opts(C.S.pipes, armed.pipe, p => p.desc);
   $('rsMh').innerHTML = opts(C.S.manholes, armed.mh, m => m.name);
-  $('rsAcc').innerHTML = opts(C.S.accessories, armed.acc, a => a.name);
+  accGrid();
 }
 function palShow() {
-  const on = { line: 'rsPipe', br: 'rsPipe', manhole: 'rsMh', acc: 'rsAcc' }[tool];
-  ['rsPipe', 'rsMh', 'rsAcc'].forEach(id => { $(id).closest('label').hidden = id !== on; });
+  const on = { line: 'rsPipe', br: 'rsPipe', manhole: 'rsMh' }[tool];
+  ['rsPipe', 'rsMh'].forEach(id => { $(id).closest('label').hidden = id !== on; });
+  $('rsAccBox').hidden = tool !== 'acc'; if (tool === 'acc') accGrid();
   if (C && on) { const pd = C.pipeOf(armed.pipe); if (tool === 'br' && pd && pd.dash !== 'dotted') { const b = C.S.pipes.find(q => q.dash === 'dotted' && C.netCat(q.net) === C.netCat(pd.net)); if (b) { armed.pipe = b.id; fillPalette(); saveArmed(); } } }
 }
+
+/* Accessoires : cartes avec le vrai symbole, et bibliothèque de symboles de l'outil d'origine */
+let libNet = '';
+function accGrid() {
+  if (!C || !$('rsAccGrid')) return;
+  const q = ($('rsAccQ').value || '').trim().toLowerCase(), g = $('rsAccGrid'); g.textContent = '';
+  C.S.accessories.forEach(a => {
+    if (q && !(a.name.toLowerCase().includes(q) || (a.sym || '').toLowerCase().includes(q))) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rs-card' + (a.id === armed.acc ? ' on' : ''); b.title = a.name; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(a.id === armed.acc));
+    const cv2 = document.createElement('canvas'); const s = document.createElement('span'); s.textContent = a.name;
+    b.append(cv2, s); C.drawIcon(cv2, Object.assign({}, a, { net: a.net })); b.style.setProperty('--c', C.colOf(a.net));
+    b.addEventListener('click', () => { armed.acc = a.id; saveArmed(); accGrid(); }); g.append(b);
+  });
+  if (!g.children.length) g.textContent = 'Aucun accessoire trouvé.';
+  libGrid();
+}
+function libGrid() {
+  const nb = $('rsLibNets'), g = $('rsLibGrid'); if (!nb || !g || !$('rsLib').open) return;
+  const q = ($('rsAccQ').value || '').trim().toLowerCase();
+  nb.textContent = '';
+  [['', 'Tous'], ...Object.entries(C.SYMNET)].forEach(([k, v]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'rs-chip' + (k === libNet ? ' on' : ''); b.textContent = v; b.addEventListener('click', () => { libNet = k; libGrid(); }); nb.append(b); });
+  g.textContent = '';
+  C.SYMS.forEach(sd => {
+    if (libNet && sd[2] !== libNet) return;
+    if (q && !(sd[1].toLowerCase().includes(q) || sd[0].toLowerCase().includes(q))) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'rs-card'; b.title = sd[0];
+    const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = C.symDataUrl(sd[0], '#1b2328'); const s = document.createElement('span'); s.textContent = sd[1];
+    b.append(im, s); b.addEventListener('click', () => { const a = C.accForSymbol(sd[0]); if (!a) return; armed.acc = a.id; saveArmed(); try { Rep.saveSettings && Rep.saveSettings(); } catch (e) { /* ignoré */ } persistSettings(); accGrid(); status(sd[1] + ' choisi : cliquez sur la carte.', { ms: 2500 }); });
+    g.append(b);
+  });
+}
+// Les réglages (liste d'accessoires) sont ceux de l'outil de repérage : même clé de stockage
+function persistSettings() { try { const k = 'geotrace:repere:cfg'; const cur = JSON.parse(localStorage.getItem(k) || 'null') || {}; cur.s = C.S; localStorage.setItem(k, JSON.stringify(cur)); } catch (e) { /* ignoré */ } }
 function props() {
   const box = $('rsProps'); if (!box) return;
   const o = sel && C ? objOf(sel) : null;
@@ -381,8 +415,9 @@ export function init(ctx) {
   $('rsTools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pick(b.dataset.tool); });
   $('rsUndo').addEventListener('click', () => undo(-1)); $('rsRedo').addEventListener('click', () => undo(1)); $('rsDel').addEventListener('click', del);
   $('rsFin').addEventListener('click', finishLine);
-  [['rsPipe', 'pipe'], ['rsMh', 'mh'], ['rsAcc', 'acc']].forEach(([id, k]) => $(id).addEventListener('change', () => { armed[k] = $(id).value; saveArmed(); }));
+  [['rsPipe', 'pipe'], ['rsMh', 'mh']].forEach(([id, k]) => $(id).addEventListener('change', () => { armed[k] = $(id).value; saveArmed(); }));
   $('rsProps').addEventListener('change', onProp);
+  $('rsAccQ').addEventListener('input', accGrid); $('rsLib').addEventListener('toggle', libGrid);
   $('rsGeo').addEventListener('click', exportGeo); $('rsCsv').addEventListener('click', exportCsv);
   $('rsClear').addEventListener('click', e => {
     if (e.target.dataset.sure) { ph.objects = []; sel = null; delete e.target.dataset.sure; e.target.textContent = 'Tout supprimer'; commit([]); }

@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.1 : vrais symboles et accessoires de l'outil d'origine
+
+Les accessoires du repérage utilisent maintenant la bibliothèque de 256 symboles de l'outil (`assets/symlib.js`) : vannes, purges, ventouses, poteaux, raccords… ; coudes en chevrons, tés à trois branches, alignement des symboles « en ligne » sur la conduite, gamme étendue de conduites, regards et accessoires. Palette en cartes avec le symbole et bibliothèque filtrable par réseau.
+
 ## Version 1.28.0 : repérage des réseaux directement sur la carte IGN
 
 Chantier › Réseaux › **Repérage sur le plan** : on dessine sur la carte, avec le moteur de l'outil « Repérage de réseaux sur photos » (mêmes symboles, étiquettes, raccords automatiques, branchements) : Sélectionner (V), Conduite (L), Branchement (B), Regard (R), Accessoire (A), Texte (T), annuler/rétablir, palette par réseau (AEP / EU / EP, neuf / existant / à abandonner), propriétés de l'objet sélectionné, récapitulatif des métrés, export GeoJSON et CSV. Les dessins partent en 3D (enterrés) et sont enregistrés avec le projet. Le bouton « Repérer » de la visionneuse reste retiré.

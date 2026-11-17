@@ -197,7 +197,14 @@
             </div>
             <label class="ch-field" hidden>Conduite <select id="rsPipe" class="ch-ty"></select></label>
             <label class="ch-field" hidden>Regard <select id="rsMh" class="ch-ty"></select></label>
-            <label class="ch-field" hidden>Accessoire <select id="rsAcc" class="ch-ty"></select></label>
+            <div class="rs-acc" id="rsAccBox" hidden>
+              <input type="search" id="rsAccQ" class="ch-ty" placeholder="Chercher un accessoire ou un symbole" aria-label="Chercher un accessoire ou un symbole">
+              <div class="rs-grid" id="rsAccGrid" role="listbox" aria-label="Accessoires"></div>
+              <details class="ch-more" id="rsLib"><summary>Bibliothèque de symboles</summary>
+                <div class="rs-chips" id="rsLibNets"></div>
+                <div class="rs-grid rs-lib" id="rsLibGrid"></div>
+              </details>
+            </div>
             <div class="rs-props" id="rsProps" hidden></div>
             <div class="rs-recap" id="rsRecap"></div>
             <div class="ch-actions" id="rsExport" hidden>

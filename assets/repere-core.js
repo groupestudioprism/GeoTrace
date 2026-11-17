@@ -17,6 +17,8 @@
    ===================================================================== */
 
 
+import { SYMLIB } from './symlib.js';
+
 /* ---------- 1. Réglages et préréglages ---------- */
 
 // Table de conversion diamètre extérieur (mm) -> DN, pour les vannes, purges...
@@ -48,6 +50,10 @@ const FIT_DEFS = {
   cit: { id: 'pa10', name: 'Citerneau / compteur', shape: 'square', letter: 'C', tpl: 'Citerneau {note}' },
   br: { id: 'pa15', name: 'Prise de branchement', shape: 'circle', letter: '', tpl: 'Prise de branchement' }
 };
+
+// Symbole de chaque accessoire livré (code de la bibliothèque)
+const ACC_SYM = { pa1: 'AEP_PURGEUR', pa2: 'AEP_VENTOUSE', pa3: 'AEP_VANNE', pa4: 'COM_RACCORD', pa5: 'RAC_TE', pa6: 'RAC_TRANSITION', pa7: 'RAC_TE', pa8: 'RAC_CONE', pa9: 'RAC_BOUCHON', pa10: 'AEP_COMPTEUR', pa11: 'AEP_PI', pa12: 'ANN_CROISEMENT', pa13: 'RAC_COUDE90', pa14: 'RAC_COUDE45' };
+const MANCHON = { id: 'pa16m', name: 'Manchon de liaison large tolérance', shape: 'square', letter: 'M', net: 'aep_n', sym: 'RAC_MANCHON_LT', tpl: 'Manchon de liaison large tolérance {d}', m1: '', m2: '', d: '', d2: '' };
 
 // Les préréglages livrés avec l'outil
 export function defaults() {
@@ -110,12 +116,87 @@ export function defaults() {
     A('Réducteur de pression', 'diamond', 'RP', 'aep_n', 'Réducteur de pression {d}', '', '', 'DN100'),
     A('Clapet anti-retour', 'diamond', 'CA', 'aep_n', 'Clapet anti-retour {d}', '', '', 'DN100')
   ];
+  accessories.forEach(a => { if (ACC_SYM[a.id]) { a.sym = ACC_SYM[a.id]; } });
+  accessories.push(Object.assign({}, MANCHON));
   return {
     networks: networks, pipes: pipes, manholes: manholes, accessories: accessories, kits: JSON.parse(JSON.stringify(KITS)),
     fs: 14, casing: true, labelPos: 'on',
     autoFit: true, autoCoude: true, autoTe: true, autoRed: true, autoRac: true, autoBr: true, autoCit: true,
     kitsOn: true, crossTr: true, warnCross: false, size: 1
   };
+}
+
+
+/* Gamme étendue d'origine : ajoutée une seule fois, sans jamais ressusciter ce que l'utilisateur supprime */
+function extraPresets() {
+  const W = d => d <= 40 ? 2.5 : d <= 50 ? 3 : d <= 63 ? 3.5 : d <= 75 ? 4 : d <= 90 ? 4.5 : d <= 110 ? 5 : d <= 125 ? 5.5 : d <= 160 ? 6 : d <= 200 ? 6.5 : d <= 250 ? 7 : d <= 315 ? 7.5 : d <= 400 ? 8 : 9;
+  let n = 0; const pipes = [], P = (net, desc, d, dash) => pipes.push({ id: 'px' + (++n), net: net, desc: desc, w: W(d), dash: dash || 'solid' });
+  [32, 40, 50, 63, 75, 90, 110, 160, 200, 250, 315].forEach(d => P('aep_n', 'Ø' + d + ' PEHD PN16', d));
+  [100, 150, 200, 250, 300].forEach(d => P('aep_n', 'DN' + d + ' Fonte ductile', d));
+  [90, 110, 160, 200].forEach(d => P('aep_n', 'Ø' + d + ' PVC-U PN16', d));
+  [63, 90, 125, 160, 200].forEach(d => P('aep_e', 'Ø' + d + ' PEHD existant', d));
+  [90, 110, 125, 160, 200].forEach(d => P('aep_e', 'Ø' + d + ' PVC existant', d));
+  [60, 80, 100, 125, 150, 200, 300].forEach(d => P('aep_e', 'DN' + d + ' Fonte existant', d));
+  [100, 150, 200].forEach(d => P('aep_e', 'Ø' + d + ' AC existant', d));
+  [250, 315, 400, 500].forEach(d => P('eu_n', 'Ø' + d + ' PVC CR8', d));
+  [250, 315, 400, 500].forEach(d => P('eu_n', 'Ø' + d + ' PP SN16', d));
+  [90, 110, 160].forEach(d => P('eu_n', 'Refoulement Ø' + d + ' PEHD', d));
+  [300, 400, 500, 600].forEach(d => P('eu_n', 'Ø' + d + ' béton', d));
+  [160, 250, 315, 400].forEach(d => P('eu_e', 'Ø' + d + ' PVC existant', d));
+  [300, 400, 500, 600].forEach(d => P('eu_e', 'Ø' + d + ' béton existant', d));
+  [200, 300].forEach(d => P('eu_e', 'Ø' + d + ' grès existant', d));
+  [150, 300].forEach(d => P('eu_e', 'Ø' + d + ' AC existant', d));
+  [200, 250, 315, 400, 500].forEach(d => P('ep_n', 'Ø' + d + ' PVC CR8', d));
+  [400, 500, 600, 800, 1000].forEach(d => P('ep_n', 'Ø' + d + ' béton', d));
+  [300, 400, 500].forEach(d => P('ep_n', 'Ø' + d + ' PP SN8', d));
+  P('ep_n', 'Fossé / caniveau', 100, 'dashed');
+  [300, 500, 600, 800].forEach(d => P('ep_e', 'Ø' + d + ' béton existant', d));
+  [200, 315, 400].forEach(d => P('ep_e', 'Ø' + d + ' PVC existant', d));
+  [100, 125, 200].forEach(d => P('ab', 'Fonte DN' + d + ' à abandonner', d, 'dashed'));
+  [110, 160].forEach(d => P('ab', 'Ø' + d + ' PVC à abandonner', d, 'dashed'));
+  [100, 150].forEach(d => P('ab', 'Ø' + d + ' AC à abandonner', d, 'dashed'));
+  [200, 300].forEach(d => P('ab', 'Ø' + d + ' EU à abandonner', d, 'dashed'));
+  let m = 0; const manholes = [], M = (name, net, nature, diam, prefix) => manholes.push({ id: 'mx' + (++m), name: name, net: net, nature: nature, diam: diam, prefix: prefix });
+  M('Boîte de branchement Ø315', 'eu_n', 'Boîte de branchement PVC', '315', 'BB'); M('Regard PP Ø400', 'eu_n', 'Regard PP', '400', 'R');
+  M('Regard BA Ø1000', 'eu_n', 'Regard BA', '1000', 'R'); M('Regard BA Ø1200', 'eu_n', 'Regard BA', '1200', 'R'); M('Regard BA Ø1500', 'eu_n', 'Regard BA', '1500', 'R');
+  M('Regard existant BA Ø800', 'eu_e', 'Regard BA', '800', 'EXT R'); M('Regard existant BA Ø1200', 'eu_e', 'Regard BA', '1200', 'EXT R');
+  M('Regard EP béton Ø800', 'ep_n', 'Regard EP béton', '800', 'R'); M('Regard EP béton Ø1200', 'ep_n', 'Regard EP béton', '1200', 'R');
+  M('Avaloir', 'ep_n', 'Avaloir', '', 'AV'); M('Grille avaloir', 'ep_n', 'Grille', '', 'GR');
+  M('Regard EP existant Ø1000', 'ep_e', 'Regard EP béton', '1000', 'EXT R'); M('Avaloir existant', 'ep_e', 'Avaloir', '', 'EXT AV');
+  M('Chambre à ventouse AEP', 'aep_n', 'Chambre', '1000', 'CH'); M('Chambre à vanne neuve AEP', 'aep_n', 'Chambre', '1000', 'CH');
+  M('Regard compteur AEP', 'aep_n', 'Regard compteur', '', 'RC'); M('Regard à abandonner', 'ab', 'Regard', '1000', 'R');
+  let a = 0; const acc = [], A = (name, shape, letter, net, tpl, m1, m2, d, d2) => acc.push({ id: 'ax' + (++a), name: name, shape: shape, letter: letter, net: net, tpl: tpl, m1: m1 || '', m2: m2 || '', d: d || '', d2: d2 || '' });
+  ['60', '80', '150', '200'].forEach(d => A('Vanne DN' + d, 'diamond', 'X', 'aep_n', 'Vanne {d}', '', '', 'DN' + d));
+  ['60', '100'].forEach(d => A('Ventouse triple fonction DN' + d, 'circle', 'V', 'aep_n', 'Ventouse triple fonction {d}', '', '', 'DN' + d));
+  A('Purge DN60', 'circle', 'P', 'aep_n', 'Purge {d}', '', '', 'DN60');
+  A('Poteau incendie DN150', 'circle', 'PI', 'aep_n', 'Poteau incendie Ø{d}', '', '', '150');
+  A('Croix', 'triangle', '+', 'aep_n', 'Croix {d} / {d2}', '', '', '110', '63');
+  A('Té 160 / 110', 'triangle', 'T', 'aep_n', 'Té {d} / {d2}', '', '', '160', '110');
+  A('Té 63 / 63', 'triangle', 'T', 'aep_n', 'Té {d} / {d2}', '', '', '63', '63');
+  A('Réduction 160 / 110', 'diamond', 'Ø', 'aep_n', 'Réduction {d} / {d2}', '', '', '160', '110');
+  A('Réduction 63 / 40', 'diamond', 'Ø', 'aep_n', 'Réduction {d} / {d2}', '', '', '63', '40');
+  A('Fourreau (traversée de chaussée)', 'square', 'F', 'aep_n', 'Traversée sous fourreau Ø{d}', '', '', '200');
+  A('Raccordement sur regard existant', 'triangle', 'R', 'eu_n', 'Raccordement sur regard existant {note}', '', '', '');
+  A('Culotte de branchement', 'triangle', 'Cu', 'eu_n', 'Culotte de branchement Ø{d}', '', '', '160');
+  A('Tampon à remplacer', 'square', 'TP', 'eu_e', 'Remplacement du tampon {note}', '', '', '');
+  A('Bouchon EU', 'square', 'B', 'eu_n', 'Bouchon Ø{d}', '', '', '200');
+  A('Raccordement sur canalisation existante EP', 'triangle', 'R', 'ep_n', 'Raccordement sur canalisation existante Ø{d}', '', '', '300');
+  return { pipes: pipes, manholes: manholes, accessories: acc };
+}
+function addExtras(d) {
+  const E = extraPresets();
+  const add = (arr, items, key) => {
+    items.forEach(function (it) {
+      if (arr.some(x => x.id === it.id || key(x) === key(it))) { return; }
+      let last = -1; arr.forEach((x, i) => { if (x.net === it.net) { last = i; } });
+      if (last >= 0) { arr.splice(last + 1, 0, it); } else { arr.push(it); }
+    });
+  };
+  const has = n => d.networks.some(x => x.id === n);
+  add(d.pipes, E.pipes.filter(p => has(p.net)), x => x.net + '|' + x.desc);
+  add(d.manholes, E.manholes.filter(p => has(p.net)), x => x.net + '|' + x.name);
+  add(d.accessories, E.accessories.filter(p => has(p.net)), x => x.net + '|' + x.name);
+  if (!d.accessories.some(a => a.id === MANCHON.id)) { d.accessories.push(Object.assign({}, MANCHON)); }
 }
 
 // Les réglages courants (modifiés par l'utilisateur, gardés dans le navigateur)
@@ -136,6 +217,8 @@ export function loadSettings(saved) {
       S.accessories.push(a);
     }
   });
+  S.accessories.forEach(function (a) { if (a.sym === undefined && ACC_SYM[a.id]) { a.sym = ACC_SYM[a.id]; } });
+  if ((S.mv || 0) < 6) { addExtras(S); S.mv = 6; }
   base.networks.forEach(function (n) {
     if (!S.networks.some(function (x) { return x.id === n.id; })) {
       S.networks.push(n);
@@ -509,23 +592,119 @@ function drawManhole(c, o, u) {
   c.lineWidth = 2.6 * u; c.strokeStyle = col; c.stroke();
   c.restore();
 }
-function drawAcc(c, o, ph, u) {
-  const def = accOf(o.accId) || {}, col = accColor(o, ph, u), r = (o.size || 8) * u;
-  c.save(); c.translate(o.x, o.y);
-  if (o.dirs && o.dirs.length === 2) {
-    // Un coude : deux petits segments épais qui se rejoignent
-    const L = r * 1.3;
-    c.lineCap = 'round'; c.lineJoin = 'round';
-    c.beginPath(); c.moveTo(Math.cos(o.dirs[0]) * L, Math.sin(o.dirs[0]) * L); c.lineTo(0, 0); c.lineTo(Math.cos(o.dirs[1]) * L, Math.sin(o.dirs[1]) * L);
-    c.lineWidth = 4.2 * u; c.strokeStyle = '#fff'; c.stroke(); c.lineWidth = 2.2 * u; c.strokeStyle = col; c.stroke();
-    c.beginPath(); c.arc(0, 0, 1.8 * u, 0, Math.PI * 2); c.fillStyle = col; c.fill();
-  } else {
-    shapePath(c, def.shape || 'circle', r); c.fillStyle = '#fff'; c.fill(); c.lineWidth = 2.4 * u; c.strokeStyle = col; c.stroke();
-    if (def.letter && r > 4 * u) {
-      c.font = font(r * (def.letter.length > 1 ? 0.85 : 1.15), true); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = col; c.fillText(def.letter, 0, r * 0.06);
+/* ---------- Symboles de la bibliothèque ---------- */
+export const SYMNET = { AEP: 'Eau potable', EU: 'Eaux usées', EP: 'Eaux pluviales', UN: 'Unitaire', ANC: 'Assainissement non collectif', ENP: 'Eau non potable', COM: 'Commun', RAC: 'Raccords', TRX: 'Travaux', TOPO: 'Topo', ANN: 'Annotations' };
+export const SYMNETDEF = { AEP: 'aep_n', EU: 'eu_n', UN: 'eu_n', EP: 'ep_n', ANC: 'eu_n', ENP: 'aep_n' };
+export const SYMS = SYMLIB;
+export const SYMMAP = new Map(SYMLIB.map(x => [x[0], x]));
+const symCache = new Map(); let symListener = null, symTimer = null;
+export const onSymLoad = fn => { symListener = fn; };
+function symEntry(code, color, halo) {
+  const k = code + '|' + color + '|' + (halo ? 1 : 0); let e = symCache.get(k); if (e) { return e; }
+  const sd = SYMMAP.get(code); if (!sd) { return null; }
+  let inner = sd[3];
+  if (halo) { inner = inner.replace(/currentColor/g, '#ffffff').replace(/stroke-width="([\d.]+)"/g, (m, v) => 'stroke-width="' + (+v * 2.7).toFixed(3) + '"'); }
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.25 -1.25 2.5 2.5" width="240" height="240" color="' + color + '">' + inner + '</svg>';
+  const img = new Image(); e = { img: img, ok: false };
+  img.onload = () => { e.ok = true; clearTimeout(symTimer); symTimer = setTimeout(() => { if (symListener) { symListener(); } }, 60); };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  symCache.set(k, e); return e;
+}
+export function symDataUrl(code, color) {
+  const sd = SYMMAP.get(code); if (!sd) { return ''; }
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.25 -1.25 2.5 2.5" width="120" height="120" color="' + color + '">' + sd[3] + '</svg>');
+}
+// Un symbole (ou, à défaut, la forme simple avec sa lettre) centré en x, y, de rayon r
+export function drawSymbol(c, def, x, y, r, u, rot, colour) {
+  const col = colour || colOf(def.net);
+  if (def.sym && SYMMAP.has(def.sym)) {
+    const a = symEntry(def.sym, col, false), b = symEntry(def.sym, col, true);
+    if (a && b && a.ok && b.ok) { const z = r * 4.4; c.save(); c.translate(x, y); if (rot) { c.rotate(rot); } c.drawImage(b.img, -z / 2, -z / 2, z, z); c.drawImage(a.img, -z / 2, -z / 2, z, z); c.restore(); return; }
+  }
+  c.save(); c.translate(x, y);
+  shapePath(c, def.shape || 'circle', r); c.lineWidth = 3.6 * u; c.strokeStyle = 'rgba(255,255,255,.9)'; c.stroke();
+  c.fillStyle = col; c.fill(); c.lineWidth = 1.2 * u; c.strokeStyle = 'rgba(0,0,0,.35)'; c.stroke();
+  const t = (def.letter || '').slice(0, 2);
+  if (t) { c.fillStyle = luminance(col) > 0.62 ? '#101820' : '#FFFFFF'; c.font = font(r * (t.length > 1 ? 0.95 : 1.2), true); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, 0, r * 0.06); }
+  c.restore();
+}
+// Petite vignette d'un accessoire (palette)
+export function drawIcon(cv, def) {
+  const big = !!(def.sym && SYMMAP.has(def.sym)), s = window.devicePixelRatio || 1, w = 34, h = big ? 34 : 26;
+  cv.width = w * s; cv.height = h * s; cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  const x = cv.getContext('2d'); x.setTransform(s, 0, 0, s, 0, 0); x.clearRect(0, 0, w, h);
+  drawSymbol(x, def, w / 2, h / 2, big ? 12.5 : 10, 1.1, 0);
+}
+// Ajoute (ou retrouve) un accessoire pour un symbole de la bibliothèque
+export function accForSymbol(code) {
+  const sd = SYMMAP.get(code); if (!sd) { return null; }
+  const want = SYMNETDEF[sd[2]] || 'aep_n', net = S.networks.some(n => n.id === want) ? want : S.networks[0].id;
+  let a = S.accessories.find(x => x.sym === code && x.net === net);
+  if (!a) { a = { id: uid(), name: sd[1], shape: 'circle', letter: '', net: net, sym: code, tpl: sd[1], m1: '', m2: '', d: '', d2: '' }; S.accessories.push(a); }
+  return a;
+}
+
+/* Té à trois branches, coude en chevrons (tels que dans l'outil d'origine) */
+function drawTee(c, o, r, u, col) {
+  const L = r * 1.55, tk = Math.max(0.4, Math.min(1, r / (8 * u)));
+  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
+  for (const pass of [0, 1]) {
+    c.lineWidth = (pass ? 2.6 : 5.6) * u * tk; c.strokeStyle = pass ? col : 'rgba(255,255,255,.95)';
+    c.beginPath(); for (const a of o.dirs3) { c.moveTo(o.x, o.y); c.lineTo(o.x + Math.cos(a) * L, o.y + Math.sin(a) * L); } c.stroke();
+  }
+  c.beginPath(); c.arc(o.x, o.y, 1.6 * u * tk, 0, Math.PI * 2); c.fillStyle = col; c.fill();
+  c.restore();
+}
+function drawElbow(c, o, r, u, col) {
+  const L = r * 1.25, W = r * 0.8, g = r * 0.22, tk = Math.max(0.4, Math.min(1, r / (8 * u)));
+  c.save(); c.lineJoin = 'miter'; c.lineCap = 'round';
+  for (const pass of [0, 1]) {
+    c.lineWidth = (pass ? 2.6 : 5.6) * u * tk; c.strokeStyle = pass ? col : 'rgba(255,255,255,.95)';
+    for (const a of o.dirs) {
+      const ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux, tx = o.x + ux * g, ty = o.y + uy * g;
+      c.beginPath(); c.moveTo(tx + ux * L + nx * W, ty + uy * L + ny * W); c.lineTo(tx, ty); c.lineTo(tx + ux * L - nx * W, ty + uy * L - ny * W); c.stroke();
     }
   }
   c.restore();
+}
+
+// Un accessoire posé près d'une conduite s'aligne dessus (symboles « en ligne »), un té s'oriente vers le branchement
+export const INLINE_SYM = /^(AEP_VANNE|AEP_STAB|AEP_LIMITEUR|AEP_DEBITMETRE|AEP_ROBINET_ARRET|AEP_FILTRE|AEP_DISCONNECTEUR|COM_CLAPET|COM_VANNE_MURALE|RAC_)/;
+export function alignAcc(o, ph, tol) {
+  const def = accOf(o.accId);
+  if (!def || !def.sym || !INLINE_SYM.test(def.sym) || o.auto || o.noAlign || !ph) { return false; }
+  let best = null;
+  ph.objects.forEach(function (L) {
+    if (L.type !== 'line') { return; }
+    for (let i = 0; i < L.pts.length - 1; i++) {
+      const r = segProj({ x: o.x, y: o.y }, L.pts[i], L.pts[i + 1]);
+      if (r.d <= tol && (!best || r.d < best.d)) { best = { d: r.d, x: r.x, y: r.y, L: L, a: Math.atan2(L.pts[i + 1].y - L.pts[i].y, L.pts[i + 1].x - L.pts[i].x) }; }
+    }
+  });
+  if (best) {
+    o.x = best.x; o.y = best.y; o.rot = best.a;
+    if (/^(RAC_TE|RAC_TE_BRIDES|RAC_EF_TE)$/.test(def.sym)) {
+      const tl = tol * 0.8; let br = null;
+      ph.objects.forEach(function (K) {
+        if (K.type !== 'line' || K === best.L) { return; }
+        [[K.pts[0], K.pts[1]], [K.pts[K.pts.length - 1], K.pts[K.pts.length - 2]]].forEach(function (pr) {
+          const e = pr[0], nb = pr[1];
+          if (nb && Math.hypot(e.x - o.x, e.y - o.y) <= tl && (!br || Math.hypot(e.x - o.x, e.y - o.y) < br.d)) { br = { d: Math.hypot(e.x - o.x, e.y - o.y), a: Math.atan2(nb.y - o.y, nb.x - o.x) }; }
+        });
+      });
+      if (br) { o.rot = br.a - Math.PI / 2; o.dirs3 = [best.a + Math.PI, best.a, br.a]; } else { delete o.dirs3; }
+    }
+    return true;
+  }
+  delete o.rot; delete o.dirs3; return false;
+}
+
+function drawAcc(c, o, ph, u) {
+  const def = accOf(o.accId) || {}, col = accColor(o, ph, u), r = (o.size || 8) * u, sym = def.sym || '';
+  if (o.dirs3 && /^(RAC_TE|RAC_TE_BRIDES|RAC_EF_TE)$/.test(sym)) { drawTee(c, o, r, u, col); }
+  else if (o.dirs && o.dirs.length === 2 && /^RAC_COUDE/.test(sym)) { drawElbow(c, o, r, u, col); }
+  else if (o.dirs && o.dirs.length === 2) { drawElbow(c, o, r, u, col); }
+  else { drawSymbol(c, def, o.x, o.y, r, u, o.rot, col); }
 }
 
 // Encadré de texte (regard, accessoire) : fond blanc et bande de la couleur du réseau
