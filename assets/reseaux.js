@@ -106,7 +106,7 @@ function paint() {
   const s = scale(), o = origin(), u = unit();
   c.setTransform(dpr * s, 0, 0, dpr * s, -o.x * s * dpr, -o.y * s * dpr);
   fixU();
-  ph.objects.forEach(m => { if (m.type === 'manhole') m.rx = m.ry = 8 * u * (m.k || 1); });
+  ph.objects.forEach(m => { if (m.type === 'manhole' && !(m.rx > 0)) m.rx = m.ry = 11 * u; });
   C.draw(c, ph, u, { ui: !!tool, selected: sel ? [sel] : [], hs: 1 });
   if (draft && draft.pts.length) {
     const pd = C.pipeOf(draft.pipe || armed.pipe) || { w: 4, net: '' };
@@ -157,9 +157,19 @@ function onClick(e) {
       status(st.ext ? 'Prolongement de la conduite : cliquez les points suivants, double-clic pour finir.' : st.msg || 'Cliquez les points suivants.', { ms: 3500 });
       draw(); return;
     }
-    const tg = C.snapTarget(ph, p, u, tol, null), pt = tg ? C.snappedPoint(ph, tg, p) : { x: p.x, y: p.y };
-    const last = draft.pts[draft.pts.length - 1];
+    const last = draft.pts[draft.pts.length - 1], ptol = tolPx(14);
+    const tg = C.snapTarget(ph, p, u, ptol, null);
+    // clic près du dernier point : on termine la conduite (comme l'outil d'origine)
+    if (!tg && draft.pts.length >= 2 && Math.hypot(last.x - p.x, last.y - p.y) <= tolPx(12)) { finishLine(); return; }
+    let q = { x: p.x, y: p.y };
+    if (!tg && e.originalEvent && e.originalEvent.shiftKey && last) q = C.snapAngle(last, q);
+    const pt = tg ? C.snappedPoint(ph, tg, p, last) : q;
     if (!(last && Math.hypot(last.x - pt.x, last.y - pt.y) <= tolPx(3))) draft.pts.push(pt);
+    // arrivée sur un regard / un accessoire : la conduite s'arrête là
+    if (tg && (tg.k === 'mh' || tg.k === 'acc') && C.S.autoEnd !== false && draft.pts.length >= 2) {
+      status(tg.k === 'mh' ? 'Conduite reliée au regard.' : 'Conduite reliée à l’accessoire.', { ms: 2500 });
+      finishLine(); return;
+    }
     draw();
   } else if (tool === 'br') {
     const r = C.autoBranch(ph, p, u, armed.pipe, tol);
@@ -236,7 +246,11 @@ function onMove(e) {
   if (tool !== 'line') return;
   const r = map.getContainer().getBoundingClientRect(), s = scale(), o = origin();
   hover = { x: o.x + (e.originalEvent.clientX - r.left) / s, y: o.y + (e.originalEvent.clientY - r.top) / s };
-  if (draft) { const tg = C.snapTarget(ph, hover, unit(), tolPx(9), null); hoverSnap = tg ? { pos: C.snappedPoint(ph, tg, hover) } : null; }
+  if (draft) {
+    const lastP = draft.pts[draft.pts.length - 1], tg = C.snapTarget(ph, hover, unit(), tolPx(14), null);
+    if (!tg && e.originalEvent.shiftKey && lastP) { const q = C.snapAngle(lastP, hover); hover = q; hoverSnap = { pos: q }; }
+    else hoverSnap = tg ? { pos: C.snappedPoint(ph, tg, hover, lastP) } : null;
+  }
   else { fixU(); const st = startTarget(hover, unit(), tolPx(9)); hoverSnap = (st.ext || st.msg) ? { pos: st.pt, ext: !!st.ext } : null; }
   draw();
 }
@@ -252,7 +266,7 @@ function onDown(e) {
       if (Math.hypot(p.x - h.x, p.y - h.y) <= tolPx(11)) {
         if (h.k === 'm') { cur.pts.splice(h.i + 1, 0, { x: h.x, y: h.y }); drag = { kind: 'v', o: cur, i: h.i + 1, moved: true }; }
         else if (h.k === 'v') drag = { kind: 'v', o: cur, i: h.i, moved: false };
-        else drag = { kind: 's', o: cur, moved: false };
+        else drag = { kind: h.k === 'r' ? 'rot' : 's', hid: h.id, o: cur, moved: false };
         grab(e); return;
       }
     }
@@ -272,12 +286,21 @@ function onDragMove(e) {
   if (!drag) return;
   const p = evP(e), u = unit(), d = drag; d.moved = true; fixU();
   if (d.kind === 'v') {
-    const tg = C.snapTarget(ph, p, u, tolPx(9), d.o), pt = d.o.pts[d.i];
-    if (tg) { const s = C.snappedPoint(ph, tg, p); pt.x = s.x; pt.y = s.y; pt.link = s.link; } else { pt.x = p.x; pt.y = p.y; delete pt.link; }
+    const tg = C.snapTarget(ph, p, u, tolPx(14), d.o), pt = d.o.pts[d.i], nb = d.o.pts[d.i - 1] || d.o.pts[d.i + 1];
+    if (tg) { const s = C.snappedPoint(ph, tg, p, nb); pt.x = s.x; pt.y = s.y; pt.link = s.link; }
+    else { const q = e.shiftKey && nb ? C.snapAngle(nb, p) : p; pt.x = q.x; pt.y = q.y; delete pt.link; }
+    C.syncAll(ph, [d.o]);
+  } else if (d.kind === 'rot' && d.o.type === 'manhole') {
+    let a = Math.atan2(p.y - d.o.cy, p.x - d.o.cx) + Math.PI / 2;
+    if (e.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+    d.o.rot = a;
     C.syncAll(ph, [d.o]);
   } else if (d.kind === 's') {
-    const r = d.o.type === 'manhole' ? Math.hypot(p.x - d.o.cx, p.y - d.o.cy) : Math.hypot(p.x - d.o.x, p.y - d.o.y);
-    if (d.o.type === 'manhole') d.o.k = Math.max(.25, r / (8 * u)); else { d.o.size = Math.max(2, Math.min(40, r / u)); d.o.autoSize = null; }
+    if (d.o.type === 'manhole') {
+      const co = Math.cos(-(d.o.rot || 0)), si = Math.sin(-(d.o.rot || 0)), dx = p.x - d.o.cx, dy = p.y - d.o.cy, lx = dx * co - dy * si, ly = dx * si + dy * co, mn = 2 * u;
+      if (/^rx/.test(d.hid)) d.o.rx = Math.max(mn, Math.abs(lx)); else d.o.ry = Math.max(mn, Math.abs(ly));
+      C.syncAll(ph, [d.o]);
+    } else { const r = Math.hypot(p.x - d.o.x, p.y - d.o.y); d.o.size = Math.max(2, Math.min(40, r / u)); d.o.autoSize = null; }
   } else if (d.kind === 'label') d.o.lp = { x: p.x - d.dx, y: p.y - d.dy };
   else if (d.kind === 'move') {
     const dx = p.x - d.last.x, dy = p.y - d.last.y; d.last = p; const o = d.o;
@@ -408,6 +431,7 @@ function props() {
   else if (o.type === 'acc') h = `<label>Type<select data-k="accId">${opts(C.S.accessories, o.accId, a => a.name)}</select></label>` + f('d', 'Diamètre', o.d) + f('d2', 'Diamètre 2', o.d2) + f('m1', 'Matériau', o.m1) + f('m2', 'Matériau 2', o.m2) + f('note', 'Note', o.note) + f('text', 'Texte libre', o.text);
   else if (o.type === 'text') h = f('text', 'Texte', o.text);
   if (o.type === 'line') h += '<div class="rs-row"><button type="button" class="btn small" data-x="end">Prolonger la fin</button><button type="button" class="btn small" data-x="start">Prolonger le début</button></div>';
+  if (o.type === 'manhole') h += '<div class="rs-row"><button type="button" class="btn small" data-x="rot90">Pivoter de 90°</button></div>';
   box.innerHTML = '<h4>Sélection</h4>' + h; box.hidden = false;
 }
 function onProp(e) {
@@ -474,7 +498,7 @@ export function init(ctx) {
   $('rsFin').addEventListener('click', finishLine);
   [['rsPipe', 'pipe'], ['rsMh', 'mh']].forEach(([id, k]) => $(id).addEventListener('change', () => { armed[k] = $(id).value; saveArmed(); }));
   $('rsProps').addEventListener('change', onProp);
-  $('rsProps').addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (b) extend(b.dataset.x === 'start'); });
+  $('rsProps').addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (!b) return; if (b.dataset.x === 'rot90') { const o = sel && objOf(sel); if (o && o.type === 'manhole') { o.rot = (o.rot || 0) + Math.PI / 2; C.syncAll(ph, [o]); commit([o]); } return; } extend(b.dataset.x === 'start'); });
   $('rsAccQ').addEventListener('input', accGrid); $('rsLib').addEventListener('toggle', libGrid);
   $('rsGeo').addEventListener('click', exportGeo); $('rsCsv').addEventListener('click', exportCsv);
   $('rsClear').addEventListener('click', e => {

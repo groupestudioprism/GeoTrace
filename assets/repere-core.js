@@ -56,7 +56,13 @@ const ACC_SYM = { pa1: 'AEP_PURGEUR', pa2: 'AEP_VENTOUSE', pa3: 'AEP_VANNE', pa4
 const MANCHON = { id: 'pa16m', name: 'Manchon de liaison large tolérance', shape: 'square', letter: 'M', net: 'aep_n', sym: 'RAC_MANCHON_LT', tpl: 'Manchon de liaison large tolérance {d}', m1: '', m2: '', d: '', d2: '' };
 
 // Les préréglages livrés avec l'outil
-export function defaults() {
+export function snapAngle(from, p) {
+  const dx = p.x - from.x, dy = p.y - from.y, l = Math.hypot(dx, dy);
+  if (l < 1e-9) { return { x: p.x, y: p.y }; }
+  const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: from.x + Math.cos(a) * l, y: from.y + Math.sin(a) * l };
+}
+function defaults() {
   const networks = [
     { id: 'aep_n', name: 'AEP neuf', color: '#3CA9E8' },
     { id: 'aep_e', name: 'AEP existant', color: '#1F3FC8' },
@@ -414,13 +420,31 @@ export function offsetPts(pts, d) {
    quand on déplace l'objet, le point suit.
    lien = { k: 'mh' | 'acc' | 'ln', id, seg?, t? } */
 
-function linkedPos(link, ph) {
+function mhBoundary(o, from) {
+  if (!from) { return { x: o.cx, y: o.cy }; }
+  const co = Math.cos(-(o.rot || 0)), si = Math.sin(-(o.rot || 0)), dx = from.x - o.cx, dy = from.y - o.cy;
+  let lx = dx * co - dy * si, ly = dx * si + dy * co;
+  const l = Math.hypot(lx, ly);
+  if (l < 1e-6) { return { x: o.cx, y: o.cy }; }
+  lx /= l; ly /= l;
+  const k = 1 / Math.sqrt((lx * lx) / (o.rx * o.rx) + (ly * ly) / (o.ry * o.ry));
+  const bx = lx * k, by = ly * k, c2 = Math.cos(o.rot || 0), s2 = Math.sin(o.rot || 0);
+  return { x: o.cx + bx * c2 - by * s2, y: o.cy + bx * s2 + by * c2 };
+}
+function linkedPos(link, ph, neighbor) {
   const t = ph.objects.find(o => o.id === link.id);
   if (!t) { return null; }
-  if (link.k === 'mh' && t.type === 'manhole') { return { x: t.cx, y: t.cy }; }
-  if (link.k === 'acc' && t.type === 'acc') { return { x: t.x, y: t.y }; }
+  if (link.k === 'mh' && t.type === 'manhole') { return mhBoundary(t, neighbor); }
+  if (link.k === 'acc' && t.type === 'acc') {
+    if (!neighbor) { return { x: t.x, y: t.y }; }
+    const dd = accOf(t.accId) || {}, u = ph.w / 1000, rr = (t.size || 8) * u * (dd.sym && SYMMAP.has(dd.sym) ? 1.35 : 1.05);
+    const dx = neighbor.x - t.x, dy = neighbor.y - t.y, l = Math.hypot(dx, dy);
+    if (l <= rr * 1.05) { return { x: t.x, y: t.y }; }
+    return { x: t.x + dx / l * rr, y: t.y + dy / l * rr };
+  }
   if (link.k === 'ln' && t.type === 'line' && t.pts.length > 1) {
     const seg = clamp(link.seg || 0, 0, t.pts.length - 2), a = t.pts[seg], b = t.pts[seg + 1];
+    if (!a || !b) { return null; }
     return { x: a.x + (b.x - a.x) * link.t, y: a.y + (b.y - a.y) * link.t };
   }
   return null;
@@ -431,9 +455,11 @@ export function resolveLinks(ph) {
   for (let pass = 0; pass < 2; pass++) {
     ph.objects.forEach(function (o) {
       if (o.type !== 'line') { return; }
-      o.pts.forEach(function (p) {
+      o.pts.forEach(function (p, i) {
         if (!p.link) { return; }
-        const pos = linkedPos(p.link, ph);
+        if (p.link.id === o.id) { delete p.link; changed = true; return; }
+        const nb = o.pts[i - 1] || o.pts[i + 1];
+        const pos = linkedPos(p.link, ph, nb);
         if (!pos) { delete p.link; changed = true; return; }
         if (Math.abs(p.x - pos.x) > 0.01 || Math.abs(p.y - pos.y) > 0.01) { p.x = pos.x; p.y = pos.y; changed = true; }
       });
@@ -446,7 +472,8 @@ export function snapTarget(ph, p, u, tol, ignore) {
   for (let i = ph.objects.length - 1; i >= 0; i--) {
     const o = ph.objects[i];
     if (o.type === 'manhole') {
-      if (Math.hypot(p.x - o.cx, p.y - o.cy) <= Math.max(o.rx, o.ry) + tol) { return { k: 'mh', id: o.id, o: o }; }
+      const co = Math.cos(-(o.rot || 0)), si = Math.sin(-(o.rot || 0)), dx = p.x - o.cx, dy = p.y - o.cy, lx = dx * co - dy * si, ly = dx * si + dy * co, rx = o.rx + tol, ry = o.ry + tol;
+      if ((lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) <= 1) { return { k: 'mh', id: o.id, o: o }; }
     } else if (o.type === 'acc') {
       if (Math.hypot(p.x - o.x, p.y - o.y) <= (o.size || 8) * u * 1.25 + tol) { return { k: 'acc', id: o.id, o: o }; }
     }
@@ -463,8 +490,8 @@ export function snapTarget(ph, p, u, tol, ignore) {
 }
 export const linkOf = tg => (tg.k === 'ln' ? { k: 'ln', id: tg.id, seg: tg.seg, t: tg.t } : { k: tg.k, id: tg.id });
 // Le point corrigé d'un accrochage : { x, y, link }
-export function snappedPoint(ph, tg, p) {
-  const link = linkOf(tg), pos = linkedPos(link, ph) || { x: p.x, y: p.y };
+export function snappedPoint(ph, tg, p, neighbor) {
+  const link = linkOf(tg), pos = linkedPos(link, ph, neighbor) || { x: p.x, y: p.y };
   return { x: pos.x, y: pos.y, link: link };
 }
 
@@ -475,7 +502,7 @@ export function newLine(pts, pipeId) {
   return { id: uid(), type: 'line', pipeId: pipeId, pts: pts.map(p => (p.link ? { x: p.x, y: p.y, link: p.link } : { x: p.x, y: p.y })) };
 }
 export function newManhole(ph, p, def, u) {
-  const r = 8 * u;
+  const r = 11 * u;
   return { id: uid(), type: 'manhole', mhId: def.id, cx: p.x, cy: p.y, rx: r, ry: r, rot: 0, num: nextNum(ph, def), nature: def.nature, diam: def.diam, extra: '' };
 }
 export function newAcc(p, def, u) {
@@ -585,7 +612,7 @@ function drawLineLabel(c, o, u) {
 
 function drawManhole(c, o, u) {
   const def = mhOf(o.mhId) || {}, col = colOf(o.net || def.net);
-  c.save(); c.translate(o.cx, o.cy);
+  c.save(); c.translate(o.cx, o.cy); c.rotate(o.rot || 0);
   c.beginPath(); c.ellipse(0, 0, o.rx, o.ry, 0, 0, Math.PI * 2);
   c.fillStyle = 'rgba(255,255,255,.55)'; c.fill(); c.fillStyle = hexA(col, 0.28); c.fill();
   c.lineWidth = 4.4 * u; c.strokeStyle = 'rgba(255,255,255,.85)'; c.stroke();
@@ -970,7 +997,11 @@ export function handlesOf(o, u) {
   if (o.type === 'line') {
     o.pts.forEach((p, i) => hs.push({ id: 'v' + i, x: p.x, y: p.y, k: 'v', i: i }));
     for (let i = 0; i < o.pts.length - 1; i++) { hs.push({ id: 'm' + i, x: (o.pts[i].x + o.pts[i + 1].x) / 2, y: (o.pts[i].y + o.pts[i + 1].y) / 2, k: 'm', i: i }); }
-  } else if (o.type === 'manhole') { hs.push({ id: 'size', x: o.cx + o.rx, y: o.cy, k: 's' }); }
+  } else if (o.type === 'manhole') {
+    const co = Math.cos(o.rot || 0), si = Math.sin(o.rot || 0), at = (lx, ly) => ({ x: o.cx + lx * co - ly * si, y: o.cy + lx * si + ly * co });
+    [['rx+', o.rx, 0], ['rx-', -o.rx, 0], ['ry+', 0, o.ry], ['ry-', 0, -o.ry]].forEach(function (a) { const p = at(a[1], a[2]); hs.push({ id: a[0], x: p.x, y: p.y, k: 's' }); });
+    const r = at(0, -o.ry - 24 * u); hs.push({ id: 'rot', x: r.x, y: r.y, k: 'r' });
+  }
   else if (o.type === 'acc') { hs.push({ id: 'size', x: o.x + (o.size || 8) * u, y: o.y, k: 's' }); }
   return hs;
 }
@@ -983,7 +1014,10 @@ export function hitTest(ph, p, u, tol) {
   }
   for (let i = ph.objects.length - 1; i >= 0; i--) {
     const o = ph.objects[i];
-    if (o.type === 'manhole') { if (Math.hypot(p.x - o.cx, p.y - o.cy) <= Math.max(o.rx, o.ry) + tol) { return { o: o }; } }
+    if (o.type === 'manhole') {
+      const co = Math.cos(-(o.rot || 0)), si = Math.sin(-(o.rot || 0)), dx = p.x - o.cx, dy = p.y - o.cy, lx = dx * co - dy * si, ly = dx * si + dy * co, rx = o.rx + tol, ry = o.ry + tol;
+      if ((lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) <= 1) { return { o: o }; }
+    }
     else if (o.type === 'acc') { if (Math.hypot(p.x - o.x, p.y - o.y) <= (o.size || 8) * u * 1.25 + tol) { return { o: o }; } }
     else if (o.type === 'text' || o.type === 'legend') { const b = o._lb; if (b && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { return { o: o }; } }
   }
@@ -1252,11 +1286,17 @@ function syncFittings(ph, u) {
     const def = FIT_DEFS[w.kind], id = def.id, o = have.get(k), ns = sizeOf(w);
     if (o) {
       if (o.autoSize == null || o.size === o.autoSize) { if (Math.abs((o.size || 0) - ns) > 0.05) { o.size = ns; o.autoSize = ns; changed = true; } }
-      const same = Math.abs(o.x - w.pos.x) < 0.01 && Math.abs(o.y - w.pos.y) < 0.01 && o.accId === id && JSON.stringify(o.dirs || null) === JSON.stringify(w.dirs || null);
-      if (!same) { o.x = w.pos.x; o.y = w.pos.y; o.accId = id; o.autoId = id; o.net = w.net; if (w.dirs) { o.dirs = w.dirs; } else { delete o.dirs; } changed = true; }
+      const dj = JSON.stringify(w.dirs || null), dj3 = JSON.stringify(w.dirs3 || null);
+      if (Math.abs(o.x - w.pos.x) > 0.01 || Math.abs(o.y - w.pos.y) > 0.01 || o.accId !== id || o.net !== w.net || JSON.stringify(o.dirs || null) !== dj || JSON.stringify(o.dirs3 || null) !== dj3 || Math.abs((o.rot || 0) - (w.rot || 0)) > 1e-3) {
+        o.x = w.pos.x; o.y = w.pos.y; o.accId = id; o.autoId = id; o.net = w.net;
+        if (w.dirs) { o.dirs = w.dirs; } else { delete o.dirs; }
+        if (w.dirs3) { o.dirs3 = w.dirs3; } else { delete o.dirs3; }
+        if (w.rot != null) { o.rot = w.rot; } else { delete o.rot; }
+        changed = true;
+      }
     } else {
       const d = accOf(id) || {};
-      ph.objects.push({ id: uid(), type: 'acc', accId: id, x: w.pos.x, y: w.pos.y, net: w.net, m1: w.m1 != null ? w.m1 : (d.m1 || ''), m2: w.m2 != null ? w.m2 : (d.m2 || ''), d: w.d != null ? w.d : (d.d || ''), d2: w.d2 != null ? w.d2 : (d.d2 || ''), note: '', text: '', size: ns, autoSize: ns, showLabel: !!w.label, auto: k, autoId: id, dirs: w.dirs || undefined });
+      ph.objects.push({ id: uid(), type: 'acc', accId: id, x: w.pos.x, y: w.pos.y, net: w.net, m1: w.m1 != null ? w.m1 : (d.m1 || ''), m2: w.m2 != null ? w.m2 : (d.m2 || ''), d: w.d != null ? w.d : (d.d || ''), d2: w.d2 != null ? w.d2 : (d.d2 || ''), note: '', text: '', size: ns, autoSize: ns, showLabel: !!w.label, auto: k, autoId: id, lp: null, dirs: w.dirs || undefined, dirs3: w.dirs3 || undefined, rot: w.rot != null ? w.rot : undefined });
       changed = true;
     }
   });
