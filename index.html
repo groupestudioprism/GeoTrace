@@ -80,7 +80,7 @@
 
   <button class="btn" id="chBtn" type="button" title="Dessiner les installations de chantier et les déviations" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span>Chantier</button>
   <button class="btn" id="maqBtn" type="button" title="Placer une maquette Revit (IFC) sur la carte" aria-expanded="false" aria-controls="maqPanel"><span data-ic="cube"></span>Maquette 3D</button>
-  <button class="btn" id="planBtn" type="button" title="Dessiner les réseaux sur le plan (vue de dessus) : ils se placent dans toutes les photos."><span data-ic="zone"></span>Plan</button>
+  <button class="btn" id="planBtn" type="button" title="Dessiner les réseaux directement sur la carte : ils se placent dans toutes les photos." aria-pressed="false"><span data-ic="zone"></span>Réseaux</button>
   <button class="btn" id="scanBtn" type="button" hidden title="Ouvre le scan 3D du chantier, calculé à partir des points communs entre les photos.">Scan 3D</button>
   <button class="btn" id="pcBtn" type="button" title="Le projet se cale automatiquement à l’ouverture. Ce bouton refait le calage.">Recaler le projet</button>
   <button class="btn" id="vue3dBtn" type="button" title="Voir les photos dans la maquette en 3D"><span data-ic="eye"></span>Photos en 3D</button>
@@ -131,6 +131,21 @@
   <section class="mapwrap" aria-label="Carte">
     <div id="map"></div>
 
+    <div class="md-bar" id="mdBar" hidden role="toolbar" aria-label="Dessiner les réseaux sur la carte">
+      <b>Réseaux</b>
+      <button class="btn small" type="button" data-md="line" aria-pressed="false">Conduite</button>
+      <button class="btn small" type="button" data-md="mh" aria-pressed="false">Regard</button>
+      <button class="btn small" type="button" data-md="acc" aria-pressed="false">Accessoire</button>
+      <button class="btn small" type="button" data-md="sel" aria-pressed="false">Supprimer…</button>
+      <select id="mdPipe" aria-label="Type de conduite" hidden></select>
+      <select id="mdMh" aria-label="Type de regard" hidden></select>
+      <select id="mdAcc" aria-label="Type d’accessoire" hidden></select>
+      <button class="btn small primary" type="button" data-md="fin" id="mdFin" hidden>Terminer</button>
+      <button class="btn small" type="button" data-md="undo">Annuler</button>
+      <button class="btn small" type="button" data-md="plan" title="Retoucher le plan en plein écran, avec tous les outils du repérage">Plan détaillé</button>
+      <button class="btn small" type="button" data-md="close" aria-label="Fermer">✕</button>
+      <span class="md-hint" id="mdHint">Choisissez un outil pour dessiner sur la carte.</span>
+    </div>
     <div class="tools" role="toolbar" aria-label="Outils de carte">
       <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
       <button class="tool" id="measureBtn" type="button" aria-label="Mesurer (M)" title="Mesurer (M)" aria-pressed="false" data-ic="ruler"></button>

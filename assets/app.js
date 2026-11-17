@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.21.0';
+const VERSION = '1.22.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -443,7 +443,7 @@ function finish() {
   $('dFrom').max = $('dTo').max = dates.length ? isoDay(dates[dates.length - 1]) : '';
   $('addBtn').disabled = false; $('exportBtn').disabled = false;
   refresh(true);
-  setTimeout(autoProjectCalib, 600); // le projet se cale tout seul dès qu'il est ouvert
+  setTimeout(autoProjectCalib, 600); setTimeout(() => { if (!mdClosed && photos.some(p => p.lat != null)) showDraw(true); }, 900); // le projet se cale tout seul dès qu'il est ouvert
   const withGps = placedOf(photos).length;
   if (!withGps) status('Aucune de ces photos ne contient de position GPS. Elles restent dans la liste.', { ms: 7000 });
 }
@@ -783,19 +783,13 @@ async function openPlan() {
   if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
   status('Préparation du plan…');
   let PL = null, M = null;
-  try { PL = await import('./plan.js'); if (!Rep) Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Plan indisponible.', { ms: 4000 }); return; }
+  try { PL = await import('./plan.js'); planGeom = PL.planGeometry; if (!Rep) Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Plan indisponible.', { ms: 4000 }); return; }
   try { M = await maq(); } catch (e) { M = null; }
-  const located = photos.filter(o => o.lat != null && o.lon != null);
-  let bounds;
-  if (located.length) {
-    const la = located.map(o => o.lat), lo = located.map(o => o.lon), mLat = 90 / 111320, mLon = 90 / (111320 * Math.cos(la[0] * Math.PI / 180));
-    bounds = [[Math.min(...la) - mLat, Math.min(...lo) - mLon], [Math.max(...la) + mLat, Math.max(...lo) + mLon]];
-  } else { const b = map.getBounds(); bounds = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]; }
-  const hasDraw = reps[PLAN_KEY] && (reps[PLAN_KEY].objs || []).length;
+  const P0 = ensurePlanPose();
+  if (!P0) { status('Ajoutez d’abord des photos (ou zoomez la carte sur le chantier).', { ms: 4000 }); return; }
   let built = null;
-  try { built = await PL.buildPlan(bounds, planPose && hasDraw ? planPose : null); } catch (e) { console.error(e); }
+  try { built = await PL.buildPlan(null, P0); } catch (e) { console.error(e); }
   if (!built || !built.blob || !built.ok) { status('Le plan n’a pas pu être chargé (fond aérien IGN indisponible).', { ms: 5000 }); return; }
-  if (!(planPose && hasDraw)) { planPose = Object.assign({}, built.pose, { w: built.w, h: built.h }); store.set('geotrace:planpose', planPose); }
   status('');
   const url = URL.createObjectURL(built.blob);
   const others = photos.filter(o => reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
@@ -808,10 +802,47 @@ async function openPlan() {
       if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
     },
     onSend3D: items => sendRepTo3D(PLAN_KEY, items),
-    onClose: () => { setTimeout(() => URL.revokeObjectURL(url), 2000); if (!$('viewer').hidden) paintOver(); }
+    onClose: () => { if (mdCtl) mdCtl.refresh(); setTimeout(() => URL.revokeObjectURL(url), 2000); if (!$('viewer').hidden) paintOver(); }
   });
 }
-$('planBtn').addEventListener('click', openPlan);
+/* Zone du plan : calculée d'après les photos tant qu'aucun dessin n'y est fait, puis figée. */
+function ensurePlanPose() {
+  const hasDraw = reps[PLAN_KEY] && (reps[PLAN_KEY].objs || []).length;
+  if (planPose && hasDraw) return planPose;
+  const located = photos.filter(o => o.lat != null && o.lon != null);
+  let bounds;
+  if (located.length) {
+    const la = located.map(o => o.lat), lo = located.map(o => o.lon), mLat = 90 / 111320, mLon = 90 / (111320 * Math.cos(la[0] * Math.PI / 180));
+    bounds = [[Math.min(...la) - mLat, Math.min(...lo) - mLon], [Math.max(...la) + mLat, Math.max(...lo) + mLon]];
+  } else if (map.getZoom() >= 15) { const b = map.getBounds(); bounds = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]; }
+  else return planPose;
+  const G = planGeom(bounds);
+  if (!planPose || planPose.plan.z !== G.pose.plan.z || planPose.plan.x0 !== G.pose.plan.x0 || planPose.plan.y0 !== G.pose.plan.y0 || planPose.w !== G.pose.w || planPose.h !== G.pose.h) { planPose = G.pose; store.set('geotrace:planpose', planPose); }
+  return planPose;
+}
+// Dessin des réseaux directement sur la carte (barre d'outils « Réseaux »)
+let mdCtl = null, mdClosed = false;
+async function ensureMapDraw() {
+  if (mdCtl) return mdCtl;
+  const PL = await import('./plan.js'); planGeom = PL.planGeometry;
+  const MD = await import('./mapdraw.js');
+  mdCtl = await MD.initMapDraw({
+    map, bar: $('mdBar'), status,
+    getRec: () => reps[PLAN_KEY], getPose: () => ensurePlanPose(),
+    setRec: rec => { if (rec && (rec.objs || []).length) reps[PLAN_KEY] = rec; else delete reps[PLAN_KEY]; saveReps(); if (!$('viewer').hidden) paintOver(); },
+    openPlan
+  });
+  return mdCtl;
+}
+let planGeom = null;
+async function showDraw(on) {
+  try {
+    const c = await ensureMapDraw(); c.show(on);
+    $('planBtn').setAttribute('aria-pressed', String(on));
+  } catch (e) { console.error(e); status('Le dessin sur la carte n’a pas pu démarrer.', { ms: 4000 }); }
+}
+$('planBtn').addEventListener('click', () => { const on = !(mdCtl && mdCtl.visible()); mdClosed = !on; showDraw(on); });
+$('mdBar').addEventListener('click', e => { if (e.target.closest('[data-md=close]')) { mdClosed = true; $('planBtn').setAttribute('aria-pressed', 'false'); } });
 // Dessins du repérage (et ceux des autres photos reportés ici) posés sur la photo de la visionneuse
 let ovlOn = store.get('geotrace:ovl', true);
 async function paintOver() {

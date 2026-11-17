@@ -10,7 +10,8 @@ const WMTS = (z, x, y) => `https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTi
 
 /* bounds = [[latMin, lonMin], [latMax, lonMax]] : zone à couvrir (avec marge).
    Renvoie { blob, pose, w, h, ok } ; pose = ce qu'il faut donner au repérage (photo.plan = { z, x0, y0 }). */
-export async function buildPlan(bounds, fixed) {
+/* Zone du plan (sans charger d'image) : niveau de zoom et tuiles entières qui couvrent la zone. */
+export function planGeometry(bounds, fixed) {
   let z = 19, tx0, tx1, ty0, ty1;
   if (fixed) {
     // plan déjà dessiné : on garde exactement la même zone, sinon les dessins glisseraient
@@ -26,6 +27,13 @@ export async function buildPlan(bounds, fixed) {
     tx0 = Math.floor(x0 / 256); tx1 = Math.floor(x1 / 256); ty0 = Math.floor(y0 / 256); ty1 = Math.floor(y1 / 256);
   }
   const nx = tx1 - tx0 + 1, ny = ty1 - ty0 + 1, w = nx * 256, h = ny * 256;
+  const midLat = planGeo.px2lat(ty0 * 256 + h / 2, z), midLon = planGeo.px2lon(tx0 * 256 + w / 2, z);
+  return { z: z, tx0: tx0, ty0: ty0, nx: nx, ny: ny, w: w, h: h, pose: { key: PLAN_KEY, name: 'Plan', lat: midLat, lon: midLon, heading: 0, pitch: -90, plan: { z: z, x0: tx0 * 256, y0: ty0 * 256 }, w: w, h: h } };
+}
+
+export async function buildPlan(bounds, fixed) {
+  const G = planGeometry(bounds, fixed), z = G.z, tx0 = G.tx0, ty0 = G.ty0;
+  const nx = G.nx, ny = G.ny, w = G.w, h = G.h;
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const c = cv.getContext('2d'); c.fillStyle = '#9aa7b5'; c.fillRect(0, 0, w, h);
   let ok = 0;
@@ -37,6 +45,5 @@ export async function buildPlan(bounds, fixed) {
     im.src = WMTS(z, tx, ty);
   })));
   const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.88));
-  const midLat = planGeo.px2lat(ty0 * 256 + h / 2, z), midLon = planGeo.px2lon(tx0 * 256 + w / 2, z);
-  return { blob: blob, w: w, h: h, ok: ok, tiles: nx * ny, pose: { key: PLAN_KEY, name: 'Plan', lat: midLat, lon: midLon, heading: 0, pitch: -90, plan: { z: z, x0: tx0 * 256, y0: ty0 * 256 } } };
+  return { blob: blob, w: w, h: h, ok: ok, tiles: nx * ny, pose: G.pose };
 }

@@ -224,6 +224,16 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.22.0 : dessiner les réseaux directement sur la carte
+
+La barre **Réseaux** s'ouvre toute seule sur la carte quand on lance le projet (bouton « Réseaux » en haut pour l'ouvrir ou la fermer). On y choisit Conduite, Regard ou Accessoire (avec son type), on clique sur la carte, et le dessin est placé en coordonnées terrain : il apparaît ensuite dans toutes les photos (« Dessins » dans la visionneuse, transparence dans « Repérer »).
+- Conduite : un clic par point, double-clic, Entrée ou « Terminer » pour finir. Échap annule.
+- « Supprimer… » : cliquez un dessin pour le supprimer. « Annuler » revient en arrière.
+- Pendant le dessin, les repères des photos ne captent plus les clics (sinon ils déplaçaient la carte).
+- « Plan détaillé » ouvre le plan en plein écran avec tous les outils du repérage (branchements, textes, légendes, accroches).
+- Le bouton « Plan » de la version 1.21.0 devient « Réseaux ».
+- Nouveau fichier : `assets/mapdraw.js`.
+
 ## Version 1.21.0 : dessiner sur le plan, les dessins se placent dans toutes les photos
 
 Nouveau bouton **Plan** (en haut). Il ouvre la carte aérienne IGN en vue de dessus, avec les mêmes outils que le repérage d'une photo (conduite, branchement, regard, accessoire, texte, légende, accroches). Comme le plan est une vraie carte, les dessins sont placés exactement sur le terrain : ils se reportent ensuite **dans toutes les photos** (en transparence dans « Repérer », et sur la photo dans la visionneuse avec le bouton « Dessins »), et inversement les repérages des photos apparaissent sur le plan.
