@@ -685,7 +685,9 @@ body.on-welcome .pop-wrap { display: none; }
 .rp-ref canvas { flex: 1; min-height: 0; width: 100%; touch-action: none; cursor: crosshair; }
 
 /* Dessins du repérage affichés sur la photo de la visionneuse */
+.v-stage { grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
 .v-stage > img, .v-stage > .v-over { grid-area: 1 / 1; }
+.v-stage > .v-msg { grid-area: 1 / 1; }
 .v-over { pointer-events: none; transform-origin: center; will-change: transform; }
 .v-over[hidden] { display: none; }
 
