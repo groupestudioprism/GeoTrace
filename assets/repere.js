@@ -106,7 +106,7 @@ async function autoCal() {
   try {
     say('Recherche des photos voisines…');
     const list = await info.neighbors();
-    if (!list.length) { say('Aucune photo voisine (moins de 120 m, avec position GPS) : calage impossible.'); return; }
+    if (!list.length) { say('Aucune photo voisine (photos voisines avec position GPS) : calage impossible.'); return; }
     const refs = [];
     for (const n of list) {
       const im = await new Promise(function (ok) { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = n.src; });
@@ -115,7 +115,12 @@ async function autoCal() {
     const A = await import('./autocal.js');
     const r = await A.autoCalibrate({ photo: poseFor(), img: img, refs: refs, onProgress: say });
     if (info !== mine) { return; }
-    if (r.error) { say('Calage automatique non appliqué : ' + r.error); return; }
+    if (r.error) {
+      // Pas de mesure sûre (vue de dessus contre vues très rasantes, champ uni...) : on passe au calage par points communs
+      say('Calage automatique non appliqué : ' + r.error + ' Placez quelques points communs à la main (3 suffisent).');
+      autoBusy = false; syncPanel();
+      return startRef();
+    }
     applyAdj(r.adj, true);
     say('Photo recalée sur ' + refs.length + ' voisine' + (refs.length > 1 ? 's' : '') + ' (' + r.n + ' points, écart ' + r.med.toFixed(1) + ' px). Cap ' + r.delta.yaw.toFixed(1) + '°, inclinaison ' + r.delta.pitch.toFixed(1) + '°, décalage ' + Math.hypot(r.delta.e, r.delta.n).toFixed(1) + ' m.');
   } catch (e) { console.error(e); say('Le calage automatique a échoué.'); }
@@ -129,7 +134,7 @@ async function startRef() {
   if (!info || !info.neighbors || !curCam || ref) { return; }
   say('Recherche des photos voisines…');
   const list = await info.neighbors();
-  if (!list.length) { say('Aucune photo voisine (moins de 120 m, avec position GPS).'); return; }
+  if (!list.length) { say('Aucune photo voisine (photos voisines avec position GPS).'); return; }
   const items = [];
   for (const n of list) {
     const im = await new Promise(function (ok) { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = n.src; });

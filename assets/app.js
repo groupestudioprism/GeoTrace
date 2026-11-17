@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.19.1';
+const VERSION = '1.19.2';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -754,10 +754,11 @@ async function openRepere() {
   Rep.open({
     name: p.name, src, data: reps[p.key], photo: poseOf(p, M), others,
     onAdj: a => { try { localStorage.setItem('geotrace:rvue:' + (p.key || p.name), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } },
-    // Photos voisines (≤ 120 m, avec position) : les 3 plus proches servent de référence au calage automatique
+    // Photos voisines (proches et d'inclinaison semblable) : elles servent de référence au calage automatique
     neighbors: async () => {
       const R = Math.PI / 180, d = o => Math.hypot((o.lon - p.lon) * R * 6371009 * Math.cos(p.lat * R), (o.lat - p.lat) * R * 6371009);
-      const near = photos.filter(o => o.key !== p.key && o.lat != null && p.lat != null && o.heading != null && d(o) < 120).sort((a, b) => d(a) - d(b)).slice(0, 3);
+      const nad = (p.pitch || 0) < -70, sc = o => d(o) + 2 * Math.abs((p.pitch || 0) - (o.pitch || 0));
+      const near = photos.filter(o => o.key !== p.key && o.lat != null && p.lat != null && o.heading != null && d(o) < (nad ? 220 : 150)).sort((a, b) => sc(a) - sc(b)).slice(0, nad ? 6 : 4);
       const out = [];
       for (const o of near) { const s = o.kind === 'remote' ? (o.previewUrl || o.url) : await displayUrl(o); if (s) out.push({ photo: poseOf(o, M), src: s }); }
       return out;

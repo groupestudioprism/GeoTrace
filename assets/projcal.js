@@ -19,7 +19,7 @@
    ===================================================================== */
 
 import { makeCamera } from './photoproj.js';
-import { gray, warp, track } from './autocal.js';
+import { gray, warp, track, isNadir, bestYaw } from './autocal.js';
 
 const NAMES = ['yaw', 'pitch', 'e', 'n', 'z'];
 const SIG = [3, 2, 4, 4, 4];      // écart "normal" par paramètre (°, °, m, m, m) : sert de rappel vers le départ
@@ -81,15 +81,17 @@ export async function calibrateProject(opt) {
   // 2. Paires de photos voisines (les 3 plus proches, moins de 100 m)
   const pairs = [], seen = {};
   P.forEach(function (p, i) {
-    const near = [];
-    P.forEach(function (q, j) { if (j !== i) { const d = dist(p.pose, q.pose); if (d < 150) { near.push([d, j]); } } });
+    // Voisines : proches ET d'inclinaison semblable (une vue de dessus se compare mal à une vue très rasante).
+    // Une vue de dessus a plus de voisines et un rayon plus large.
+    const nad = isNadir(p.pose), near = [];
+    P.forEach(function (q, j) { if (j !== i) { const d = dist(p.pose, q.pose); if (d < (nad ? 220 : 150)) { near.push([d + 2 * Math.abs((p.pose.pitch || 0) - (q.pose.pitch || 0)), j]); } } });
     near.sort((a, b) => a[0] - b[0]);
-    near.slice(0, 6).forEach(function (n) {
+    near.slice(0, nad ? 10 : 6).forEach(function (n) {
       const a = Math.min(i, n[1]), b = Math.max(i, n[1]), k = a + '_' + b;
       if (!seen[k]) { seen[k] = 1; pairs.push({ a: a, b: b, obs: [] }); }
     });
   });
-  if (!pairs.length) { return { error: 'Aucune paire de photos voisines (moins de 100 m).' }; }
+  if (!pairs.length) { return { error: 'Aucune paire de photos voisines (moins de 150 m).' }; }
 
   let stats = { photos: P.length, pairs: pairs.length, obs: 0 };
   let points = [];
@@ -105,7 +107,13 @@ export async function calibrateProject(opt) {
       pr.obs = [];
       if (k % 4 === 0) { say('Passe ' + (rd + 1) + '/' + ROUNDS.length + ' : points communs, paire ' + (k + 1) + '/' + pairs.length + ' (' + total + ' points)…', 0.05 + 0.8 * (rd + k / pairs.length) / ROUNDS.length); await pause(); }
       if (!ca || !cb) { continue; }
-      const wp = warp(A, B, ca, cb);
+      let cw = cb;
+      if (rd === 0 && (isNadir(Object.assign({}, P[pr.a].pose, { adj: P[pr.a].adj })) || isNadir(Object.assign({}, P[pr.b].pose, { adj: P[pr.b].adj })))) {
+        // vue de dessus : cap peu fiable, on cherche la rotation qui superpose le mieux les deux photos
+        const dy = bestYaw(A, B, ca, P[pr.b].pose, P[pr.b].adj, R.S, R.T, R.step);
+        if (dy) { cw = makeCamera(Object.assign({}, P[pr.b].pose, { adj: Object.assign({}, P[pr.b].adj, { yaw: P[pr.b].adj.yaw + dy }) }), { w: B.w, h: B.h }); }
+      }
+      const wp = warp(A, B, ca, cw);
       if (wp.ok < B.w * B.h * 0.05) { continue; }
       const found = track(wp, B, R.S, R.T, R.step);
       found.forEach(function (f) {

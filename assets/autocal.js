@@ -109,7 +109,7 @@ export function track(Wp, B, S, TT, ST) {
       let second = -2;
       for (let dy = -S; dy <= S; dy++) { for (let dx = -S; dx <= S; dx++) { if (Math.abs(dx - bx) + Math.abs(dy - by) > 5) { const v = score[(dy + S) * side + dx + S]; if (v > second) { second = v; } } } }
       if (best - second < 0.03) { continue; }
-      out.push({ lat: Wp.gl[(y * w + x) * 2], lon: Wp.gl[(y * w + x) * 2 + 1], qx: x + bx, qy: y + by });
+      out.push({ lat: Wp.gl[(y * w + x) * 2], lon: Wp.gl[(y * w + x) * 2 + 1], qx: x + bx, qy: y + by, sc: best });
     }
   }
   return out;
@@ -164,7 +164,7 @@ export function fit(photoB, size, pts, a0) {
   dist.sort((a, b) => a - b);
   const adj = Object.assign({}, a0);
   names.forEach((k, i) => { adj[k] = a0[k] + x[i]; });
-  return { adj: adj, med: dist[dist.length >> 1] || 999, delta: x };
+  return { adj: adj, med: dist[dist.length >> 1] || 999, delta: x, res: r };
 }
 
 /* Cale la photo B sur les photos de référence.
@@ -181,12 +181,23 @@ export async function autoCalibrate(opt) {
   let refs = opt.refs.map(r => ({ photo: r.photo, img: r.img, im: gray(r.img, W) }));
   let adj = Object.assign({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 }, opt.photo.adj || {});
   const adj0 = Object.assign({}, adj);
-  let total = 0, med = 999;
+  let total = 0, med = 999, inl = 0;
   for (let pass = 0; pass < 3; pass++) {
     const S = pass === 0 ? 44 : pass === 1 ? 20 : 14; // large recherche, puis affinages
     if (pass === 2) { B = gray(opt.img, W3); sizeB = { w: B.w, h: B.h }; refs.forEach(r => { r.im = gray(r.img, W3); }); }
-    const camB = makeCamera(Object.assign({}, opt.photo, { adj: adj }), sizeB);
+    let camB = makeCamera(Object.assign({}, opt.photo, { adj: adj }), sizeB);
     if (!camB) { return { error: 'Cette photo n’a pas de position ou de direction.' }; }
+    if (pass === 0 && isNadir(Object.assign({}, opt.photo, { adj: adj }))) {
+      say('Vue de dessus : recherche du bon cap…');
+      await pause();
+      const votes = {};
+      refs.forEach(function (r) {
+        const ca = makeCamera(r.photo, { w: r.im.w, h: r.im.h });
+        if (ca) { const dy = bestYaw(r.im, B, ca, opt.photo, adj, 30, 21, 24); votes[dy] = (votes[dy] || 0) + 1; }
+      });
+      let pick = 0, mx = 0; for (const k in votes) { if (votes[k] > mx) { mx = votes[k]; pick = +k; } }
+      if (pick) { adj = Object.assign({}, adj, { yaw: adj.yaw + pick }); camB = makeCamera(Object.assign({}, opt.photo, { adj: adj }), sizeB); }
+    }
     const pts = [];
     for (let k = 0; k < refs.length; k++) {
       say('Calage automatique : photo voisine ' + (k + 1) + '/' + refs.length + (pass ? ' (affinage ' + pass + ')' : '') + '…');
@@ -199,11 +210,30 @@ export async function autoCalibrate(opt) {
       pts.push(...track(wp, B, S));
     }
     if (pts.length < 10) { return { error: 'Pas assez de détails communs avec les photos voisines (' + pts.length + ' points).' }; }
-    const f = fit(opt.photo, sizeB, pts, adj);
+    let f = fit(opt.photo, sizeB, pts, adj);
+    // Beaucoup de mesures fausses (arbres, bâtiments, vue de dessus contre vue rasante) : on ne garde que les 45 %
+    // qui s'accordent le mieux, puis on recale sur celles-là.
+    const dd = [];
+    for (let i = 0; i < pts.length; i++) { dd.push([Math.hypot(f.res[2 * i], f.res[2 * i + 1]), i]); }
+    dd.sort((a, b) => a[0] - b[0]);
+    const keep = Math.max(15, Math.floor(pts.length * 0.45));
+    if (f.med > 3 && pts.length >= 33) {
+      const sub = dd.slice(0, keep).map(x => pts[x[1]]);
+      f = fit(opt.photo, sizeB, sub, adj);
+      const all = [];
+      pts.forEach(q => {
+        const c = makeCamera(Object.assign({}, opt.photo, { adj: f.adj }), sizeB), pp = c ? c.toPixel(q.lat, q.lon, 0) : null;
+        all.push(pp ? Math.hypot(pp.x - q.qx, pp.y - q.qy) : 999);
+      });
+      all.sort((a, b) => a - b);
+      f.med = all[keep >> 1]; // écart typique des points retenus
+      inl = all.filter(v => v < 4).length;
+    } else { inl = pts.length; }
     adj = f.adj; med = f.med; total = pts.length;
   }
   // garde-fous : si le résultat reste incertain ou extrême, on ne touche à rien
   const d = { yaw: adj.yaw - adj0.yaw, pitch: adj.pitch - adj0.pitch, e: adj.e - adj0.e, n: adj.n - adj0.n, z: adj.z - adj0.z };
+  if (inl < 20) { return { error: 'Pas assez de points communs fiables avec les photos voisines (' + inl + ').' }; }
   if (med > 9) { return { error: 'Les photos se ressemblent trop peu pour un calage sûr (écart restant ' + med.toFixed(1) + ' px).' }; }
   if (Math.abs(d.yaw) > 12 || Math.abs(d.pitch) > 12 || Math.hypot(d.e, d.n) > 25 || Math.abs(d.z) > 25) { return { error: 'Le réglage trouvé est trop grand pour être crédible.' }; }
   adj.yaw = clamp(adj.yaw, -60, 60); adj.pitch = clamp(adj.pitch, -40, 40);
@@ -214,4 +244,23 @@ export async function autoCalibrate(opt) {
 export function distance(a, b) {
   const k = Math.PI / 180, R = 6371008.8;
   return Math.hypot((a.lon - b.lon) * k * R * Math.cos(a.lat * k), (a.lat - b.lat) * k * R);
+}
+
+/* Vue de dessus : le cap d'un drone qui regarde à la verticale est souvent faux de plusieurs degrés (confusion
+   cap / roulis), et les photos ne se superposent plus. On essaie plusieurs rotations de la photo B et on garde
+   celle qui donne les points communs les plus nets. Renvoie l'écart de cap (en degrés) à ajouter à B. */
+export function isNadir(photo) { return photo && photo.pitch != null && photo.pitch + ((photo.adj && photo.adj.pitch) || 0) < -70; }
+export function bestYaw(A, B, camA, photoB, adj, S, T, STEP) {
+  let best = 0, bestScore = -1;
+  [0, -8, 8, -16, 16, -26, 26].forEach(function (dy) {
+    const cam = makeCamera(Object.assign({}, photoB, { adj: Object.assign({}, adj, { yaw: (adj.yaw || 0) + dy }) }), { w: B.w, h: B.h });
+    if (!cam) { return; }
+    const wp = warp(A, B, camA, cam);
+    if (wp.ok < B.w * B.h * 0.05) { return; }
+    const pts = track(wp, B, S, T, STEP);
+    let sc = 0;
+    pts.forEach(q => { sc += q.sc - 0.5; });
+    if (sc > bestScore + 0.5 || (sc > bestScore && dy === 0)) { bestScore = sc; best = dy; }
+  });
+  return best;
 }
