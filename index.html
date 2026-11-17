@@ -184,21 +184,38 @@
           <p class="hint ch-empty" id="dvEmpty">Choisissez un type ci-dessus, puis tracez le parcours sur la carte.</p>
         </div>
         <div id="chTabN" hidden>
-          <p class="hint">Réseaux existants, visibles sous le sol en 3D.</p>
+          <section class="rs" aria-label="Repérage sur le plan">
+            <h3>Repérage sur le plan</h3>
+            <p class="hint" id="rsHint">Choisissez un outil, puis dessinez sur la carte.</p>
+            <div class="rs-tools" id="rsTools" role="group" aria-label="Outils de repérage"></div>
+            <div class="rs-row">
+              <button type="button" class="btn small" id="rsUndo" disabled>Annuler</button>
+              <button type="button" class="btn small" id="rsRedo" disabled>Rétablir</button>
+              <button type="button" class="btn small" id="rsFin">Terminer la conduite</button>
+              <button type="button" class="btn small" id="rsDel" disabled>Supprimer</button>
+              <button type="button" class="btn small" id="rsOpen" hidden>Ouvrir</button>
+            </div>
+            <label class="ch-field" hidden>Conduite <select id="rsPipe" class="ch-ty"></select></label>
+            <label class="ch-field" hidden>Regard <select id="rsMh" class="ch-ty"></select></label>
+            <label class="ch-field" hidden>Accessoire <select id="rsAcc" class="ch-ty"></select></label>
+            <div class="rs-props" id="rsProps" hidden></div>
+            <div class="rs-recap" id="rsRecap"></div>
+            <div class="ch-actions" id="rsExport" hidden>
+              <button type="button" class="btn small" id="rsGeo">Exporter GeoJSON</button>
+              <button type="button" class="btn small" id="rsCsv">Exporter le récapitulatif</button>
+            </div>
+            <button type="button" class="link danger" id="rsClear" hidden>Tout supprimer</button>
+          </section>
+          <h3>Réseaux existants</h3>
+          <p class="hint">Importés ou récupérés en données ouvertes, visibles sous le sol en 3D.</p>
           <div class="ch-actions">
             <button type="button" class="btn" id="ntFetch">Données ouvertes de la vue</button>
             <label class="btn ph-pick">Importer un fichier<input type="file" id="ntFile" accept=".geojson,.json,.kml,application/json,application/geo+json,application/vnd.google-earth.kml+xml" hidden></label>
           </div>
           <label class="ch-field">Type à l’import <select id="ntImpType" class="ch-ty" aria-label="Type des réseaux importés"></select></label>
           <details class="ch-more"><summary>Quelles données ?</summary><p>IGN (canalisations, lignes électriques) et OpenStreetMap, pour la zone affichée. Les réseaux de distribution des villes ne sont pas publics : tracez-les d’après les plans de la DT-DICT, ou importez un GeoJSON ou KML.</p></details>
-          <h3>Repérage sur photos</h3>
-          <p class="hint">Choisissez une photo pour dessiner conduites, branchements, regards, accessoires et textes.</p>
-          <input type="search" id="rpFilter" class="ch-ty" placeholder="Filtrer les photos" aria-label="Filtrer les photos">
-          <ul id="rpList" class="rp-list"></ul>
-          <p class="hint ch-empty" id="rpEmpty">Ajoutez des photos pour les repérer.</p>
-          <h3>Tracer un réseau</h3>
-          <div class="ch-types" id="ntTypes"></div>
-          <h3>Réseaux</h3>
+          <div class="ch-types" id="ntTypes" hidden></div>
+          <h3>Réseaux importés</h3>
           <ul id="ntList"></ul>
           <p class="hint ch-empty" id="ntEmpty">Aucun réseau pour l’instant.</p>
           <button type="button" class="link danger" id="ntClear" hidden>Tout supprimer</button>
@@ -362,6 +379,7 @@
         <label><input type="checkbox" id="ofOthers" checked> Repérages des autres photos</label>
       </div>
     </div>
+    <button class="vb wide" id="vRep" type="button" title="Dessiner conduites, regards et accessoires sur la photo">Repérer</button>
     <button class="vb" id="vRotate" type="button" aria-label="Pivoter" data-ic="rotate"></button>
     <button class="vb" id="vReset" type="button" aria-label="Taille d’origine" data-ic="fit"></button>
     <span class="v-sep"></span>

@@ -3,6 +3,7 @@
 import * as Dev from './devs.js';
 import * as Ph from './phases.js';
 import * as Net from './nets.js';
+import * as Rsx from './reseaux.js';
 const L = window.L;
 const $ = id => document.getElementById(id);
 const BASE = 'geotrace:chantier', SHOW = 'geotrace:chantier:show';
@@ -26,7 +27,7 @@ const readLocal = () => { try { const j = JSON.parse(localStorage.getItem(KEY) |
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, zones })); } catch (e) { /* stockage indisponible */ } onChange(); };
 const clean = z => z && TYPES[z.type] && Array.isArray(z.pts) && z.pts.length >= 3 && z.pts.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 export const getZones = () => zones.filter(clean);
-export const exportData = () => { const dv = Dev.exportData(), ph = Ph.exportData(), nt = Net.exportData(); return zones.length || dv || ph || nt ? { v: 1, zones: getZones(), devs: dv || [], nets: nt || [], phases: ph } : null; };
+export const exportData = () => { const dv = Dev.exportData(), ph = Ph.exportData(), nt = Net.exportData(), rx = Rsx.exportData(); return zones.length || dv || ph || nt || rx ? { v: 1, zones: getZones(), devs: dv || [], nets: nt || [], phases: ph, rsx: rx || undefined } : null; };
 export const getNets = Net.getNets;
 export const netsFromPhoto = Net.replaceFromPhoto;
 export const NET_COLORS = Net.COLORS;
@@ -40,9 +41,9 @@ export function setScope(name, hasProject) {
   KEY = next;
 }
 export function setProject(p, name) {
-  const has = !!(p && (p.zones && p.zones.length || p.devs && p.devs.length || p.nets && p.nets.length || p.phases));
-  setScope(name, has); Dev.setScope(name, has); Net.setScope(name, has); Ph.setScope(name, has);
-  Dev.setProject(p); Net.setProject(p && p.nets); Ph.setProject(p && p.phases);
+  const has = !!(p && (p.zones && p.zones.length || p.devs && p.devs.length || p.nets && p.nets.length || p.rsx || p.phases));
+  setScope(name, has); Dev.setScope(name, has); Net.setScope(name, has); Ph.setScope(name, has); Rsx.setScope(name, has);
+  Dev.setProject(p); Net.setProject(p && p.nets); Ph.setProject(p && p.phases); Rsx.setProject(p && p.rsx);
   proj = p && Array.isArray(p.zones) ? p : null;
   const loc = readLocal();
   zones = loc || (proj ? proj.zones.filter(clean) : []);
@@ -83,7 +84,7 @@ function select(id, openPanel) {
 /* ---------- dessin ---------- */
 let rectMode = true;
 function startDraw(type) {
-  cancelDraw(); stopEdit(); Dev.stop(); Net.stop(); stopOthers();
+  cancelDraw(); stopEdit(); Dev.stop(); Net.stop(); Rsx.stop(); stopOthers();
   draw = { type, pts: [], line: L.polyline([], { color: TYPES[type].color, weight: 3, dashArray: '6 5', interactive: false }).addTo(map), dots: L.layerGroup().addTo(map), rubber: null };
   map.doubleClickZoom.disable(); map.getContainer().style.cursor = 'crosshair';
   $('chDraw').hidden = false; drawText();
@@ -126,7 +127,7 @@ function finish(pts) {
   status(`${TYPES[type].label} ajouté : ${fmtArea(area(z.pts))}. Visible en 3D dans « Photos en 3D ».`, { ms: 4000 });
 }
 export function cancelDraw() {
-  Dev.stop(); Net.stop();
+  Dev.stop(); Net.stop(); Rsx.stop();
   if (!draw) return false;
   map.removeLayer(draw.line); map.removeLayer(draw.dots); draw = null;
   map.doubleClickZoom.enable(); map.getContainer().style.cursor = ''; $('chDraw').hidden = true;
@@ -178,7 +179,7 @@ export function init(ctx) {
   $('chDrawBack').addEventListener('click', () => { if (draw && draw.pts.length) { draw.pts.pop(); draw.dots.clearLayers(); draw.pts.forEach(p => L.circleMarker(p, { radius: 4, color: '#fff', weight: 2, fillColor: TYPES[draw.type].color, fillOpacity: 1, interactive: false }).addTo(draw.dots)); drawPreview(); drawText(); } });
   map.on('click', onClick); map.on('dblclick', e => { if (draw) { L.DomEvent.stop(e); finishPoly(); } });
   map.on('mousemove', e => { if (draw && draw.pts.length) drawPreview(e.latlng); });
-  $('chShow').addEventListener('change', () => { show = $('chShow').checked; try { localStorage.setItem(SHOW, show ? '1' : '0'); } catch (e) { /* ignoré */ } render(); Dev.setShow(show); Net.setShow(show); });
+  $('chShow').addEventListener('change', () => { show = $('chShow').checked; try { localStorage.setItem(SHOW, show ? '1' : '0'); } catch (e) { /* ignoré */ } render(); Dev.setShow(show); Net.setShow(show); Rsx.setShow(show); });
   $('chBtn').addEventListener('click', () => { const on = $('chPanel').hidden; $('chPanel').hidden = !on; $('chBtn').setAttribute('aria-expanded', String(on)); if (!on) { cancelDraw(); stopEdit(); } });
   $('chClose').addEventListener('click', () => { $('chPanel').hidden = true; $('chBtn').setAttribute('aria-expanded', 'false'); cancelDraw(); stopEdit(); });
   $('chList').addEventListener('input', e => { const li = e.target.closest('li'); if (!li || !e.target.classList.contains('ch-name')) return; const z = zones.find(q => q.id === li.dataset.id); if (z) { z.name = e.target.value.trim() || TYPES[z.type].label; save(); render(); } });
@@ -202,6 +203,7 @@ export function init(ctx) {
   render(); list();
   Dev.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show, visible: Ph.visible });
   Net.init({ map, status, stopOthers: () => { cancelDraw(); stopOthers(); }, onChange, show, visible: Ph.visible, tab: Dev.tab });
+  Rsx.init({ map, status, stopOthers: () => { cancelDraw(); Dev.stop(); Net.stop(); Rsx.stop(); stopOthers(); }, onChange, show, send3D: items => Net.replaceFromPhoto('rsx', items) });
   Ph.init({ status, onChange, getZones, getDevs: Dev.getDevs, getNets: Net.getNets, categories: ctx.categories || (() => []), setPhase3d: ctx.setPhase3d, applyFilter: () => { render(); Dev.refresh(); Net.refresh(); } });
-  document.querySelectorAll('#chTabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab !== 'n') Net.stop(); Dev.tab(b.dataset.tab); }));
+  document.querySelectorAll('#chTabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab !== 'n') { Net.stop(); Rsx.stop(); } else Rsx.load(); Dev.tab(b.dataset.tab); }));
 }

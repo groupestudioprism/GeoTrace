@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.0 : repérage des réseaux directement sur la carte IGN
+
+Chantier › Réseaux › **Repérage sur le plan** : on dessine sur la carte, avec le moteur de l'outil « Repérage de réseaux sur photos » (mêmes symboles, étiquettes, raccords automatiques, branchements) : Sélectionner (V), Conduite (L), Branchement (B), Regard (R), Accessoire (A), Texte (T), annuler/rétablir, palette par réseau (AEP / EU / EP, neuf / existant / à abandonner), propriétés de l'objet sélectionné, récapitulatif des métrés, export GeoJSON et CSV. Les dessins partent en 3D (enterrés) et sont enregistrés avec le projet. Le bouton « Repérer » de la visionneuse reste retiré.
+
 ## Version 1.26.0 : réglage repris par les photos voisines
 
 Nouveau bouton **Aux photos voisines** en vue superposée : le réglage de la photo ouverte (cap, décalage, hauteur, zoom) est repris par les photos du même appareil prises dans les 2 minutes autour. Elles ont la même dérive de compas et de GPS : une photo bien calée corrige ses voisines mal reliées par le calage automatique.

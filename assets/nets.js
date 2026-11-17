@@ -162,7 +162,7 @@ function render() {
   layer.clearLayers();
   if (!show) { map.removeLayer(layer); return; }
   layer.addTo(map);
-  getNets().filter(d => d.pts.length > 1 && vis(d.id)).forEach(d => {
+  getNets().filter(d => d.ph !== 'rsx' && d.pts.length > 1 && vis(d.id)).forEach(d => {
     const t = TYPES[d.type], on = d.id === sel;
     const line = L.polyline(d.pts, { color: t.color, weight: on ? 5 : 3.2, opacity: .95, dashArray: d.depth < 0 ? '1 7' : '9 5', lineCap: 'round', bubblingMouseEvents: false });
     line.bindTooltip(`${esc(d.name)} · ${t.label}${d.depth > 0 ? ' · prof. ' + d.depth + ' m' : ''}`, { sticky: true });
@@ -238,7 +238,7 @@ function stopEdit() { if (handles) { map.removeLayer(handles); handles = null; }
 /* ---------- liste ---------- */
 function list() {
   const ul = $('ntList'); if (!ul) return;
-  const ds = getNets(); $('ntEmpty').hidden = ds.length > 0; $('ntClear').hidden = !ds.length;
+  const ds = getNets().filter(d => d.ph !== 'rsx'); $('ntEmpty').hidden = ds.length > 0; $('ntClear').hidden = !ds.length;
   ul.innerHTML = ds.map(d => `<li data-id="${d.id}" class="${d.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[d.type].color}"></i><input class="ch-name" value="${esc(d.name)}" aria-label="Nom du réseau" maxlength="40"><small>${fmtLen(length(d.pts))}</small></div>
     <div class="ch-acts"><select class="ch-ty" aria-label="Type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === d.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select>
     <label class="dv-w">Prof. <input type="number" class="dv-width nt-depth" min="-30" max="15" step=".1" value="${d.depth}" aria-label="Profondeur en mètres, négative si aérien"> m</label>

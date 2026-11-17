@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.27.0';
+const VERSION = '1.26.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -741,8 +741,8 @@ function sendRepTo3D(key, items) {
   if (Chantier && Chantier.netsFromPhoto) Chantier.netsFromPhoto(key, items);
   if (!$('v3d').hidden) status('Réseaux mis à jour : rouvrez la vue 3D pour les voir.', { ms: 4000 });
 }
-async function openRepere(p) {
-  if (!p) return;
+async function openRepere() {
+  const p = vList[vIdx]; if (!p) return;
   if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
   const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
   if (!src) { status('Cette photo ne peut pas être repérée dans le navigateur.', { ms: 4000 }); return; }
@@ -860,25 +860,8 @@ async function projectCalib(auto) {
   }
 }
 $('pcBtn').addEventListener('click', () => projectCalib(false));
-// Liste des photos dans Chantier › Réseaux : c'est ici qu'on repère (plus dans la visionneuse)
-function paintRepBtn() {
-  const ul = $('rpList'); if (!ul) return;
-  const q = ($('rpFilter').value || '').toLowerCase();
-  const list = photos.filter(p => !q || (p.name || '').toLowerCase().includes(q));
-  $('rpEmpty').hidden = photos.length > 0;
-  ul.textContent = '';
-  list.slice(0, 300).forEach(p => {
-    const n = repCount(reps[p.key]);
-    const li = document.createElement('li');
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'rp-item';
-    b.innerHTML = '<span></span><em></em>'; b.firstChild.textContent = p.name; b.lastChild.textContent = n ? n + ' repère' + (n > 1 ? 's' : '') : 'Repérer';
-    if (n) b.classList.add('done');
-    b.addEventListener('click', () => openRepere(p));
-    li.appendChild(b); ul.appendChild(li);
-  });
-}
-$('rpFilter').addEventListener('input', paintRepBtn);
-document.querySelectorAll('#chTabs button').forEach(b => b.addEventListener('click', () => { if (b.dataset.tab === 'n') paintRepBtn(); }));
+function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
+$('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);
 $('vPrev').addEventListener('click', () => { if (vIdx > 0) { vIdx--; showInViewer(); } });
 $('vNext').addEventListener('click', () => { if (vIdx < vList.length - 1) { vIdx++; showInViewer(); } });
