@@ -602,7 +602,7 @@ function drawLine(c, o, u, mode) {
 // bordée de la couleur du réseau, au meilleur endroit libre ; réduit s'il manque de la place, masqué si vraiment trop court.
 let LBL_AVOID = [], LBL_PLACED = [], LBL_LINES = [], LBL_RECTS = [];
 function lblTextColor(col) { return luminance(col) > 0.5 ? darken(col, 0.22) : col; }
-function drawLineLabel(c, o, u) {
+function drawLineLabel(c, o, u, ph) {
   if (o.showLabel === false || o.pts.length < 2) { return; }
   const def = pipeOf(o.pipeId) || { w: 4, net: '', desc: '' };
   const text = o.text != null && o.text !== '' ? o.text : def.desc;
@@ -615,8 +615,12 @@ function drawLineLabel(c, o, u) {
   meas();
   const L = polyLens(pts), total = L[L.length - 1];
   if (total <= 0) { c.restore(); return; }
-  if (o.showLabel !== true && tw * 0.8 + fs * 0.7 > total * 0.95) { c.restore(); return; }
-  if (tw + fs * 0.9 > total * 0.95) { fs *= Math.max(0.45, total * 0.95 / (tw + fs * 0.9)); meas(); }
+  // Sur la carte, le texte garde toujours la même taille à l'écran : s'il n'y a pas la place (dézoomé), il est masqué
+  if (ph && ph.free) { if (tw + fs * 0.9 > total * 0.98) { c.restore(); return; } }
+  else {
+    if (o.showLabel !== true && tw * 0.8 + fs * 0.7 > total * 0.95) { c.restore(); return; }
+    if (tw + fs * 0.9 > total * 0.95) { fs *= Math.max(0.45, total * 0.95 / (tw + fs * 0.9)); meas(); }
+  }
   const mid = pointAt(pts, L, total / 2), flip = Math.cos(mid.a) < 0;
   const off = pos === 'on' ? 0 : (pos === 'below' ? -(lw / 2 + fs * (box ? 0.86 : 0.62)) : (lw / 2 + fs * (box ? 0.86 : 0.62)));
   const at = (sm) => { const p = pointAt(pts, L, flip ? total - clamp(sm, 0, total) : clamp(sm, 0, total)), a = flip ? p.a + Math.PI : p.a; return { x: p.x + Math.sin(a) * off, y: p.y - Math.cos(a) * off, a: a }; };
@@ -858,7 +862,7 @@ function placeLabels(c, ph, u) {
     };
     // Si ça se chevauche, on réduit l'écriture par paliers
     let bestK = 1, bestRaw = 1e18;
-    for (const k of [1, 0.88, 0.76, 0.66, 0.56]) {
+    for (const k of (ph.free ? [1] : [1, 0.88, 0.76, 0.66, 0.56])) {
       const r = attempt(spec(o, k).m);
       if (r.raw < 25) { bestK = k; bestRaw = r.raw; break; }
       if (r.raw < bestRaw - 1) { bestRaw = r.raw; bestK = k; }
@@ -1023,7 +1027,7 @@ export function draw(c, ph, u, opt) {
   // les encadrés (regards, accessoires) sont placés d'abord ; les textes de conduite les évitent ensuite
   const spec = placeLabels(c, ph, u);
   LBL_RECTS = spec.boxes || [];
-  lines.forEach(o => drawLineLabel(c, o, u));
+  lines.forEach(o => drawLineLabel(c, o, u, ph));
   drawLabels(c, ph, u, spec);
   ph.objects.filter(o => o.type === 'text').forEach(o => drawText(c, o, u));
   ph.objects.filter(o => o.type === 'legend').forEach(o => drawLegend(c, o, ph, u));
