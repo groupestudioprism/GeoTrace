@@ -57,7 +57,7 @@ async function ensure() {
   if (!C) { status('Le moteur de repérage n’a pas pu se charger.', { ms: 4000 }); return false; }
   const cfg = (() => { try { return JSON.parse(localStorage.getItem('geotrace:rsxarm') || 'null') || {}; } catch (e) { return {}; } })();
   armed = Object.assign({ pipe: null, mh: null, acc: null }, cfg);
-  C.onSymLoad(draw); fixArmed(); fillPalette(); fixU(); if (ph.objects.length) C.syncAll(ph); recap(); draw();
+  C.onSymLoad(draw); fixArmed(); fillPalette(); fixU(); if (ph.objects.length) C.syncAll(ph); recap(); draw(); if (ph.objects.length) sync3D();
   return true;
 }
 function fixArmed() {

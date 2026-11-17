@@ -228,6 +228,14 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.30.0 : réseaux en 3D détaillée, à l'échelle réelle
+
+- Nouveau moteur `assets/net3d.js` : chaque élément du repérage est modélisé d'après les fiches techniques fabricants (PAM, Bayard, AVK, Wavin, Huot, fabricants de tuyaux PEHD et béton).
+- Conduites au diamètre et à l'épaisseur réels : PEHD noir à bandes (SDR11), fonte ductile à emboîtures tous les 6 m, PVC et PP à emboîtures, béton à collets tous les 2,40 m, amiante-ciment à manchons ; angles cintrés ; branchements qui descendent jusqu'à la conduite principale ; un fil de la couleur du réseau reste visible de loin.
+- Regards : PP (fond, rehausse annelée, cône, couronne de répartition), béton Ø1000 (éléments, tête réductrice excentrée, rehausse sous cadre), chambre à vanne, boîte de branchement ; tampon fonte Ø600 avec cadre Ø850.
+- Robinetterie et raccords : vanne à opercule à brides boulonnées avec tube allonge et bouche à clé, ventouse et réducteur de pression en chambre, purge, clapet, poteau d'incendie (1 × 100 + 2 × 65), bouche d'incendie, té, coudes électrosoudables qui épousent le tracé, réduction, manchon large tolérance, bouchon, collier de prise en charge, regard de comptage avec compteur DN20, franchissement.
+- Les coudes, tés et raccords posés automatiquement sont maintenant envoyés en 3D.
+
 ## Version 1.29.0 : l'outil de repérage complet dans GeoTrace
 
 - Nouveau bouton « Repérage » : ouvre en plein écran l'outil d'origine « Repérage de réseaux sur photos » (photos et signalisation : projets, favoris, réglages, exports images, zip et PowerPoint, KML, panneaux), sans rien retirer. Fichier : `repere-app.html`.

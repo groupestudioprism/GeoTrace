@@ -1611,25 +1611,73 @@ const TYPE3D = { aep: 'aep', eu: 'eu', ep: 'ep', ab: 'autre' };
 export function toNetItems(ph, cam) {
   const items = [];
   const gp = p => cam.toGround(p.x, p.y);
+  const ll = q => [+q.lat.toFixed(7), +q.lon.toFixed(7)];
+  const u = ph.w / 1000, tol = 14 * u, STEP = 12 * u;
   let skipped = 0;
+  const byId = {}; ph.objects.forEach(o => { byId[o.id] = o; });
+  const lines = ph.objects.filter(o => o.type === 'line' && o.pts.length > 1 && pipeOf(o.pipeId));
+  const matKey = d => { const m = matOf(d); return m || (/^\s*F\s*\d/i.test(d || '') ? 'FONTE' : ''); };
+  const lineDepth = L => { const pd = pipeOf(L.pipeId); return pd.dash === 'dotted' ? 0.8 : (DEPTH[netCat(pd.net)] || 1.2); };
+  // Une extrémité accrochée à un regard ou à un accessoire va jusqu'à son centre : la 3D raccorde à la vraie taille
+  const centre = p => {
+    const t = p.link && byId[p.link.id];
+    if (t && p.link.k === 'mh' && t.type === 'manhole') { return { x: t.cx, y: t.cy }; }
+    if (t && p.link.k === 'acc' && t.type === 'acc') { return { x: t.x, y: t.y }; }
+    return p;
+  };
+  // Autour d'un point : les conduites qui passent (deux directions) ou qui s'y terminent (une direction)
+  const around = (x, y, only) => {
+    const out = [];
+    lines.forEach(function (L) {
+      if (only && L.id !== only) { return; }
+      const n = L.pts.length, pd = pipeOf(L.pipeId);
+      let hit = false;
+      [[0, 1], [n - 1, n - 2]].forEach(function (e) {
+        const a = centre(L.pts[e[0]]), b = L.pts[e[1]];
+        if (Math.hypot(a.x - x, a.y - y) <= tol) { out.push({ L: L, pd: pd, end: true, as: [Math.atan2(b.y - a.y, b.x - a.x)] }); hit = true; }
+      });
+      if (hit) { return; }
+      let best = null;
+      for (let i = 0; i < n - 1; i++) { const r = segProj({ x: x, y: y }, L.pts[i], L.pts[i + 1]); if (r.d <= tol && (!best || r.d < best.d)) { best = { d: r.d, a: Math.atan2(L.pts[i + 1].y - L.pts[i].y, L.pts[i + 1].x - L.pts[i].x) }; } }
+      if (best) { out.push({ L: L, pd: pd, end: false, as: [best.a, best.a + Math.PI], d: best.d }); }
+    });
+    return out;
+  };
   ph.objects.forEach(function (o) {
     if (o.type === 'line') {
       const pd = pipeOf(o.pipeId);
       if (!pd) { return; }
-      const pts = o.pts.map(gp).filter(Boolean);
+      const src = o.pts.map(centre), pts = src.map(gp).filter(Boolean);
       if (pts.length < 2 || pts.length < o.pts.length) { skipped++; if (pts.length < 2) { return; } }
-      const cat = netCat(pd.net);
-      items.push({ oid: o.id, kind: 'pipe', type: TYPE3D[cat] || 'autre', name: (o.text || pd.desc), col: colOf(pd.net), depth: pd.dash === 'dotted' ? 0.8 : (DEPTH[cat] || 1.2), diam: odNum(pd) || 100, pts: pts.map(q => [+q.lat.toFixed(7), +q.lon.toFixed(7)]) });
+      const cat = netCat(pd.net), br = pd.dash === 'dotted', depth = br ? 0.8 : (DEPTH[cat] || 1.2);
+      // Un branchement part de la conduite principale (à sa profondeur) et remonte vers l'abonné
+      const endDepth = p => { const t = p.link && p.link.k === 'ln' && byId[p.link.id]; return br && t && t.type === 'line' && pipeOf(t.pipeId) && pipeOf(t.pipeId).dash !== 'dotted' ? lineDepth(t) : null; };
+      const ends = [endDepth(o.pts[0]), endDepth(o.pts[o.pts.length - 1])];
+      items.push({ oid: o.id, kind: 'pipe', type: TYPE3D[cat] || 'autre', name: (o.text || pd.desc), col: colOf(pd.net), depth: depth, diam: odNum(pd) || 100, pts: pts.map(ll),
+        x: { mat: matKey(pd.desc), br: br, dash: pd.dash, net: pd.net, ends: ends[0] != null || ends[1] != null ? ends : undefined } });
     } else if (o.type === 'manhole') {
       const q = gp({ x: o.cx, y: o.cy }), def = mhOf(o.mhId) || {};
       if (!q) { skipped++; return; }
       const cat = netCat(o.net || def.net);
-      items.push({ oid: o.id, kind: 'regard', type: TYPE3D[cat] || 'autre', name: o.num || def.name || 'Regard', col: colOf(o.net || def.net), depth: cat === 'eu' ? 2.5 : 1.8, diam: +(o.diam || def.diam) || 800, pts: [[+q.lat.toFixed(7), +q.lon.toFixed(7)]] });
-    } else if (o.type === 'acc' && !o.auto) {
+      items.push({ oid: o.id, kind: 'regard', type: TYPE3D[cat] || 'autre', name: o.num || def.name || 'Regard', col: colOf(o.net || def.net), depth: (DEPTH[cat] || 1.2) + 0.3, diam: +(o.diam || def.diam) || 800, pts: [ll(q)],
+        x: { nat: o.nature || def.nature || def.name || '', net: o.net || def.net } });
+    } else if (o.type === 'acc') {
       const q = gp(o), def = accOf(o.accId) || {};
       if (!q) { skipped++; return; }
       const cat = netCat(o.net || def.net);
-      items.push({ oid: o.id, kind: 'acc', type: TYPE3D[cat] || 'autre', name: accText(o).split('\n')[0] || def.name, col: accColor(o, ph, ph.w / 1000), depth: DEPTH[cat] || 1.2, diam: 300, pts: [[+q.lat.toFixed(7), +q.lon.toFixed(7)]] });
+      const near = around(o.x, o.y, null);
+      const host = (o.auto && near.find(n => n.L.id === String(o.auto).split(':')[0])) || near.filter(n => !n.end).sort((a, b) => a.d - b.d)[0] || near[0];
+      let as = o.dirs3 || o.dirs || null;
+      if (!as) { as = []; near.forEach(n => n.as.forEach(a => { if (!as.some(b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.12)) { as.push(a); } })); }
+      if (!as.length && o.rot != null) { as = [o.rot, o.rot + Math.PI]; }
+      // la conduite « porteuse » d'abord : ses deux directions en tête de liste
+      if (host && !host.end && !o.dirs3 && !o.dirs) { const h = host.as; as = h.concat(as.filter(a => !h.some(b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.12))); }
+      const dirs = as.map(a => gp({ x: o.x + Math.cos(a) * STEP, y: o.y + Math.sin(a) * STEP })).filter(Boolean).map(ll);
+      const ods = []; near.forEach(n => { const d = odNum(n.pd); if (d && ods.indexOf(d) < 0) { ods.push(d); } });
+      const dn = parseFloat(String(o.d || def.d || '').replace(/[^\d.,]/g, '').replace(',', '.')) || 0;
+      items.push({ oid: o.id, kind: 'acc', type: TYPE3D[cat] || 'autre', name: accText(o).split('\n')[0] || def.name, col: accColor(o, ph, u), depth: host ? lineDepth(host.L) : (DEPTH[cat] || 1.2), diam: 300, pts: [ll(q)],
+        x: { sym: def.sym || '', an: def.name || '', dn: dn, dirs: dirs, od: host ? odNum(host.pd) : 0, ods: ods, mat: host ? matKey(host.pd.desc) : '', net: o.net || def.net, auto: o.auto ? 1 : 0,
+          brTo: near.filter(n => n.end && n.pd.dash === 'dotted').map(n => gp({ x: o.x + Math.cos(n.as[0]) * STEP, y: o.y + Math.sin(n.as[0]) * STEP })).filter(Boolean).map(ll)[0] } });
     }
   });
   return { items: items, skipped: skipped };

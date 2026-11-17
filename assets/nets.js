@@ -114,7 +114,7 @@ function add(items, src) {
 export function replaceFromPhoto(key, items) {
   nets = nets.filter(n => !(n.src === 'photo' && n.ph === key));
   (items || []).forEach(it => {
-    nets.push({ id: uid(), type: TYPES[it.type] ? it.type : 'autre', name: String(it.name || '').slice(0, 60), depth: it.depth, diam: it.diam, col: it.col, kind: it.kind === 'pipe' ? undefined : it.kind, src: 'photo', ph: key, sid: it.oid, pts: it.pts });
+    nets.push({ id: uid(), type: TYPES[it.type] ? it.type : 'autre', name: String(it.name || '').slice(0, 60), depth: it.depth, diam: it.diam, col: it.col, kind: it.kind === 'pipe' ? undefined : it.kind, src: 'photo', ph: key, sid: it.oid, pts: it.pts, x: it.x || undefined });
   });
   save(); render(); list();
 }
