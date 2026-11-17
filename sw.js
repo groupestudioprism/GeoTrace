@@ -3,7 +3,7 @@
 const CACHE = 'geotrace-v1.29.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
-  'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js', 'assets/chantier.js', 'assets/devs.js', 'assets/phases.js', 'assets/nets.js', 'assets/planning.js', 'assets/repere.js', 'assets/repere-core.js', 'assets/reseaux.js', 'assets/symlib.js', 'assets/photoproj.js', 'assets/autocal.js', 'assets/projcal.js', 'assets/zones3d.js',
+  'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js', 'assets/chantier.js', 'assets/devs.js', 'assets/phases.js', 'assets/nets.js', 'assets/planning.js', 'assets/repere.js', 'assets/repere-core.js', 'assets/reseaux.js', 'assets/repereview.js', 'assets/symlib.js', 'assets/photoproj.js', 'assets/autocal.js', 'assets/projcal.js', 'assets/zones3d.js',
   'assets/symbol.png', 'assets/wordmark.svg', 'assets/wordmark-dark.svg', 'assets/sturno-emblem.png', 'assets/logo-geotrace.png', 'assets/favicon.png',
   'vendor/leaflet/leaflet.css', 'vendor/leaflet/MarkerCluster.css', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.markercluster.js',
   'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png', 'vendor/leaflet/images/marker-icon.png',
