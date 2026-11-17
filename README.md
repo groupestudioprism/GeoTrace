@@ -224,6 +224,11 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.24.0 : retrait du scan 3D et de l'onglet Réseaux
+
+À refaire plus tard. Retirés : le scan 3D (nuage de points), le bouton Réseaux et le plan en vue de dessus, les réseaux dessinés sur la carte, et les fichiers `plan.js` et `netlayer.js`.
+Conservés : le calage automatique du projet (y compris les vues de dessus), l'en-tête simplifié (menus 3D et ?), et le menu **Annotations** de la visionneuse qui montre ou masque les dessins de la photo et ceux des autres photos.
+
 ## Version 1.23.0 : en-tête simplifié, Réseaux = plan avec tous les outils, filtre d'annotations
 
 - **Réseaux** (en haut) ouvre directement le plan aérien (sur un chantier long de plusieurs km, il couvre la zone visible de la carte au moment du clic : zoomez sur le secteur à dessiner avant de cliquer) en vue de dessus avec les mêmes outils que le repérage d'une photo. La barre de dessin sur la carte de la 1.22.0 est supprimée.

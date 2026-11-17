@@ -739,7 +739,7 @@ function ghostBlock() {
 }
 
 function calibBlock() {
-  if (!curCam || curCam.plan) { return ''; }
+  if (!curCam) { return ''; }
   const a = curAdj || ADJ0();
   const sl = (f, label, min, max, step, unit) => '<label class="rp-f"><span>' + label + ' : <b>' + (Math.round(a[f] * 100) / 100) + unit + '</b></span><input type="range" data-adj="' + f + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + a[f] + '"></label>';
   let h = '<div class="rp-grp"><h4>Caler la photo</h4>';

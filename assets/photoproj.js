@@ -70,27 +70,7 @@ const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
    photo = { lat, lon, heading, pitch, f35, dev, rel, key, name, adj? }
    size  = { w, h } : taille de l'image sur laquelle on dessine
    Renvoie null si la photo n'a pas de position ou de cap. */
-/* Le « plan » : une vue de dessus exacte (carte), sans perspective. photo.plan = { z, x0, y0 } :
-   niveau de zoom de la carte et position, en pixels de carte, du coin haut-gauche de l'image. */
-const TS = 256;
-const lon2px = (lon, z) => (lon + 180) / 360 * TS * Math.pow(2, z);
-const lat2px = (lat, z) => (1 - Math.log(Math.tan(lat * RAD) + 1 / Math.cos(lat * RAD)) / Math.PI) / 2 * TS * Math.pow(2, z);
-const px2lon = (x, z) => x / (TS * Math.pow(2, z)) * 360 - 180;
-const px2lat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / (TS * Math.pow(2, z))))) / RAD;
-export const planGeo = { lon2px, lat2px, px2lon, px2lat };
-function planCamera(photo, size) {
-  const P = photo.plan, frame = makeFrame(photo.lat, photo.lon);
-  const cam = { frame: frame, size: size, pos: [0, 0, 0], plan: true };
-  cam.toGround = function (px, py) {
-    const lat = px2lat(P.y0 + py, P.z), lon = px2lon(P.x0 + px, P.z), en = frame.toEN(lat, lon);
-    return { lat: lat, lon: lon, e: en[0], n: en[1] };
-  };
-  cam.toPixel = function (lat, lon) { return { x: lon2px(lon, P.z) - P.x0, y: lat2px(lat, P.z) - P.y0 }; };
-  return cam;
-}
-
 export function makeCamera(photo, size) {
-  if (photo && photo.plan && size && size.w) { return planCamera(photo, size); }
   if (!photo || photo.lat == null || photo.lon == null || photo.heading == null || !size || !size.w) {
     return null;
   }
