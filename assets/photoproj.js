@@ -18,19 +18,23 @@ import { makeFrame } from './geo.js';
 
 const RAD = Math.PI / 180;
 
-// Les réglages fins d'une photo faits dans la vue 3D (cap, inclinaison, zoom...)
-function adjOf(p) {
+// Les réglages fins d'une photo pour les RÉSEAUX (repérage). Ils sont séparés de ceux de la maquette :
+// la maquette Revit a son propre calage (vue 3D), les réseaux ont le leur.
+const KEY = 'geotrace:rvue:';
+export function reseauAdj(p) {
   const base = { yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 };
-  if (p.adj) {
-    return Object.assign(base, p.adj);
-  }
   try {
-    const own = localStorage.getItem('geotrace:vue:' + (p.key || p.name)) || localStorage.getItem('geotrace:vue:*commun:' + (p.dev || 'phone'));
-    if (own) {
-      return Object.assign(base, JSON.parse(own));
-    }
+    const own = localStorage.getItem(KEY + (p.key || p.name));
+    if (own) { return Object.assign(base, JSON.parse(own)); }
   } catch (e) { /* stockage indisponible */ }
   return base;
+}
+export function saveReseauAdj(p, a) {
+  try { localStorage.setItem(KEY + (p.key || p.name), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ }
+}
+function adjOf(p) {
+  const base = { yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 };
+  return p.adj ? Object.assign(base, p.adj) : reseauAdj(p);
 }
 
 // Angle de vue vertical (en degrés), d'après la focale équivalente 35 mm

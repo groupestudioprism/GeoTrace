@@ -56,7 +56,7 @@ let ghosts = null;     // { ph: {w,h,objects}, cams, recs } : dessins des autres
 let curCam = null;     // la caméra de la photo ouverte (ou null)
 let others = [];       // les autres photos : { key, name, photo, rec }
 let hintText = '';
-let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, zoom, décalages), les mêmes que dans la vue 3D
+let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, zoom, décalages), propres aux réseaux (la maquette a son propre calage)
 let calib = null;      // calage en cours : { pairs, pending, start }
 let sendTimer = null;
 let ref = null;        // photo de référence affichée en haut à gauche pendant le calage par points
@@ -475,7 +475,7 @@ function endCalib(ok) {
   const c = calib;
   refClose();
   calib = null; tool = 'select'; canvas.dataset.tool = 'select';
-  if (ok && c.pairs.length) { applyAdj(curAdj, true); say('Photo calée. Le réglage est aussi utilisé dans la vue 3D.'); }
+  if (ok && c.pairs.length) { applyAdj(curAdj, true); say('Photo calée pour les réseaux (le calage de la maquette reste indépendant).'); }
   else { applyAdj(c.start, false); say(''); }
   syncPanel(); render();
 }
@@ -729,7 +729,7 @@ function calibBlock() {
       (calib.ref ? '<div class="rp-row"><button class="btn small" data-do="ref-next" type="button">Autre photo de référence</button></div>' : '') +
       '<div class="rp-row"><button class="btn small primary" data-do="calib-ok" type="button">Terminer</button><button class="btn small" data-do="calib-undo" type="button">Retirer le dernier</button><button class="btn small" data-do="calib-cancel" type="button">Annuler</button></div>';
   } else {
-    h += '<p class="hint">Si les dessins des autres photos ne tombent pas au bon endroit, la position ou le cap de cette photo est légèrement faux (GPS, boussole). Calez-la sur eux : le réglage sert aussi dans la vue 3D.</p>' +
+    h += '<p class="hint">Si les dessins des autres photos ne tombent pas au bon endroit, la position ou le cap de cette photo est légèrement faux (GPS, boussole). Calez-la sur eux : ce réglage ne concerne que les réseaux, pas la maquette.</p>' +
       '<div class="rp-row"><button class="btn small primary" data-do="autocal" type="button"' + (autoBusy || !info.neighbors ? ' disabled' : '') + '>' + (autoBusy ? 'Calage…' : 'Recaler automatiquement') + '</button></div>' +
       '<div class="rp-row"><button class="btn small" data-do="refcal" type="button"' + (info.neighbors ? '' : ' disabled') + '>Caler par points communs</button></div>' +
       '<div class="rp-row"><button class="btn small" data-do="calib" type="button"' + (ghosts ? '' : ' disabled') + '>Caler sur un dessin</button><button class="btn small" data-do="adj-reset" type="button">Remettre à zéro</button></div>' +

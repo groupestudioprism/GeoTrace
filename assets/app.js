@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.18.3';
+const VERSION = '1.18.4';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -730,7 +730,9 @@ function closeViewer() {
 /* Repérage sur photo : annotation simple, rangée par photo dans le navigateur */
 let Rep = null;
 const reps = store.get('geotrace:repere', {});
-const poseOf = (p, M) => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, adj: M ? M.photoAdj(p) : undefined });
+// Calage de la photo pour les RÉSEAUX : séparé de celui de la maquette (clé propre)
+const rAdj = p => { try { return JSON.parse(localStorage.getItem('geotrace:rvue:' + (p.key || p.name)) || 'null') || undefined; } catch (e) { return undefined; } };
+const poseOf = (p, M) => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, adj: rAdj(p) });
 const repCount = d => !d ? 0 : Array.isArray(d) ? d.length : (d.objs || []).length;
 function saveReps() { store.set('geotrace:repere', reps); paintRepBtn(); }
 // Envoie (ou retire, si items vaut null) le repérage d'une photo dans la vue 3D
@@ -749,7 +751,7 @@ async function openRepere() {
   const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
   Rep.open({
     name: p.name, src, data: reps[p.key], photo: poseOf(p, M), others,
-    onAdj: a => { if (M) M.savePhotoAdj(p, a); },
+    onAdj: a => { try { localStorage.setItem('geotrace:rvue:' + (p.key || p.name), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } },
     // Photos voisines (≤ 120 m, avec position) : les 3 plus proches servent de référence au calage automatique
     neighbors: async () => {
       const R = Math.PI / 180, d = o => Math.hypot((o.lon - p.lon) * R * 6371009 * Math.cos(p.lat * R), (o.lat - p.lat) * R * 6371009);
