@@ -28,6 +28,7 @@ const clean = z => z && TYPES[z.type] && Array.isArray(z.pts) && z.pts.length >=
 export const getZones = () => zones.filter(clean);
 export const exportData = () => { const dv = Dev.exportData(), ph = Ph.exportData(), nt = Net.exportData(); return zones.length || dv || ph || nt ? { v: 1, zones: getZones(), devs: dv || [], nets: nt || [], phases: ph } : null; };
 export const getNets = Net.getNets;
+export const netsFromPhoto = Net.replaceFromPhoto;
 export const NET_COLORS = Net.COLORS;
 export const getPhases = Ph.getPhases, getPhase = Ph.getCurrent, setPhase = Ph.setCurrent, onPhase = Ph.onCurrent, addToPhase = Ph.addElement, setPlanning = Ph.setPlanning, refreshPhases = Ph.refresh;
 export const getDevs = Dev.getDevs;

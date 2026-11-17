@@ -199,3 +199,27 @@ Dans la visionneuse, le bouton « Repérer » ouvre la photo en mode dessin. On 
 
 La molette ou le pincement zoome, le fond se déplace au doigt ou à la souris (ou clic droit, ou barre d'espace). Annuler et rétablir sont disponibles (Ctrl+Z et Ctrl+Y). « Exporter l'image » enregistre la photo avec le dessin. Le repérage est gardé dans le navigateur pour chaque photo, et le bouton affiche le nombre d'objets dessinés.
 
+
+## Version 1.18.0 : repérage complet, envoi en 3D et dessins des autres photos
+
+Le repérage sur photo reprend toutes les options de l'outil « Repérage de réseaux sur photos », partie Photos, en manuel comme en automatique.
+
+**Dessin manuel**
+- Outils : Sélection, Conduite, Branchement, Regard, Accessoire, Texte, Légende. Panneau à trois onglets : Dessiner, Objet, Options.
+- Préréglages : 7 réseaux (AEP, EU, EP neuf et existant, à abandonner), conduites avec matière et diamètre, branchements en pointillé, regards (repère R1, R2…), 21 accessoires. On peut en ajouter ses propres.
+- Les points d'une conduite s'accrochent aux regards, aux accessoires et aux autres conduites ; l'objet lié entraîne la conduite quand on le déplace. Poignées sur les sommets et les milieux, taille des regards et accessoires, étiquettes déplaçables, texte libre, annuler / rétablir, export de l'image avec la légende.
+
+**Automatismes** (chacun se coupe dans Options)
+- Branchement automatique : depuis la conduite la plus proche, avec regard de branchement en assainissement.
+- Tracé parallèle d'une conduite (côté, distance, type), avec report des branchements ; il suit l'origine tant qu'on ne le modifie pas.
+- Raccords sur l'eau potable : coudes 45° et 90°, tés, réductions, raccordements intermatériaux, raccordements sur existant, prises de branchement, citerneaux en bout de branchement.
+- Montages d'accessoires : poser une purge, une vidange, une ventouse, un poteau incendie, un compteur… sur une conduite crée le té, la vanne et l'accessoire, avec le diamètre adapté. Les règles se modifient dans Options.
+- Diamètre des vannes et purges repris de la conduite, croisements avec transparence et signalement eau potable / assainissement, placement des étiquettes sans chevauchement, légende automatique.
+
+**Envoi en 3D**
+« Envoyer en 3D » place le repérage de la photo dans la vue 3D : conduites en tuyaux colorés sous le sol, regards en puits, accessoires en repères. Les objets sont placés sur le sol à partir de la position et de la direction de la photo (réglages de la vue 3D compris). Une fois envoyé, le repérage reste à jour à chaque modification ; « Retirer de la 3D » l'enlève. La précision dépend de la photo : sol supposé plat, objets loin de l'appareil moins fiables.
+
+**Dessins des autres photos**
+Quand on ouvre une photo, les repérages des autres photos proches apparaissent en transparence, reportés dans la vue. Avec l'outil Sélection on peut les déplacer, les prolonger, les reprendre dans la photo ouverte ou les supprimer : la modification est enregistrée sur la photo d'origine (et la 3D si elle y était envoyée).
+
+Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).

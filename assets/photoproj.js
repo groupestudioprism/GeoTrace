@@ -1,0 +1,125 @@
+/* =====================================================================
+   PHOTO <-> TERRAIN
+   ---------------------------------------------------------------------
+   Permet de passer d'un point de la photo (en pixels) à un point du
+   terrain (latitude / longitude), et inversement.
+
+   Principe : on connaît la position de l'appareil, son cap, son
+   inclinaison et sa focale. Un point de la photo correspond donc à une
+   demi-droite dans l'espace. On cherche où cette demi-droite touche le
+   sol, que l'on suppose plat (altitude 0). C'est la même caméra que
+   celle de la vue 3D : le dessin tombe donc au même endroit.
+
+   Précision : bonne près de l'appareil, moins bonne vers l'horizon ou
+   sur un terrain en pente. C'est une aide au repérage, pas un levé.
+   ===================================================================== */
+
+import { makeFrame } from './geo.js';
+
+const RAD = Math.PI / 180;
+
+// Les réglages fins d'une photo faits dans la vue 3D (cap, inclinaison, zoom...)
+function adjOf(p) {
+  const base = { yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 };
+  if (p.adj) {
+    return Object.assign(base, p.adj);
+  }
+  try {
+    const own = localStorage.getItem('geotrace:vue:' + (p.key || p.name)) || localStorage.getItem('geotrace:vue:*commun:' + (p.dev || 'phone'));
+    if (own) {
+      return Object.assign(base, JSON.parse(own));
+    }
+  } catch (e) { /* stockage indisponible */ }
+  return base;
+}
+
+// Angle de vue vertical (en degrés), d'après la focale équivalente 35 mm
+function verticalFov(p, aspect) {
+  let f = 26;
+  if (p.f35 > 0) {
+    f = p.f35;
+  } else if (p.dev === 'drone') {
+    f = 24;
+  }
+  const diag = Math.atan(43.267 / (2 * f));
+  const vert = Math.atan(Math.tan(diag) / Math.sqrt(1 + aspect * aspect));
+  return 2 * vert / RAD;
+}
+
+// Les trois axes de la caméra : droite (r), haut (u), avant (f)
+function axes(heading, pitch, rollDeg) {
+  const h = heading * RAD;
+  const t = pitch * RAD;
+  const f = [Math.sin(h) * Math.cos(t), Math.cos(h) * Math.cos(t), Math.sin(t)];
+  const r0 = [Math.cos(h), -Math.sin(h), 0];
+  const u0 = [r0[1] * f[2] - r0[2] * f[1], r0[2] * f[0] - r0[0] * f[2], r0[0] * f[1] - r0[1] * f[0]];
+  const cr = Math.cos(rollDeg * RAD);
+  const sr = Math.sin(rollDeg * RAD);
+  const r = [r0[0] * cr + u0[0] * sr, r0[1] * cr + u0[1] * sr, r0[2] * cr + u0[2] * sr];
+  const u = [u0[0] * cr - r0[0] * sr, u0[1] * cr - r0[1] * sr, u0[2] * cr - r0[2] * sr];
+  return { r: r, u: u, f: f };
+}
+
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+/* Crée la caméra d'une photo.
+   photo = { lat, lon, heading, pitch, f35, dev, rel, key, name, adj? }
+   size  = { w, h } : taille de l'image sur laquelle on dessine
+   Renvoie null si la photo n'a pas de position ou de cap. */
+export function makeCamera(photo, size) {
+  if (!photo || photo.lat == null || photo.lon == null || photo.heading == null || !size || !size.w) {
+    return null;
+  }
+  const a = adjOf(photo);
+  const frame = makeFrame(photo.lat, photo.lon);
+  const aspect = size.w / size.h;
+  let height = 1.6;
+  if (photo.dev === 'drone') {
+    height = photo.rel != null ? photo.rel : 30;
+  }
+  const pos = [a.e, a.n, height + a.z];
+  const heading = photo.heading + a.yaw;
+  const pitch = Math.max(-89, Math.min(89, (photo.pitch || 0) + a.pitch));
+  const ax = axes(heading, pitch, a.roll);
+  const vfov = 2 * Math.atan(Math.tan(verticalFov(photo, aspect) * RAD / 2) / a.zoom);
+  const tv = Math.tan(vfov / 2);
+
+  const cam = { frame: frame, size: size };
+
+  // Point de la photo -> position sur le sol, en latitude / longitude (ou null)
+  cam.toGround = function (px, py) {
+    const nx = (px / size.w - 0.5) * 2;
+    const ny = (0.5 - py / size.h) * 2;
+    const d = [
+      ax.f[0] + ax.r[0] * nx * tv * aspect + ax.u[0] * ny * tv,
+      ax.f[1] + ax.r[1] * nx * tv * aspect + ax.u[1] * ny * tv,
+      ax.f[2] + ax.r[2] * nx * tv * aspect + ax.u[2] * ny * tv
+    ];
+    if (d[2] >= -0.01) {
+      return null; // le regard passe au-dessus de l'horizon
+    }
+    const t = -pos[2] / d[2];
+    if (t > 400) {
+      return null; // trop loin pour être fiable
+    }
+    const e = pos[0] + d[0] * t;
+    const n = pos[1] + d[1] * t;
+    const ll = frame.toLL(e, n);
+    return { lat: ll[0], lon: ll[1], e: e, n: n };
+  };
+
+  // Position sur le sol (latitude / longitude) -> point de la photo (ou null)
+  cam.toPixel = function (lat, lon, z) {
+    const en = frame.toEN(lat, lon);
+    const d = [en[0] - pos[0], en[1] - pos[1], (z || 0) - pos[2]];
+    const zc = dot(d, ax.f);
+    if (zc < 0.3) {
+      return null; // derrière l'appareil
+    }
+    const nx = dot(d, ax.r) / (zc * tv * aspect);
+    const ny = dot(d, ax.u) / (zc * tv);
+    return { x: (nx / 2 + 0.5) * size.w, y: (0.5 - ny / 2) * size.h };
+  };
+
+  return cam;
+}

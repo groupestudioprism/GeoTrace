@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.17.1';
+const VERSION = '1.18.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -728,14 +728,33 @@ function closeViewer() {
 /* Repérage sur photo : annotation simple, rangée par photo dans le navigateur */
 let Rep = null;
 const reps = store.get('geotrace:repere', {});
+const poseOf = p => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel });
+const repCount = d => !d ? 0 : Array.isArray(d) ? d.length : (d.objs || []).length;
+function saveReps() { store.set('geotrace:repere', reps); paintRepBtn(); }
+// Envoie (ou retire, si items vaut null) le repérage d'une photo dans la vue 3D
+function sendRepTo3D(key, items) {
+  if (Chantier && Chantier.netsFromPhoto) Chantier.netsFromPhoto(key, items);
+  if (!$('v3d').hidden) status('Réseaux mis à jour : rouvrez la vue 3D pour les voir.', { ms: 4000 });
+}
 async function openRepere() {
   const p = vList[vIdx]; if (!p) return;
   const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
   if (!src) { status('Cette photo ne peut pas être repérée dans le navigateur.', { ms: 4000 }); return; }
-  if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { status('Repérage indisponible.', { ms: 4000 }); return; } }
-  Rep.open({ name: p.name, src, data: reps[p.key], onSave: d => { if (d.length) reps[p.key] = d; else delete reps[p.key]; store.set('geotrace:repere', reps); paintRepBtn(); } });
+  if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Repérage indisponible.', { ms: 4000 }); return; } }
+  // Les autres photos qui ont déjà un repérage (au nouveau format) : leurs dessins sont montrés dans celle-ci
+  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o), data: reps[o.key] }));
+  Rep.open({
+    name: p.name, src, data: reps[p.key], photo: poseOf(p), others,
+    onSave: d => { if (d.objs.length) reps[p.key] = d; else delete reps[p.key]; saveReps(); },
+    onSaveOther: (key, d) => {
+      reps[key] = d; saveReps();
+      const o = photos.find(x => x.key === key);
+      if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o)); if (items) sendRepTo3D(key, items); }
+    },
+    onSend3D: items => sendRepTo3D(p.key, items)
+  });
 }
-function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = (reps[p.key] || []).length; b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
+function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
 $('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);
 $('vPrev').addEventListener('click', () => { if (vIdx > 0) { vIdx--; showInViewer(); } });
@@ -1397,7 +1416,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: ['#chBtn', '#chPanel'], t: 'Déviations', x: 'Dans « Chantier », l’onglet Déviations : choisissez le type (véhicules, piétons, alternat, route barrée), cliquez les points du parcours, double-clic pour finir. Réglez la largeur, inversez le sens ou déplacez les points. En 3D : chaussée provisoire, flèches, panneaux, cônes, barrières ou feux.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=d]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Phases', x: 'L’onglet Phases découpe le chantier : dates, installations et déviations présentes, éléments de la maquette construits pendant la phase, et page du planning PDF (trouvé dans le dossier ou choisi à la main). « Afficher cette phase » filtre la carte ; en vue 3D, le sélecteur Phase montre l’avancement, et un clic sur un élément permet de l’ajouter à une phase.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=p]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Réseaux existants', x: 'L’onglet Réseaux : « Récupérer les données ouvertes de la vue » charge les canalisations et lignes électriques de l’IGN et d’OpenStreetMap ; « Importer un fichier » lit un GeoJSON ou KML (WGS 84 ou Lambert-93) ; ou tracez-les d’après un plan DT-DICT, avec profondeur et diamètre. En 3D, la case « Réseaux enterrés » les montre sous le sol.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=n]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
-    { sel: '#map', t: 'Repérer les réseaux sur une photo', x: 'Ouvrez une photo en grand puis « Repérer » : dessinez à la main les conduites (réseau neuf ou existant, diamètre), les regards, les accessoires et des textes. Le repérage est gardé pour chaque photo, et « Exporter l’image » enregistre la photo avec le dessin.' },
+    { sel: '#map', t: 'Repérer les réseaux sur une photo', x: 'Ouvrez une photo en grand puis « Repérer » : dessinez conduites, branchements, regards, accessoires et textes, avec raccords et montages automatiques. « Envoyer en 3D » place le repérage dans la vue 3D, et les dessins des autres photos apparaissent en transparence pour les modifier ou les prolonger.' },
     { sel: ['#maqBtn', '#maqPanel'], t: 'Maquette 3D', x: 'Chargez ici la maquette Revit (fichier IFC ou GLB, ou lien Nextcloud). Elle se place d’après Revit, ou avec des points GPS que vous ajoutez. « Exporter le calage » enregistre le placement pour le réutiliser.', pre: () => { if ($('maqPanel').hidden) { setMaqPanel(true); tourOpened.maq = true; } }, post: () => { if (tourOpened.maq) { setMaqPanel(false); tourOpened.maq = false; } } },
     { sel: '#vue3dBtn', t: 'Photos en 3D', x: 'Une fois la maquette chargée, ce bouton l’ouvre en 3D avec tous les repères photo. Cliquez un repère, ou une vignette de la barre en bas, pour voler jusqu’à l’endroit de la prise de vue.',
       demo: '<div class="row"><span class="fake">Rechercher…</span><span class="th sel"></span><span class="th"></span><span class="th"></span></div><div class="row"><span class="tb">+</span><span class="tb">−</span><span class="tb">⌖</span><small>Zoom avant, zoom arrière, vue de dessus</small></div><small>Souris : glisser pour tourner, clic droit ou Maj + glisser pour déplacer, molette pour zoomer.</small>' },

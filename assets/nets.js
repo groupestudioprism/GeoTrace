@@ -25,7 +25,7 @@ const uid = () => 'n' + Math.random().toString(36).slice(2, 8);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const readLocal = () => { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); return j && Array.isArray(j.nets) ? j.nets : null; } catch (e) { return null; } };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ v: 1, nets: nets })); } catch (e) { /* stockage indisponible */ } onChange(); };
-const clean = d => d && TYPES[d.type] && Array.isArray(d.pts) && d.pts.length >= 2 && d.pts.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+const clean = d => d && TYPES[d.type] && Array.isArray(d.pts) && (d.pts.length >= 2 || (d.kind && d.pts.length >= 1)) && d.pts.every(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 export const getNets = () => nets.filter(clean);
 export const exportData = () => nets.length ? getNets() : null;
 /* Les données locales sont gardées par projet (nom de la maquette) : un autre projet n'hérite pas des phases du précédent. */
@@ -110,6 +110,15 @@ function add(items, src) {
   save(); render(); list(); return n;
 }
 
+/* Repérage fait sur une photo : remplace ce qui venait déjà de cette photo (items = null : retire tout) */
+export function replaceFromPhoto(key, items) {
+  nets = nets.filter(n => !(n.src === 'photo' && n.ph === key));
+  (items || []).forEach(it => {
+    nets.push({ id: uid(), type: TYPES[it.type] ? it.type : 'autre', name: String(it.name || '').slice(0, 60), depth: it.depth, diam: it.diam, col: it.col, kind: it.kind === 'pipe' ? undefined : it.kind, src: 'photo', ph: key, sid: it.oid, pts: it.pts });
+  });
+  save(); render(); list();
+}
+
 /* ---------- données ouvertes de la vue ---------- */
 const wfs = (layer, b) => `https://data.geopf.fr/wfs/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=BDTOPO_V3:${layer}&outputFormat=application/json&srsName=EPSG:4326&count=800&bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()},EPSG:4326`;
 async function getJSON(url, opt) { const r = await fetch(url, opt); if (!r.ok) throw new Error('http ' + r.status); return r.json(); }
@@ -153,7 +162,7 @@ function render() {
   layer.clearLayers();
   if (!show) { map.removeLayer(layer); return; }
   layer.addTo(map);
-  getNets().filter(d => vis(d.id)).forEach(d => {
+  getNets().filter(d => d.pts.length > 1 && vis(d.id)).forEach(d => {
     const t = TYPES[d.type], on = d.id === sel;
     const line = L.polyline(d.pts, { color: t.color, weight: on ? 5 : 3.2, opacity: .95, dashArray: d.depth < 0 ? '1 7' : '9 5', lineCap: 'round', bubblingMouseEvents: false });
     line.bindTooltip(`${esc(d.name)} · ${t.label}${d.depth > 0 ? ' · prof. ' + d.depth + ' m' : ''}`, { sticky: true });

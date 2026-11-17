@@ -627,18 +627,18 @@ body.on-welcome .pop-wrap { display: none; }
 .rp-bar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.12); flex-wrap: wrap; }
 .rp-bar .v-title { min-width: 0; flex: 1 1 160px; }
 .rp-tools { display: inline-flex; gap: 4px; padding: 3px; background: rgba(255,255,255,.07); border-radius: 10px; }
-.rp-tools button { height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: #cfe0f2; font: 600 .84rem var(--font); cursor: pointer; }
+.rp-tools button { height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #cfe0f2; font: 600 .84rem var(--font); cursor: pointer; }
 .rp-tools button:hover { background: rgba(255,255,255,.12); }
 .rp-tools button[aria-pressed="true"] { background: var(--cyan); color: #04264b; }
 .rp-act { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .rp-body { flex: 1; min-height: 0; display: flex; }
 .rp-stage { position: relative; flex: 1; min-width: 0; overflow: hidden; }
 #rpCv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: default; }
-#rpCv[data-tool="line"], #rpCv[data-tool="manhole"], #rpCv[data-tool="acc"], #rpCv[data-tool="text"] { cursor: crosshair; }
+#rpCv[data-tool="line"], #rpCv[data-tool="branch"], #rpCv[data-tool="manhole"], #rpCv[data-tool="acc"], #rpCv[data-tool="text"], #rpCv[data-tool="legend"] { cursor: crosshair; }
 #rpCv.pan { cursor: grabbing; }
 .rp-msg { position: absolute; inset: 0; display: grid; place-items: center; color: #cfe0f2; font-size: .9rem; pointer-events: none; }
 .rp-ted { position: absolute; z-index: 3; width: 190px; padding: 6px 8px; border-radius: 8px; border: 2px solid var(--cyan); background: #fff; color: #131B24; font: 600 .9rem var(--font); resize: none; }
-.rp-side { width: 270px; flex: none; overflow-y: auto; padding: 12px 14px; background: var(--panel); color: var(--ink); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+.rp-side { width: 300px; flex: none; overflow-y: auto; padding: 12px 14px; background: var(--panel); color: var(--ink); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
 .rp-grp h4 { margin: 0 0 6px; font-size: .78rem; font-weight: 700; color: var(--muted); }
 .rp-nets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .rp-net { display: flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: 600 .78rem var(--font); text-align: left; cursor: pointer; }
@@ -651,6 +651,20 @@ body.on-welcome .pop-wrap { display: none; }
 .rp-side .chip { height: 28px; padding: 0 10px; cursor: pointer; }
 .rp-side .rp-chips + input { margin-top: 7px; }
 .rp-side .chip[aria-pressed="true"] { color: var(--ink); background: var(--sel); border-color: var(--bleu); }
+
+.rp-tabs { display: flex; gap: 4px; padding: 3px; background: var(--panel-2); border-radius: 9px; }
+.rp-tab { flex: 1; height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 600 .82rem var(--font); cursor: pointer; }
+.rp-tab[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+.rp-panel { display: flex; flex-direction: column; gap: 10px; }
+.rp-side select, .rp-side textarea, .rp-side input[type="number"] { width: 100%; box-sizing: border-box; min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--ink); font: .86rem var(--font); }
+.rp-side textarea { resize: vertical; }
+.rp-f { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: var(--muted); font-weight: 600; }
+.rp-c { display: flex; align-items: center; gap: 7px; font-size: .84rem; color: var(--ink); }
+.rp-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.rp-det { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 8px; }
+.rp-det summary { cursor: pointer; font-weight: 600; font-size: .84rem; }
+.rp-det[open] { gap: 8px; }
 .rp-end { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
 .rp-side .hint { color: var(--muted); }
 .btn.danger { color: var(--danger); }

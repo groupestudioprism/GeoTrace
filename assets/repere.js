@@ -1,974 +1,762 @@
 /* =====================================================================
-   REPÉRAGE SUR PHOTO
+   REPÉRAGE SUR PHOTO : L'ÉCRAN
    ---------------------------------------------------------------------
-   Ce fichier permet de dessiner sur une photo : des conduites (lignes),
-   des regards (ronds), des accessoires (petits symboles) et des textes.
+   Ce fichier gère ce que l'on voit et ce que l'on touche : la photo,
+   la barre d'outils, le panneau de droite, la souris et le doigt.
 
-   Comment lire ce fichier :
-   1. Les réglages et les variables sont tout en haut.
-   2. Puis les fonctions qui DESSINENT sur la photo.
-   3. Puis les fonctions qui réagissent à la souris / au doigt.
-   4. Puis la construction de l'écran (les boutons).
-   5. Tout en bas : open() et close(), les fonctions que le reste du
-      site utilise.
+   Tout le calcul (dessin des objets, raccords automatiques, montages,
+   branchements, tracés parallèles...) est dans repere-core.js.
+   Le lien entre la photo et le terrain (pour la 3D et pour voir les
+   dessins des autres photos) est dans photoproj.js.
 
-   Important : tous les objets dessinés sont rangés avec les coordonnées
-   de la PHOTO (en pixels de la photo), pas celles de l'écran.
-   Comme ça, le dessin reste au bon endroit quand on zoome.
+   Plan du fichier :
+     1. Les variables
+     2. Petites fonctions utiles
+     3. Les réglages enregistrés
+     4. Afficher (zoom, photo, dessin, fantômes)
+     5. Historique (annuler / rétablir) et enregistrement
+     6. La souris et le doigt
+     7. Le panneau de droite
+     8. Construire l'écran
+     9. Envoi en 3D, export de l'image
+    10. Les fonctions utilisées par le reste du site
    ===================================================================== */
 
+import * as C from './repere-core.js';
+import { makeCamera } from './photoproj.js';
 
-/* ---------- 1. Les réglages ---------- */
-
-// La liste des réseaux : un nom, une couleur, et parfois un style de trait.
-export const NETS = [
-  { id: 'aep-n', name: 'AEP neuf', col: '#3CA9E8' },
-  { id: 'aep-e', name: 'AEP existant', col: '#1F3FC8' },
-  { id: 'eu-n', name: 'EU neuf', col: '#F26A1B' },
-  { id: 'eu-e', name: 'EU existant', col: '#9A5B0A' },
-  { id: 'ep-n', name: 'EP neuf', col: '#35B568' },
-  { id: 'ep-e', name: 'EP existant', col: '#1C6B3A' },
-  { id: 'ab', name: 'À abandonner', col: '#C2278F', dash: 'dashed' }
-];
-
-// Les formes possibles pour un accessoire : [nom technique, nom affiché]
-const SHAPES = [
-  ['circle', 'Rond'],
-  ['diamond', 'Losange'],
-  ['triangle', 'Triangle'],
-  ['square', 'Carré']
-];
-
-// Les diamètres proposés en un clic
-const DIAMS = ['Ø110', 'Ø160', 'Ø200', 'Ø250', 'Ø315', 'Ø400', 'Ø500'];
+export const NETS = C.S.networks; // gardé pour compatibilité
 
 
-/* ---------- 2. Les variables du module ---------- */
-/* Une variable déclarée ici garde sa valeur tant que la page est ouverte. */
+/* ---------- 1. Les variables ---------- */
 
-let root = null;      // la grande fenêtre du repérage (un <div>)
-let canvas = null;    // la zone de dessin (un <canvas>)
-let ctx = null;       // le "pinceau" du canvas
-let img = null;       // la photo chargée
-let photoInfo = null; // les infos données par app.js (nom, sauvegarde...)
+let root = null;       // la fenêtre
+let canvas = null;     // la zone de dessin
+let ctx = null;        // le pinceau
+let img = null;        // la photo chargée
+let info = null;       // ce que le site nous a donné (nom, sauvegarde...)
+let ph = null;         // le repérage : { w, h, objects }
+let sentFlag = false;  // ce repérage a déjà été envoyé en 3D
 
-// La vue : comment la photo est placée à l'écran
-// scale = zoom, x et y = décalage
 const view = { scale: 1, x: 0, y: 0 };
-
-let objects = [];      // la liste de tout ce qui est dessiné
-let selected = -1;     // numéro de l'objet sélectionné (-1 = aucun)
-let tool = 'select';   // l'outil actif : select, line, manhole, acc, text
-let draft = null;      // la conduite en cours de tracé
-let history = [];      // les anciennes versions (pour "Annuler")
-let historyPos = -1;   // où on en est dans l'historique
-let drag = null;       // ce qu'on est en train de glisser
-let textEditor = null; // la petite zone de saisie d'un texte
-
-// Les choix faits dans le panneau de droite
-const settings = { net: 'aep-n', label: '', shape: 'circle', letter: '', size: 1 };
-
-// Les boutons du panneau (remplis dans buildScreen)
-const ui = {};
-
-// Pour le zoom au doigt et le déplacement de la photo
+let tool = 'select';
+let selId = null;      // objet sélectionné
+let gSel = null;       // dessin d'une autre photo sélectionné : { key, oid }
+let draft = null;      // conduite en cours de tracé : { pts: [], ext }
+let hover = null;      // position de la souris sur la photo
+let hoverSnap = null;  // objet qui attire le point
+let drag = null, panning = null, pinch = null, spaceDown = false, textEditor = null;
 const pointers = new Map();
-let pinch = null;
-let panning = null;
-let spaceDown = false;
+let history = [], historyPos = 0;
+let tab = 'draw';
+let armed = { pipe: null, mh: null, acc: null };
+let showGhosts = true;
+let ghosts = null;     // { ph: {w,h,objects}, cams, recs } : dessins des autres photos vus d'ici
+let curCam = null;     // la caméra de la photo ouverte (ou null)
+let others = [];       // les autres photos : { key, name, photo, rec }
+let hintText = '';
+
+const CFG = 'geotrace:repere:cfg';
 
 
-/* ---------- 3. Petites fonctions utiles ---------- */
+/* ---------- 2. Petites fonctions utiles ---------- */
 
-// Retrouve la couleur d'un réseau avec son id
-function colorOf(netId) {
-  for (let i = 0; i < NETS.length; i++) {
-    if (NETS[i].id === netId) {
-      return NETS[i].col;
-    }
-  }
-  return NETS[0].col;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const q = sel => root.querySelector(sel);
+const unit = () => (ph ? ph.w / 1000 : 1);
+const objOf = id => (ph ? ph.objects.find(o => o.id === id) : null);
+const clone = o => JSON.parse(C.snapshot([o]))[0];
+
+function canvasRect() { return canvas.getBoundingClientRect(); }
+function screenToPhoto(x, y) { return { x: (x - view.x) / view.scale, y: (y - view.y) / view.scale }; }
+function eventToPhoto(e) { const r = canvasRect(); return screenToPhoto(e.clientX - r.left, e.clientY - r.top); }
+// Une distance en pixels d'écran, convertie en pixels de photo
+const tolPx = n => n / view.scale;
+
+function say(text) { hintText = text || ''; const h = root && q('#rpHint'); if (h) { h.textContent = hintText; } }
+
+
+/* ---------- 3. Les réglages enregistrés ---------- */
+
+function readCfg() { try { return JSON.parse(localStorage.getItem(CFG) || 'null') || {}; } catch (e) { return {}; } }
+function saveCfg() {
+  try { localStorage.setItem(CFG, JSON.stringify({ s: C.S, ghosts: showGhosts, armed: armed })); } catch (e) { /* stockage indisponible */ }
+}
+// On charge les réglages dès que le fichier est lu : le moteur en a besoin tout de suite
+const cfg0 = readCfg();
+C.loadSettings(cfg0.s);
+showGhosts = cfg0.ghosts !== false;
+if (cfg0.armed) { armed = Object.assign(armed, cfg0.armed); }
+function fixArmed() {
+  if (!C.pipeOf(armed.pipe)) { armed.pipe = (C.S.pipes[0] || {}).id; }
+  if (!C.mhOf(armed.mh)) { armed.mh = (C.S.manholes[0] || {}).id; }
+  if (!C.accOf(armed.acc)) { armed.acc = (C.S.accessories[2] || C.S.accessories[0] || {}).id; }
+}
+fixArmed();
+
+
+/* ---------- 4. Afficher ---------- */
+
+// Les dessins des autres photos, reportés dans cette photo
+function computeGhosts() {
+  ghosts = null;
+  if (!curCam || !others.length) { return; }
+  const objs = [], cams = {}, recs = {};
+  others.forEach(function (o) {
+    if (!o.rec || !o.rec.objs || !o.rec.objs.length) { return; }
+    const cam = makeCamera(o.photo, { w: o.rec.w, h: o.rec.h });
+    if (!cam) { return; }
+    cams[o.key] = cam; recs[o.key] = o;
+    o.rec.objs.forEach(function (ob) {
+      if (ph.objects.some(x => x.from === o.key + ':' + ob.id)) { return; } // déjà repris ici
+      const p = C.projectObject(ob, cam, curCam);
+      if (p) { p.gk = o.key; objs.push(p); }
+    });
+  });
+  if (objs.length) { ghosts = { ph: { w: ph.w, h: ph.h, objects: objs }, cams: cams, recs: recs }; }
 }
 
-// Retrouve le style de trait (plein ou tirets) d'un réseau
-function dashOf(netId) {
-  for (let i = 0; i < NETS.length; i++) {
-    if (NETS[i].id === netId && NETS[i].dash) {
-      return NETS[i].dash;
-    }
-  }
-  return 'solid';
-}
-
-// Crée un élément HTML avec une classe et un contenu
-function makeElement(tag, className, html) {
-  const element = document.createElement(tag);
-  if (className) {
-    element.className = className;
-  }
-  if (html !== undefined) {
-    element.innerHTML = html;
-  }
-  return element;
-}
-
-// Protège un texte avant de le mettre dans du HTML
-// (sinon un nom contenant < ou > pourrait casser la page)
-function protectText(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// L'épaisseur de base des traits. Plus la photo est grande, plus c'est épais,
-// sinon le dessin serait minuscule sur une photo de 4000 pixels.
-function unit() {
-  let width = 1400;
-  if (img) {
-    width = img.naturalWidth;
-  }
-  return Math.max(1, width / 1400) * settings.size;
-}
-
-// Transforme un point de l'écran en point de la photo
-function screenToPhoto(screenX, screenY) {
-  return {
-    x: (screenX - view.x) / view.scale,
-    y: (screenY - view.y) / view.scale
-  };
-}
-
-// Donne la position et la taille de la zone de dessin sur l'écran
-function canvasRect() {
-  return canvas.getBoundingClientRect();
-}
-
-
-/* ---------- 4. Dessiner ---------- */
-
-// Règle le style du trait : plein, tirets ou pointillés
-function setLineStyle(c, kind, width) {
-  if (kind === 'dashed') {
-    c.setLineDash([width * 2.6, width * 1.6]);
-  } else if (kind === 'dotted') {
-    c.setLineDash([width * 0.1, width * 1.9]);
-  } else {
-    c.setLineDash([]);
-  }
-}
-
-// Écrit un texte avec un contour blanc, pour qu'il se lise sur toutes les photos
-function drawTextWithOutline(c, text, x, y, fontSize, color, align) {
-  c.font = '600 ' + fontSize + 'px "Public Sans","Segoe UI",system-ui,sans-serif';
-  c.textAlign = align || 'left';
-  c.textBaseline = 'middle';
-  c.lineJoin = 'round';
-  c.lineWidth = fontSize * 0.3;
-  c.strokeStyle = 'rgba(255,255,255,.95)';
-  c.strokeText(text, x, y);
-  c.fillStyle = color;
-  c.fillText(text, x, y);
-}
-
-// Prépare le contour d'une forme (rond, losange, triangle ou carré)
-function shapePath(c, shape, r) {
-  c.beginPath();
-  if (shape === 'square') {
-    c.rect(-r, -r, 2 * r, 2 * r);
-  } else if (shape === 'diamond') {
-    c.moveTo(0, -r * 1.25);
-    c.lineTo(r * 1.25, 0);
-    c.lineTo(0, r * 1.25);
-    c.lineTo(-r * 1.25, 0);
-    c.closePath();
-  } else if (shape === 'triangle') {
-    c.moveTo(0, -r * 1.2);
-    c.lineTo(r * 1.15, r * 0.9);
-    c.lineTo(-r * 1.15, r * 0.9);
-    c.closePath();
-  } else {
-    c.arc(0, 0, r, 0, Math.PI * 2);
-  }
-}
-
-// Dessine une conduite (une ligne avec plusieurs points)
-function drawLine(c, obj, k) {
-  if (obj.pts.length < 2) {
-    return;
-  }
-  const color = colorOf(obj.net);
-  const width = 4.2 * k;
-
-  // Le trait : d'abord un trait blanc plus large dessous, puis le trait coloré
-  c.save();
-  c.lineJoin = 'round';
-  c.beginPath();
-  c.moveTo(obj.pts[0].x, obj.pts[0].y);
-  for (let i = 1; i < obj.pts.length; i++) {
-    c.lineTo(obj.pts[i].x, obj.pts[i].y);
-  }
-  setLineStyle(c, dashOf(obj.net), width + 2 * k);
-  c.strokeStyle = 'rgba(255,255,255,.75)';
-  c.lineWidth = width + 2 * k;
-  c.stroke();
-  setLineStyle(c, dashOf(obj.net), width);
-  c.strokeStyle = color;
-  c.lineWidth = width;
-  c.stroke();
-  c.restore();
-
-  // Le texte, posé au milieu de la conduite
-  if (obj.label) {
-    // 1. On mesure chaque morceau de la ligne et la longueur totale
-    let total = 0;
-    const lengths = [];
-    for (let i = 1; i < obj.pts.length; i++) {
-      const dx = obj.pts[i].x - obj.pts[i - 1].x;
-      const dy = obj.pts[i].y - obj.pts[i - 1].y;
-      const length = Math.hypot(dx, dy);
-      lengths.push(length);
-      total = total + length;
-    }
-    // 2. On cherche le morceau qui contient le milieu
-    let remaining = total / 2;
-    let index = 0;
-    while (index < lengths.length - 1 && remaining > lengths[index]) {
-      remaining = remaining - lengths[index];
-      index++;
-    }
-    const a = obj.pts[index];
-    const b = obj.pts[index + 1];
-    let part = 0;
-    if (lengths[index] > 0) {
-      part = remaining / lengths[index];
-    }
-    const middleX = a.x + (b.x - a.x) * part;
-    const middleY = a.y + (b.y - a.y) * part;
-    // 3. L'angle du texte, retourné s'il serait à l'envers
-    let angle = Math.atan2(b.y - a.y, b.x - a.x);
-    if (angle > Math.PI / 2 || angle < -Math.PI / 2) {
-      angle = angle + Math.PI;
-    }
-    c.save();
-    c.translate(middleX, middleY);
-    c.rotate(angle);
-    drawTextWithOutline(c, obj.label, 0, -9 * k, 12.5 * k, color, 'center');
-    c.restore();
-  }
-}
-
-// Dessine un regard (un rond)
-function drawManhole(c, obj, k) {
-  const color = colorOf(obj.net);
-  const radius = 15 * k;
-  c.save();
-  c.translate(obj.x, obj.y);
-  c.beginPath();
-  c.arc(0, 0, radius, 0, Math.PI * 2);
-  c.fillStyle = 'rgba(255,255,255,.55)';
-  c.fill();
-  c.fillStyle = color + '44';
-  c.fill();
-  c.lineWidth = 4.4 * k;
-  c.strokeStyle = 'rgba(255,255,255,.85)';
-  c.stroke();
-  c.lineWidth = 2.6 * k;
-  c.strokeStyle = color;
-  c.stroke();
-  c.restore();
-  if (obj.label) {
-    drawTextWithOutline(c, obj.label, obj.x + radius + 6 * k, obj.y - radius * 0.6, 12.5 * k, color);
-  }
-}
-
-// Dessine un accessoire (petite forme avec une lettre dedans)
-function drawAccessory(c, obj, k) {
-  const color = colorOf(obj.net);
-  const radius = 9 * k;
-  c.save();
-  c.translate(obj.x, obj.y);
-  shapePath(c, obj.shape, radius);
-  c.fillStyle = '#fff';
-  c.fill();
-  c.lineWidth = 2.6 * k;
-  c.strokeStyle = color;
-  c.stroke();
-  if (obj.letter) {
-    c.font = '700 ' + (radius * 1.15) + 'px "Public Sans",system-ui,sans-serif';
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillStyle = color;
-    c.fillText(obj.letter, 0, radius * 0.06);
-  }
-  c.restore();
-  if (obj.label) {
-    drawTextWithOutline(c, obj.label, obj.x + radius * 1.5 + 5 * k, obj.y - radius * 0.6, 12.5 * k, color);
-  }
-}
-
-// Dessine un texte dans un cadre blanc
-function drawNote(c, obj, k) {
-  const color = colorOf(obj.net);
-  const fontSize = 15 * k;
-  const lines = obj.text.split('\n');
-  c.save();
-  c.font = '700 ' + fontSize + 'px "Public Sans",system-ui,sans-serif';
-  // La largeur du cadre = la ligne la plus longue
-  let widest = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const w = c.measureText(lines[i]).width;
-    if (w > widest) {
-      widest = w;
-    }
-  }
-  const boxWidth = widest + fontSize * 1.1;
-  const boxHeight = lines.length * fontSize * 1.25 + fontSize * 0.6;
-  c.fillStyle = 'rgba(255,255,255,.94)';
-  c.fillRect(obj.x, obj.y, boxWidth, boxHeight);
-  c.fillStyle = color;
-  c.fillRect(obj.x, obj.y, fontSize * 0.2, boxHeight);
-  c.fillStyle = '#131B24';
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  for (let i = 0; i < lines.length; i++) {
-    c.fillText(lines[i], obj.x + fontSize * 0.55, obj.y + fontSize * 0.3 + fontSize * 1.25 * (i + 0.5));
-  }
-  c.restore();
-  // On garde la taille du cadre pour pouvoir cliquer dessus plus tard
-  obj._w = boxWidth;
-  obj._h = boxHeight;
-}
-
-// Calcule le rectangle qui entoure un objet (pour le sélectionner)
-function boxOf(obj, k) {
-  const margin = 8 * k;
-  if (obj.type === 'line') {
-    let minX = obj.pts[0].x;
-    let maxX = obj.pts[0].x;
-    let minY = obj.pts[0].y;
-    let maxY = obj.pts[0].y;
-    for (let i = 1; i < obj.pts.length; i++) {
-      if (obj.pts[i].x < minX) { minX = obj.pts[i].x; }
-      if (obj.pts[i].x > maxX) { maxX = obj.pts[i].x; }
-      if (obj.pts[i].y < minY) { minY = obj.pts[i].y; }
-      if (obj.pts[i].y > maxY) { maxY = obj.pts[i].y; }
-    }
-    return { x: minX - margin, y: minY - margin, w: maxX - minX + margin * 2, h: maxY - minY + margin * 2 };
-  }
-  if (obj.type === 'text') {
-    let w = 80;
-    let h = 30;
-    if (obj._w) { w = obj._w; }
-    if (obj._h) { h = obj._h; }
-    return { x: obj.x - 3 * k, y: obj.y - 3 * k, w: w + 6 * k, h: h + 6 * k };
-  }
-  // regard ou accessoire
-  let size = 9;
-  if (obj.type === 'manhole') {
-    size = 15;
-  }
-  const r = size * k * 1.4;
-  return { x: obj.x - r, y: obj.y - r, w: r * 2, h: r * 2 };
-}
-
-// Dessine un objet, quel que soit son type
-function drawObject(c, obj, k, isSelected) {
-  if (obj.type === 'line') {
-    drawLine(c, obj, k);
-  } else if (obj.type === 'manhole') {
-    drawManhole(c, obj, k);
-  } else if (obj.type === 'acc') {
-    drawAccessory(c, obj, k);
-  } else if (obj.type === 'text') {
-    drawNote(c, obj, k);
-  }
-
-  // Si l'objet est sélectionné : cadre en pointillés + poignées sur les points
-  if (isSelected) {
-    c.save();
-    c.lineWidth = 1.6 * k;
-    c.strokeStyle = '#12b5f0';
-    c.fillStyle = '#fff';
-    c.setLineDash([5 * k, 3 * k]);
-    const box = boxOf(obj, k);
-    c.strokeRect(box.x, box.y, box.w, box.h);
-    c.setLineDash([]);
-    if (obj.type === 'line') {
-      for (let i = 0; i < obj.pts.length; i++) {
-        c.beginPath();
-        c.arc(obj.pts[i].x, obj.pts[i].y, 5.5 * k, 0, Math.PI * 2);
-        c.fill();
-        c.stroke();
-      }
-    }
-    c.restore();
-  }
-}
-
-// Dessine tous les objets (et la conduite en cours de tracé)
-// withUi = true : on affiche aussi les cadres de sélection (pas pour l'export)
-function drawScene(c, k, withUi) {
-  for (let i = 0; i < objects.length; i++) {
-    drawObject(c, objects[i], k, withUi && i === selected);
-  }
-  if (withUi && draft && draft.pts.length > 0) {
-    const points = draft.pts.slice();
-    if (draft.cur) {
-      points.push(draft.cur);
-    }
-    drawLine(c, { type: 'line', net: settings.net, label: '', pts: points }, k);
-    c.save();
-    c.fillStyle = '#fff';
-    c.strokeStyle = colorOf(settings.net);
-    c.lineWidth = 2 * k;
-    for (let i = 0; i < draft.pts.length; i++) {
-      c.beginPath();
-      c.arc(draft.pts[i].x, draft.pts[i].y, 4.5 * k, 0, Math.PI * 2);
-      c.fill();
-      c.stroke();
-    }
-    c.restore();
-  }
-}
-
-// Redessine tout l'écran : la photo, puis les objets par-dessus
 function render() {
-  if (!canvas || !img) {
-    return;
-  }
-  const rect = canvasRect();
-  const ratio = window.devicePixelRatio || 1; // pour que ce soit net sur écran Retina
-  const wantedWidth = Math.round(rect.width * ratio);
-  const wantedHeight = Math.round(rect.height * ratio);
-  if (canvas.width !== wantedWidth || canvas.height !== wantedHeight) {
-    canvas.width = wantedWidth;
-    canvas.height = wantedHeight;
-  }
+  if (!canvas || !img || !ph) { return; }
+  const rect = canvasRect(), ratio = window.devicePixelRatio || 1;
+  const cw = Math.round(rect.width * ratio), ch = Math.round(rect.height * ratio);
+  if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(ratio * view.scale, 0, 0, ratio * view.scale, ratio * view.x, ratio * view.y);
   ctx.drawImage(img, 0, 0);
-  drawScene(ctx, unit(), true);
+  const u = unit(), hs = clamp((8 / view.scale) / (5.4 * u), 0.5, 4);
+  if (showGhosts && ghosts) {
+    ctx.save(); ctx.globalAlpha = 0.5;
+    C.draw(ctx, ghosts.ph, u, { ui: !!gSel, selected: gSel ? [gSel.oid] : [], hs: hs });
+    ctx.restore();
+  }
+  C.draw(ctx, ph, u, { ui: true, selected: selId ? [selId] : [], hs: hs });
+  drawDraft(u);
   updateButtons();
 }
 
-// Ajuste le zoom pour voir toute la photo
+// La conduite en cours de tracé, avec un trait jusqu'à la souris
+function drawDraft(u) {
+  if (!draft || !draft.pts.length) { return; }
+  const pd = draft.ext ? null : C.pipeOf(armed.pipe);
+  let col = '#12b5f0', w = 4;
+  if (pd) { col = C.colOf(pd.net); w = pd.w; }
+  const pts = draft.pts.slice();
+  if (hover) { pts.push(hoverSnap ? hoverSnap.pos : hover); }
+  ctx.save();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) { ctx.lineTo(pts[i].x, pts[i].y); }
+  ctx.lineWidth = (w + 1.8) * u; ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke();
+  ctx.lineWidth = w * u; ctx.strokeStyle = col; ctx.setLineDash([w * u * 2, w * u]); ctx.stroke();
+  ctx.setLineDash([]);
+  draft.pts.forEach(function (p) { ctx.beginPath(); ctx.arc(p.x, p.y, 3.4 * u, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.6 * u; ctx.stroke(); });
+  if (hoverSnap) { ctx.beginPath(); ctx.arc(hoverSnap.pos.x, hoverSnap.pos.y, 7 * u, 0, 7); ctx.strokeStyle = '#12b5f0'; ctx.lineWidth = 2 * u; ctx.stroke(); }
+  ctx.restore();
+}
+
 function fitToScreen() {
-  const rect = canvasRect();
-  if (!img || !rect.width) {
-    return;
-  }
-  const scaleX = rect.width / img.naturalWidth;
-  const scaleY = rect.height / img.naturalHeight;
-  view.scale = Math.min(scaleX, scaleY) * 0.98;
-  view.x = (rect.width - img.naturalWidth * view.scale) / 2;
-  view.y = (rect.height - img.naturalHeight * view.scale) / 2;
+  const r = canvasRect();
+  if (!img || !r.width) { return; }
+  view.scale = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight) * 0.98;
+  view.x = (r.width - img.naturalWidth * view.scale) / 2;
+  view.y = (r.height - img.naturalHeight * view.scale) / 2;
+  render();
+}
+function zoomAt(sx, sy, ns) {
+  ns = clamp(ns, 0.05, 20);
+  const f = ns / view.scale;
+  view.x = sx - (sx - view.x) * f; view.y = sy - (sy - view.y) * f; view.scale = ns;
   render();
 }
 
 
-/* ---------- 5. L'historique (Annuler / Rétablir) ---------- */
+/* ---------- 5. Historique et enregistrement ---------- */
 
-// Transforme la liste d'objets en texte, pour la garder en mémoire.
-// Les clés qui commencent par "_" sont des calculs temporaires : on les ignore.
-function takeSnapshot() {
-  return JSON.stringify(objects, function (key, value) {
-    if (key.charAt(0) === '_') {
-      return undefined;
-    }
-    return value;
-  });
-}
-
-// À appeler après chaque modification : sauvegarde l'état et redessine
-function commit() {
+function pushHistory() {
   history = history.slice(0, historyPos + 1);
-  history.push(takeSnapshot());
+  history.push(C.snapshot(ph.objects));
+  if (history.length > 80) { history.shift(); }
   historyPos = history.length - 1;
-  saveNow();
-  render();
 }
-
-// Annuler (direction = -1) ou rétablir (direction = +1)
-function undo(direction) {
-  const newPos = historyPos + direction;
-  if (newPos < 0 || newPos >= history.length) {
-    return;
-  }
-  historyPos = newPos;
-  objects = JSON.parse(history[historyPos]);
-  selected = -1;
-  draft = null;
-  saveNow();
-  render();
-  syncPanel();
-}
-
-// Envoie le repérage à app.js, qui le range dans le navigateur
+// On enregistre : le site garde le repérage de la photo
 function saveNow() {
-  if (photoInfo && photoInfo.onSave) {
-    photoInfo.onSave(JSON.parse(takeSnapshot()));
-  }
+  if (!info || !info.onSave) { return; }
+  const rec = { v: 2, w: ph.w, h: ph.h, objs: JSON.parse(C.snapshot(ph.objects)) };
+  if (sentFlag) { rec.sent = true; }
+  info.onSave(rec);
+  if (sentFlag) { sendTo3D(true); } // déjà envoyé : la 3D reste à jour
+}
+// Après chaque modification : remettre les liens et les raccords d'aplomb, noter dans l'historique, enregistrer
+function commit(moved) {
+  C.syncAll(ph, moved);
+  pushHistory();
+  saveNow();
+  syncPanel();
+  render();
+}
+function undo(dir) {
+  const n = historyPos + dir;
+  if (n < 0 || n >= history.length) { return; }
+  historyPos = n;
+  ph.objects = JSON.parse(history[n]);
+  if (selId && !objOf(selId)) { selId = null; }
+  saveNow(); syncPanel(); render();
 }
 
 
-/* ---------- 6. Trouver quel objet on touche ---------- */
+/* ---------- 6. La souris et le doigt ---------- */
 
-// Distance entre un point p et un segment de droite a-b
-function distanceToSegment(p, a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const lengthSquared = dx * dx + dy * dy;
-  let t = 0;
-  if (lengthSquared > 0) {
-    t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared;
-  }
-  if (t < 0) { t = 0; }
-  if (t > 1) { t = 1; }
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+function setTool(t) {
+  if (draft) { draft = null; }
+  tool = t;
+  canvas.dataset.tool = t;
+  if (t !== 'select') { selId = null; gSel = null; tab = 'draw'; }
+  const hints = {
+    select: 'Cliquez un objet pour le modifier, glissez ses poignées pour le déformer.',
+    line: 'Cliquez les points de la conduite. Elle s’accroche aux regards, accessoires et conduites proches. Double-clic ou Entrée pour finir.',
+    branch: 'Cliquez à l’arrivée du branchement : il part automatiquement de la conduite la plus proche.',
+    manhole: 'Cliquez pour poser le regard choisi.',
+    acc: 'Cliquez pour poser l’accessoire. Posé sur une conduite d’eau, un montage complet peut être créé (té, vanne, purge…).',
+    text: 'Cliquez où écrire le texte.',
+    legend: 'Cliquez où placer la légende (conduites, regards et accessoires utilisés).'
+  };
+  say(hints[t] || '');
+  syncPanel(); render();
 }
 
-// Renvoie le numéro de l'objet touché au point p (ou -1 s'il n'y en a pas)
-// On regarde en partant du dernier dessiné, car il est au-dessus.
-function findObjectAt(p) {
-  const k = unit();
-  const tolerance = 9 / view.scale + 3 * k;
-  for (let i = objects.length - 1; i >= 0; i--) {
-    const obj = objects[i];
-    if (obj.type === 'line') {
-      for (let j = 1; j < obj.pts.length; j++) {
-        if (distanceToSegment(p, obj.pts[j - 1], obj.pts[j]) < tolerance) {
-          return i;
-        }
-      }
-    } else {
-      const box = boxOf(obj, k);
-      if (p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h) {
-        return i;
-      }
-    }
-  }
-  return -1;
+function selectObject(o) { selId = o ? o.id : null; gSel = null; if (o) { tab = 'obj'; } syncPanel(); render(); }
+
+// Ajoute un objet, le sélectionne et enregistre
+function addObject(o, extra) {
+  ph.objects.push(o);
+  if (extra) { ph.objects.push(...extra); }
+  selId = o.id; gSel = null;
+  commit([o]);
 }
 
-// Renvoie le numéro du point d'une conduite touché (ou -1)
-function findVertexAt(obj, p) {
-  const tolerance = 11 / view.scale;
-  for (let i = 0; i < obj.pts.length; i++) {
-    if (Math.hypot(obj.pts[i].x - p.x, obj.pts[i].y - p.y) < tolerance) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-
-/* ---------- 7. La souris et le doigt ---------- */
-
-// Position d'un événement, dans les coordonnées de la photo
-function eventToPhoto(event) {
-  const rect = canvasRect();
-  return screenToPhoto(event.clientX - rect.left, event.clientY - rect.top);
-}
-
-// Quand on appuie (souris ou doigt)
-function onPointerDown(event) {
-  canvas.setPointerCapture(event.pointerId);
-  pointers.set(event.pointerId, event);
-
-  // Deux doigts : on prépare le zoom par pincement
+function onPointerDown(e) {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, e);
   if (pointers.size === 2) {
-    const list = Array.from(pointers.values());
-    const distance = Math.hypot(list[0].clientX - list[1].clientX, list[0].clientY - list[1].clientY);
-    pinch = { distance: distance, scale: view.scale };
-    drag = null;
-    panning = null;
+    const l = Array.from(pointers.values());
+    pinch = { d: Math.hypot(l[0].clientX - l[1].clientX, l[0].clientY - l[1].clientY), s: view.scale };
+    drag = null; panning = null;
     return;
   }
-
-  // Si on écrivait un texte, on le valide d'abord
-  if (textEditor) {
-    closeTextEditor(true);
-  }
-
-  const p = eventToPhoto(event);
-
-  // Bouton du milieu, clic droit ou barre espace : on déplace la photo
-  if (event.button === 1 || event.button === 2 || spaceDown) {
-    panning = { x: event.clientX, y: event.clientY, startX: view.x, startY: view.y };
+  if (textEditor) { closeTextEditor(true); }
+  const p = eventToPhoto(e), u = unit(), tol = tolPx(9);
+  if (e.button === 1 || e.button === 2 || spaceDown) {
+    panning = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
     canvas.classList.add('pan');
     return;
   }
 
-  if (tool === 'select') {
-    // D'abord : est-ce qu'on touche un point de la conduite sélectionnée ?
-    if (selected >= 0 && objects[selected].type === 'line') {
-      const vertex = findVertexAt(objects[selected], p);
-      if (vertex >= 0) {
-        drag = { kind: 'vertex', index: vertex, moved: false };
+  if (tool === 'select') { return downSelect(e, p, u, tol); }
+
+  if (tool === 'line') {
+    const tg = C.snapTarget(ph, p, u, tol, null);
+    const pt = tg ? C.snappedPoint(ph, tg, p) : { x: p.x, y: p.y };
+    if (!draft) { draft = { pts: [] }; }
+    const last = draft.pts[draft.pts.length - 1];
+    if (!(last && Math.hypot(last.x - pt.x, last.y - pt.y) <= tolPx(3))) { draft.pts.push(pt); }
+    render();
+  } else if (tool === 'branch') {
+    const r = C.autoBranch(ph, p, u, armed.pipe, tol);
+    if (r.error) { say(r.error); return; }
+    say(r.msg);
+    selId = r.line.id; tab = 'obj';
+    commit([r.line]);
+  } else if (tool === 'manhole') {
+    const def = C.mhOf(armed.mh);
+    if (def) { addObject(C.newManhole(ph, p, def, u)); }
+  } else if (tool === 'acc') {
+    const def = C.accOf(armed.acc);
+    if (!def) { return; }
+    const kit = C.placeAcc(ph, p, def, u, tolPx(14) + 8 * u);
+    if (kit) { say(kit.msg); selId = kit.sel.id; tab = 'obj'; commit(kit.objs); return; }
+    addObject(C.newAcc(p, def, u));
+  } else if (tool === 'text') {
+    openTextEditor(p, e);
+  } else if (tool === 'legend') {
+    const old = ph.objects.find(o => o.type === 'legend');
+    if (old) { old.x = p.x; old.y = p.y; selId = old.id; commit(); } else { addObject({ id: C.uid(), type: 'legend', x: p.x, y: p.y, fs: 0 }); }
+  }
+}
+
+// Outil Sélection : poignées, étiquettes, objets, dessins des autres photos
+function downSelect(e, p, u, tol) {
+  const cur = selId ? objOf(selId) : null;
+  // Poignées de l'objet sélectionné
+  if (cur) {
+    const hs = C.handlesOf(cur, u), rad = tolPx(11);
+    for (const h of hs) {
+      if (Math.hypot(p.x - h.x, p.y - h.y) <= rad) {
+        if (h.k === 'm') { cur.pts.splice(h.i + 1, 0, { x: h.x, y: h.y }); drag = { kind: 'v', o: cur, i: h.i + 1, moved: true }; }
+        else if (h.k === 'v') { drag = { kind: 'v', o: cur, i: h.i, moved: false }; }
+        else { drag = { kind: 's', o: cur, moved: false }; }
         return;
       }
     }
-    // Sinon : est-ce qu'on touche un objet ?
-    const found = findObjectAt(p);
-    if (found >= 0) {
-      selected = found;
-      drag = { kind: 'object', last: p, moved: false };
-      syncPanel();
-      render();
-    } else {
-      // Rien touché : on désélectionne et on déplace la photo
-      selected = -1;
-      panning = { x: event.clientX, y: event.clientY, startX: view.x, startY: view.y };
-      canvas.classList.add('pan');
-      syncPanel();
-      render();
-    }
-  } else if (tool === 'line') {
-    if (!draft) {
-      draft = { pts: [] };
-    }
-    // On n'ajoute pas deux points au même endroit (utile pour le double-clic)
-    const last = draft.pts[draft.pts.length - 1];
-    let tooClose = false;
-    if (last && Math.hypot(last.x - p.x, last.y - p.y) <= 3 / view.scale) {
-      tooClose = true;
-    }
-    if (!tooClose) {
-      draft.pts.push(p);
-    }
-    render();
-  } else if (tool === 'manhole') {
-    objects.push({ type: 'manhole', x: p.x, y: p.y, net: settings.net, label: settings.label });
-    selected = objects.length - 1;
-    commit();
-    syncPanel();
-  } else if (tool === 'acc') {
-    objects.push({ type: 'acc', x: p.x, y: p.y, net: settings.net, shape: settings.shape, letter: settings.letter, label: settings.label });
-    selected = objects.length - 1;
-    commit();
-    syncPanel();
-  } else if (tool === 'text') {
-    openTextEditor(p, event);
   }
+  const hit = C.hitTest(ph, p, u, tol);
+  if (hit) {
+    const o = hit.o;
+    selId = o.id; gSel = null; tab = 'obj';
+    if (hit.label && o._lbx) { drag = { kind: 'label', o: o, dx: p.x - o._lbx.x, dy: p.y - o._lbx.y, moved: false }; }
+    else if (o.auto) { drag = null; } // un raccord automatique se repose tout seul
+    else { drag = { kind: 'move', o: o, last: p, moved: false }; }
+    syncPanel(); render();
+    return;
+  }
+  // Dessin d'une autre photo ?
+  if (showGhosts && ghosts) {
+    const gh = C.hitTest(ghosts.ph, p, u, tol);
+    if (gh && !gh.o.auto) {
+      selId = null; gSel = { key: gh.o.gk, oid: gh.o.id }; tab = 'obj';
+      drag = { kind: 'gmove', g: gh.o, last: p, moved: false };
+      syncPanel(); render();
+      return;
+    }
+  }
+  selId = null; gSel = null;
+  panning = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+  canvas.classList.add('pan');
+  syncPanel(); render();
 }
 
-// Quand on bouge (souris ou doigt)
-function onPointerMove(event) {
-  if (pointers.has(event.pointerId)) {
-    pointers.set(event.pointerId, event);
-  }
-
-  // Zoom avec deux doigts
+function onPointerMove(e) {
+  if (pointers.has(e.pointerId)) { pointers.set(e.pointerId, e); }
   if (pinch && pointers.size === 2) {
-    const list = Array.from(pointers.values());
-    const distance = Math.hypot(list[0].clientX - list[1].clientX, list[0].clientY - list[1].clientY);
-    const rect = canvasRect();
-    const centerX = (list[0].clientX + list[1].clientX) / 2 - rect.left;
-    const centerY = (list[0].clientY + list[1].clientY) / 2 - rect.top;
-    zoomAt(centerX, centerY, pinch.scale * distance / pinch.distance);
+    const l = Array.from(pointers.values()), d = Math.hypot(l[0].clientX - l[1].clientX, l[0].clientY - l[1].clientY), r = canvasRect();
+    zoomAt((l[0].clientX + l[1].clientX) / 2 - r.left, (l[0].clientY + l[1].clientY) / 2 - r.top, pinch.s * d / pinch.d);
     return;
   }
-
-  // Déplacement de la photo
-  if (panning) {
-    view.x = panning.startX + event.clientX - panning.x;
-    view.y = panning.startY + event.clientY - panning.y;
-    render();
-    return;
-  }
-
-  const p = eventToPhoto(event);
-
-  // Déplacement d'un objet ou d'un point
-  if (drag && selected >= 0) {
-    const obj = objects[selected];
-    if (drag.kind === 'vertex') {
-      obj.pts[drag.index] = p;
-    } else {
-      const dx = p.x - drag.last.x;
-      const dy = p.y - drag.last.y;
-      if (obj.type === 'line') {
-        for (let i = 0; i < obj.pts.length; i++) {
-          obj.pts[i].x = obj.pts[i].x + dx;
-          obj.pts[i].y = obj.pts[i].y + dy;
-        }
-      } else {
-        obj.x = obj.x + dx;
-        obj.y = obj.y + dy;
-      }
-      drag.last = p;
-    }
-    drag.moved = true;
-    render();
-    return;
-  }
-
-  // Pendant le tracé d'une conduite : un trait suit la souris
+  if (panning) { view.x = panning.vx + e.clientX - panning.x; view.y = panning.vy + e.clientY - panning.y; render(); return; }
+  const p = eventToPhoto(e), u = unit();
+  if (drag) { return moveDrag(p, u); }
   if (tool === 'line' && draft) {
-    draft.cur = p;
+    hover = p;
+    const tg = C.snapTarget(ph, p, u, tolPx(9), null);
+    hoverSnap = tg ? { pos: C.snappedPoint(ph, tg, p) } : null;
     render();
   }
 }
 
-// Quand on relâche
-function onPointerUp(event) {
-  pointers.delete(event.pointerId);
-  if (pointers.size < 2) {
-    pinch = null;
+function moveDrag(p, u) {
+  const d = drag;
+  d.moved = true;
+  if (d.kind === 'v') {
+    const tg = C.snapTarget(ph, p, u, tolPx(9), d.o);
+    const pt = d.o.pts[d.i];
+    if (tg) { const s = C.snappedPoint(ph, tg, p); pt.x = s.x; pt.y = s.y; pt.link = s.link; }
+    else { pt.x = p.x; pt.y = p.y; delete pt.link; }
+    C.syncAll(ph, [d.o]);
+  } else if (d.kind === 's') {
+    const r = d.o.type === 'manhole' ? Math.hypot(p.x - d.o.cx, p.y - d.o.cy) : Math.hypot(p.x - d.o.x, p.y - d.o.y);
+    if (d.o.type === 'manhole') { d.o.rx = d.o.ry = Math.max(2 * u, r); } else { d.o.size = clamp(r / u, 2, 40); d.o.autoSize = null; }
+  } else if (d.kind === 'label') {
+    d.o.lp = { x: p.x - d.dx, y: p.y - d.dy };
+  } else if (d.kind === 'move') {
+    const dx = p.x - d.last.x, dy = p.y - d.last.y;
+    d.last = p;
+    const o = d.o;
+    if (o.type === 'line') { o.pts.forEach(function (q) { q.x += dx; q.y += dy; delete q.link; }); }
+    else if (o.type === 'manhole') { o.cx += dx; o.cy += dy; }
+    else { o.x += dx; o.y += dy; if (o.lp) { o.lp.x += dx; o.lp.y += dy; } }
+    C.syncAll(ph, [o]);
+  } else if (d.kind === 'gmove') {
+    const dx = p.x - d.last.x, dy = p.y - d.last.y;
+    d.last = p;
+    const o = d.g;
+    if (o.type === 'line') { o.pts.forEach(function (q) { q.x += dx; q.y += dy; }); }
+    else if (o.type === 'manhole') { o.cx += dx; o.cy += dy; }
+    else { o.x += dx; o.y += dy; }
   }
-  if (panning) {
-    panning = null;
-    canvas.classList.remove('pan');
-  }
-  if (drag) {
-    if (drag.moved) {
-      commit(); // on n'enregistre que si on a vraiment déplacé quelque chose
-    }
-    drag = null;
-  }
-}
-
-// Double-clic : termine la conduite
-function onDoubleClick(event) {
-  if (tool === 'line') {
-    event.preventDefault();
-    finishLine();
-  }
-}
-
-// Termine la conduite en cours (il faut au moins 2 points)
-function finishLine() {
-  if (!draft) {
-    return;
-  }
-  const points = draft.pts.slice();
-  draft = null;
-  if (points.length >= 2) {
-    objects.push({ type: 'line', net: settings.net, label: settings.label, pts: points });
-    selected = objects.length - 1;
-    commit();
-    syncPanel();
-  } else {
-    render();
-  }
-}
-
-// Zoom autour d'un point de l'écran
-function zoomAt(screenX, screenY, newScale) {
-  if (newScale < 0.05) { newScale = 0.05; }
-  if (newScale > 20) { newScale = 20; }
-  const factor = newScale / view.scale;
-  view.x = screenX - (screenX - view.x) * factor;
-  view.y = screenY - (screenY - view.y) * factor;
-  view.scale = newScale;
   render();
 }
 
-// Molette de la souris : zoom
-function onWheel(event) {
-  event.preventDefault();
-  const rect = canvasRect();
-  zoomAt(event.clientX - rect.left, event.clientY - rect.top, view.scale * Math.exp(-event.deltaY * 0.0016));
+function onPointerUp(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) { pinch = null; }
+  if (panning) { panning = null; canvas.classList.remove('pan'); }
+  if (drag) {
+    const d = drag;
+    drag = null;
+    if (d.moved) {
+      if (d.kind === 'gmove') { writeBackGhost(d.g); } else { commit(d.o ? [d.o] : []); }
+    }
+  }
 }
 
+function onDoubleClick(e) { if (tool === 'line') { e.preventDefault(); finishLine(); } }
 
-/* ---------- 8. Écrire un texte sur la photo ---------- */
+// Termine la conduite en cours
+function finishLine() {
+  if (!draft) { return; }
+  const d = draft, pts = d.pts.slice();
+  draft = null; hover = null; hoverSnap = null;
+  if (d.ext) { return finishExtension(d, pts); }
+  if (pts.length < 2) { render(); return; }
+  const L = C.newLine(pts, armed.pipe);
+  addObject(L);
+}
 
-// Ouvre une petite zone de saisie à l'endroit touché
-function openTextEditor(p, event) {
-  const rect = canvasRect();
-  const box = makeElement('textarea', 'rp-ted');
-  box.rows = 2;
-  box.placeholder = 'Votre texte, Entrée pour valider';
-  box.style.left = Math.min(rect.width - 190, event.clientX - rect.left) + 'px';
-  box.style.top = Math.min(rect.height - 70, event.clientY - rect.top) + 'px';
+// Prolonger une conduite : les nouveaux points sont ajoutés au bout choisi
+function finishExtension(d, pts) {
+  const add = pts.slice(1); // le premier point est le bout de départ
+  if (!add.length) { render(); return; }
+  if (!d.ext.key) {
+    const L = objOf(d.ext.oid);
+    if (!L) { render(); return; }
+    if (d.ext.atStart) { L.pts.unshift(...add.reverse()); } else { L.pts.push(...add); }
+    setTool('select'); selId = L.id; tab = 'obj';
+    commit([L]);
+    return;
+  }
+  // Conduite faite sur une autre photo : on convertit les points dans l'autre photo
+  const cam = ghosts && ghosts.cams[d.ext.key], rec = ghosts && ghosts.recs[d.ext.key];
+  const L = rec && rec.rec.objs.find(o => o.id === d.ext.oid);
+  if (!cam || !L) { render(); return; }
+  const back = add.map(pt => C.backPoint(pt, curCam, cam));
+  if (back.some(b => !b)) { say('Certains points ne tombent pas sur le sol de l’autre photo : prolongement annulé.'); render(); return; }
+  const np = back.map(b => ({ x: b.x, y: b.y }));
+  if (d.ext.atStart) { L.pts.unshift(...np.reverse()); } else { L.pts.push(...np); }
+  saveOther(d.ext.key);
+  setTool('select');
+}
+
+// On a déplacé un dessin d'une autre photo : on reporte la nouvelle position dans cette photo
+function writeBackGhost(g) {
+  const cam = ghosts.cams[g.gk], rec = ghosts.recs[g.gk];
+  const src = rec && rec.rec.objs.find(o => o.id === g.id);
+  if (!cam || !src) { return; }
+  const conv = pt => C.backPoint(pt, curCam, cam);
+  if (g.type === 'line') {
+    const np = g.pts.map(conv);
+    if (np.some(x => !x)) { say('Un point ne tombe plus sur le sol : déplacement annulé.'); computeGhosts(); render(); return; }
+    src.pts.forEach((pt, i) => { pt.x = np[i].x; pt.y = np[i].y; delete pt.link; });
+  } else if (g.type === 'manhole') {
+    const n = conv({ x: g.cx, y: g.cy });
+    if (!n) { computeGhosts(); render(); return; }
+    src.cx = n.x; src.cy = n.y;
+  } else {
+    const n = conv({ x: g.x, y: g.y });
+    if (!n) { computeGhosts(); render(); return; }
+    src.x = n.x; src.y = n.y;
+  }
+  saveOther(g.gk);
+}
+// On enregistre l'autre photo et on recalcule les fantômes
+function saveOther(key) {
+  const o = others.find(x => x.key === key);
+  if (!o) { return; }
+  const p2 = { w: o.rec.w, h: o.rec.h, objects: o.rec.objs };
+  C.syncAll(p2);
+  if (info.onSaveOther) { info.onSaveOther(key, o.rec); }
+  computeGhosts(); syncPanel(); render();
+  say('Dessin modifié sur « ' + (o.name || 'l’autre photo') + ' ».');
+}
+
+function onWheel(e) { e.preventDefault(); const r = canvasRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, view.scale * Math.exp(-e.deltaY * 0.0016)); }
+
+// Écrire un texte sur la photo
+function openTextEditor(p, e) {
+  const r = canvasRect(), box = document.createElement('textarea');
+  box.className = 'rp-ted'; box.rows = 2; box.placeholder = 'Votre texte, Entrée pour valider';
+  box.style.left = Math.min(r.width - 190, e.clientX - r.left) + 'px';
+  box.style.top = Math.min(r.height - 70, e.clientY - r.top) + 'px';
   canvas.parentNode.appendChild(box);
   textEditor = { box: box, p: p };
-
-  box.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      closeTextEditor(true);
-    } else if (e.key === 'Escape') {
-      e.stopPropagation();
-      closeTextEditor(false);
-    }
+  box.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); closeTextEditor(true); }
+    else if (ev.key === 'Escape') { ev.stopPropagation(); closeTextEditor(false); }
   });
   setTimeout(function () { box.focus(); }, 0);
 }
-
-// Ferme la zone de saisie. keep = true : on garde le texte écrit.
 function closeTextEditor(keep) {
-  if (!textEditor) {
-    return;
-  }
-  const box = textEditor.box;
-  const p = textEditor.p;
-  textEditor = null;
-  const text = box.value.trim();
-  box.remove();
-  if (keep && text) {
-    objects.push({ type: 'text', x: p.x, y: p.y, net: settings.net, text: text });
-    selected = objects.length - 1;
-    commit();
-    syncPanel();
-  }
+  if (!textEditor) { return; }
+  const t = textEditor; textEditor = null;
+  const text = t.box.value.trim();
+  t.box.remove();
+  if (keep && text) { addObject(C.newText(t.p, text)); }
 }
 
 
-/* ---------- 9. Le panneau de droite ---------- */
+/* ---------- 7. Le panneau de droite ---------- */
 
-// Met le panneau à jour selon l'objet sélectionné et l'outil
+const optHtml = (v, l, sel) => '<option value="' + esc(v) + '"' + (sel ? ' selected' : '') + '>' + esc(l) + '</option>';
+function pipeOptions(cur) {
+  return C.S.networks.map(function (n) {
+    const list = C.S.pipes.filter(p => p.net === n.id);
+    return list.length ? '<optgroup label="' + esc(n.name) + '">' + list.map(p => optHtml(p.id, p.desc, p.id === cur)).join('') + '</optgroup>' : '';
+  }).join('');
+}
+const mhOptions = cur => C.S.manholes.map(m => optHtml(m.id, m.name, m.id === cur)).join('');
+const accOptions = cur => C.S.accessories.map(a => optHtml(a.id, a.name, a.id === cur)).join('');
+const netOptions = cur => C.S.networks.map(n => optHtml(n.id, n.name, n.id === cur)).join('');
+const field = (label, input) => '<label class="rp-f"><span>' + label + '</span>' + input + '</label>';
+const txt = (f, v, extra) => '<input type="text" data-f="' + f + '" value="' + esc(v) + '" autocomplete="off"' + (extra || '') + '>';
+const num = (f, v, min, max, step) => '<input type="number" data-f="' + f + '" data-k="num" value="' + esc(v) + '" min="' + min + '" max="' + max + '" step="' + step + '">';
+const chk = (f, v, label, scope) => '<label class="rp-c"><input type="checkbox" data-f="' + f + '" data-k="bool"' + (scope ? ' data-s="1"' : '') + (v ? ' checked' : '') + '> ' + label + '</label>';
+
+function panelDraw() {
+  const pd = C.pipeOf(armed.pipe);
+  let h = '<div class="rp-grp"><h4>Conduite</h4><select data-a="pipe">' + pipeOptions(armed.pipe) + '</select>' +
+    (pd ? '<p class="hint"><i class="rp-sw" style="background:' + C.colOf(pd.net) + '"></i>' + esc((C.netOf(pd.net) || {}).name) + ', trait ' + (pd.dash === 'dotted' ? 'pointillé' : pd.dash === 'dashed' ? 'tireté' : 'plein') + '</p>' : '') + '</div>';
+  h += '<div class="rp-grp"><h4>Regard</h4><select data-a="mh">' + mhOptions(armed.mh) + '</select></div>';
+  h += '<div class="rp-grp"><h4>Accessoire</h4><select data-a="acc">' + accOptions(armed.acc) + '</select>' +
+    '<p class="hint">Purge, vidange, ventouse, poteau incendie, compteur… posés sur une conduite d’eau : le montage complet est créé.</p></div>';
+  h += ghostBlock();
+  return h;
+}
+function ghostBlock() {
+  let n = 0, photos = {};
+  if (ghosts) { ghosts.ph.objects.forEach(o => { n++; photos[o.gk] = 1; }); }
+  const np = Object.keys(photos).length;
+  let msg;
+  if (!curCam) { msg = 'Cette photo n’a pas de position ou de direction : les autres photos ne peuvent pas y être reportées.'; }
+  else if (!others.some(o => o.rec && o.rec.objs && o.rec.objs.length)) { msg = 'Aucune autre photo n’a encore de repérage.'; }
+  else if (!n) { msg = 'Aucun dessin des autres photos ne tombe dans cette vue.'; }
+  else { msg = n + ' objet' + (n > 1 ? 's' : '') + ' venant de ' + np + ' autre' + (np > 1 ? 's' : '') + ' photo' + (np > 1 ? 's' : '') + '. Cliquez-en un (outil Sélection) pour le modifier, le prolonger ou le reprendre ici.'; }
+  return '<div class="rp-grp"><h4>Autres photos</h4>' + chk('showGhosts', showGhosts, 'Afficher leurs dessins (transparents)', 'g') + '<p class="hint">' + esc(msg) + '</p></div>';
+}
+
+function panelObj() {
+  if (gSel) { return panelGhost(); }
+  const o = selId && objOf(selId);
+  if (!o) { return '<p class="hint">Aucun objet sélectionné. Choisissez l’outil Sélection puis cliquez un objet.</p>'; }
+  let h = '';
+  if (o.type === 'line') {
+    h += field('Type de conduite', '<select data-f="pipeId">' + pipeOptions(o.pipeId) + '</select>');
+    h += field('Texte affiché (vide = description)', txt('text', o.text || ''));
+    h += chk('showLabel', o.showLabel !== false, 'Afficher le texte');
+    h += '<div class="rp-row"><button class="btn small" data-do="ext-end" type="button">Prolonger la fin</button><button class="btn small" data-do="ext-start" type="button">Prolonger le début</button></div>';
+    const par = C.defaultParallelPipe(o);
+    h += '<div class="rp-grp"><h4>Tracé parallèle</h4>' +
+      field('Côté', '<select id="rpParSide"><option value="left">Gauche</option><option value="right">Droite</option></select>') +
+      field('Distance', '<input id="rpParDist" type="number" value="14" min="2" max="200" step="1">') +
+      field('Conduite', '<select id="rpParPipe">' + pipeOptions(par) + '</select>') +
+      '<label class="rp-c"><input id="rpParKeep" type="checkbox" checked> Suit la conduite d’origine</label>' +
+      '<button class="btn small" data-do="parallel" type="button">Créer le parallèle</button><p class="hint">Les branchements partant de la conduite sont reportés sur le nouveau tracé.</p></div>';
+  } else if (o.type === 'manhole') {
+    h += field('Type de regard', '<select data-f="mhId" data-preset="mh">' + mhOptions(o.mhId) + '</select>');
+    h += field('Repère', txt('num', o.num));
+    h += field('Nature', txt('nature', o.nature));
+    h += field('Diamètre (mm)', txt('diam', o.diam));
+    h += field('Lignes en plus', '<textarea data-f="extra" rows="2">' + esc(o.extra || '') + '</textarea>');
+    h += chk('showLabel', o.showLabel !== false, 'Afficher l’étiquette');
+  } else if (o.type === 'acc') {
+    h += field('Accessoire', '<select data-f="accId" data-preset="acc"' + (o.auto ? ' disabled' : '') + '>' + accOptions(o.accId) + '</select>');
+    h += field('Diamètre 1', txt('d', o.d)) + field('Diamètre 2', txt('d2', o.d2));
+    h += field('Matière 1', txt('m1', o.m1)) + field('Matière 2', txt('m2', o.m2));
+    h += field('Note', txt('note', o.note || ''));
+    h += field('Texte libre (remplace tout)', '<textarea data-f="text" rows="2">' + esc(o.text || '') + '</textarea>');
+    h += field('Taille', num('size', Math.round((o.size || 8) * 10) / 10, 2, 40, 0.5));
+    h += chk('showLabel', o.showLabel !== false, 'Afficher l’étiquette');
+    if (o.auto) { h += '<p class="hint">Raccord posé automatiquement. Changez son type pour le rendre libre.</p>'; }
+    if (o.kit) { h += '<button class="btn small" data-do="kit" type="button">Dégrouper / regrouper le montage</button>'; }
+  } else if (o.type === 'text') {
+    h += field('Texte', '<textarea data-f="text" rows="3">' + esc(o.text || '') + '</textarea>');
+    h += field('Taille', num('fs', o.fs || C.S.fs, 6, 60, 1));
+  } else if (o.type === 'legend') {
+    h += '<p class="hint">La légende liste les conduites, regards et accessoires utilisés. Glissez-la pour la déplacer.</p>';
+  }
+  if (o.type !== 'legend' && o.lp) { h += '<button class="btn small" data-do="unlabel" type="button">Replacer l’étiquette automatiquement</button>'; }
+  return h + '<div class="rp-row"><button class="btn small danger" data-do="del" type="button">Supprimer</button></div>';
+}
+
+function panelGhost() {
+  const o = ghosts && ghosts.ph.objects.find(x => x.id === gSel.oid && x.gk === gSel.key);
+  const from = others.find(x => x.key === gSel.key);
+  if (!o) { return '<p class="hint">Ce dessin n’est plus visible.</p>'; }
+  let h = '<p class="hint">Dessin fait sur « ' + esc((from && from.name) || 'une autre photo') + ' ». Glissez-le pour le déplacer : il est modifié sur sa propre photo.</p>';
+  h += '<div class="rp-row"><button class="btn small" data-do="adopt" type="button">Reprendre dans cette photo</button></div>';
+  if (o.type === 'line') { h += '<div class="rp-row"><button class="btn small" data-do="ext-end" type="button">Prolonger la fin</button><button class="btn small" data-do="ext-start" type="button">Prolonger le début</button></div>'; }
+  return h + '<div class="rp-row"><button class="btn small danger" data-do="gdel" type="button">Supprimer de l’autre photo</button></div>';
+}
+
+function panelOpts() {
+  const S = C.S;
+  let h = '<div class="rp-grp"><h4>Automatismes</h4>' +
+    chk('autoFit', S.autoFit, 'Raccords automatiques (eau potable)', 1) +
+    chk('autoCoude', S.autoCoude, 'Coudes 45° / 90°', 1) + chk('autoTe', S.autoTe, 'Tés', 1) + chk('autoRed', S.autoRed, 'Réductions et raccordements intermatériaux', 1) +
+    chk('autoRac', S.autoRac !== false, 'Raccordements sur existant', 1) + chk('autoBr', S.autoBr !== false, 'Prises de branchement', 1) + chk('autoCit', S.autoCit !== false, 'Citerneaux en bout de branchement', 1) +
+    chk('kitsOn', S.kitsOn !== false, 'Montages d’accessoires (té + vanne + purge…)', 1) + '</div>';
+  h += '<div class="rp-grp"><h4>Aspect</h4>' + chk('casing', S.casing, 'Liseré blanc sous les conduites', 1) + chk('crossTr', S.crossTr !== false, 'Transparence aux croisements', 1) + chk('warnCross', S.warnCross, 'Signaler les croisements eau potable / assainissement', 1) +
+    field('Taille du texte', '<input type="number" data-f="fs" data-k="num" data-s="1" value="' + S.fs + '" min="6" max="40" step="1">') +
+    field('Position du texte des conduites', '<select data-f="labelPos" data-s="1">' + optHtml('on', 'Sur la conduite', S.labelPos !== 'above') + optHtml('above', 'Au-dessus', S.labelPos === 'above') + '</select>') + '</div>';
+  const n = C.listCrossings(ph).length;
+  h += '<p class="hint">' + (n ? n + ' croisement' + (n > 1 ? 's' : '') + ' eau potable / assainissement à contrôler.' : 'Aucun croisement eau potable / assainissement.') + '</p>';
+  h += '<div class="rp-grp"><h4>Montages d’accessoires</h4><textarea id="rpKits" rows="6" spellcheck="false">' + esc(C.kitsToText(S.kits)) + '</textarea>' +
+    '<p class="hint">Format : déclencheur : pièce &gt; pièce | DN : jusqu’à 100 = 40 ; au-delà = 80. Ligne commençant par # = désactivée.</p><button class="btn small" data-do="kits" type="button">Appliquer les montages</button></div>';
+  h += '<details class="rp-det"><summary>Ajouter un type de conduite</summary>' +
+    field('Réseau', '<select id="npNet">' + netOptions('aep_n') + '</select>') + field('Description', '<input id="npDesc" type="text" placeholder="Ø160 PVC">') +
+    field('Épaisseur', '<input id="npW" type="number" value="4" min="1" max="12" step="0.5">') + field('Trait', '<select id="npDash">' + optHtml('solid', 'Plein', 1) + optHtml('dashed', 'Tireté') + optHtml('dotted', 'Pointillé') + '</select>') +
+    '<button class="btn small" data-do="addpipe" type="button">Ajouter</button></details>';
+  h += '<details class="rp-det"><summary>Ajouter un type de regard</summary>' +
+    field('Nom', '<input id="nmName" type="text" placeholder="Regard PP Ø800">') + field('Réseau', '<select id="nmNet">' + netOptions('eu_n') + '</select>') +
+    field('Nature', '<input id="nmNat" type="text" placeholder="Regard PP">') + field('Diamètre (mm)', '<input id="nmDiam" type="text" placeholder="800">') + field('Préfixe', '<input id="nmPre" type="text" value="R">') +
+    '<button class="btn small" data-do="addmh" type="button">Ajouter</button></details>';
+  h += '<details class="rp-det"><summary>Ajouter un accessoire</summary>' +
+    field('Nom', '<input id="naName" type="text" placeholder="Vanne papillon">') + field('Réseau', '<select id="naNet">' + netOptions('aep_n') + '</select>') +
+    field('Forme', '<select id="naShape">' + optHtml('circle', 'Rond') + optHtml('diamond', 'Losange') + optHtml('triangle', 'Triangle') + optHtml('square', 'Carré') + '</select>') +
+    field('Lettre', '<input id="naLet" type="text" maxlength="3">') + field('Texte affiché', '<input id="naTpl" type="text" placeholder="Vanne {d}">') +
+    '<button class="btn small" data-do="addacc" type="button">Ajouter</button></details>';
+  h += '<div class="rp-row"><button class="btn small" data-do="reset" type="button">Remettre les réglages d’origine</button></div>';
+  return h;
+}
+
 function syncPanel() {
-  let obj = null;
-  if (selected >= 0) {
-    obj = objects[selected];
-  }
-
-  // Si un objet est sélectionné, le panneau montre ses valeurs
-  if (obj) {
-    settings.net = obj.net;
-    if (obj.type !== 'text') {
-      settings.label = obj.label || '';
-    }
-    if (obj.type === 'acc') {
-      settings.shape = obj.shape;
-      settings.letter = obj.letter || '';
-    }
-  }
-
-  if (obj && obj.type === 'text') {
-    ui.label.value = obj.text;
-  } else if (obj) {
-    ui.label.value = obj.label || '';
-  } else {
-    ui.label.value = settings.label;
-  }
-  ui.letter.value = settings.letter || '';
-
-  // Met en évidence le réseau et la forme choisis
-  const netButtons = ui.nets.querySelectorAll('button');
-  for (let i = 0; i < netButtons.length; i++) {
-    netButtons[i].setAttribute('aria-pressed', String(netButtons[i].dataset.net === settings.net));
-  }
-  const shapeButtons = ui.shapes.querySelectorAll('button');
-  for (let i = 0; i < shapeButtons.length; i++) {
-    shapeButtons[i].setAttribute('aria-pressed', String(shapeButtons[i].dataset.shape === settings.shape));
-  }
-
-  // Les diamètres ne servent que pour les conduites, la forme que pour les accessoires
-  ui.diams.hidden = !(tool === 'line' || (obj && obj.type === 'line'));
-  ui.accRow.hidden = !(tool === 'acc' || (obj && obj.type === 'acc'));
-  render();
+  if (!root || !ph) { return; }
+  root.querySelectorAll('.rp-tab').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === tab ? 'true' : 'false'));
+  const body = q('#rpPanel');
+  // Si l'utilisateur est en train d'écrire dans le panneau, on ne le recrée pas
+  if (document.activeElement && body.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName) && document.activeElement.type !== 'checkbox') { updateButtons(); return; }
+  body.innerHTML = tab === 'draw' ? panelDraw() : tab === 'obj' ? panelObj() : panelOpts();
+  updateButtons();
 }
 
-// Active ou désactive les boutons, et change le message d'aide
 function updateButtons() {
-  ui.undo.disabled = historyPos <= 0;
-  ui.redo.disabled = historyPos >= history.length - 1;
-  ui.del.disabled = selected < 0;
-  ui.finish.hidden = !(draft && draft.pts.length >= 2);
-
-  const toolButtons = ui.tools.querySelectorAll('button');
-  for (let i = 0; i < toolButtons.length; i++) {
-    toolButtons[i].setAttribute('aria-pressed', String(toolButtons[i].dataset.tool === tool));
-  }
-
-  let message = '';
-  if (tool === 'select') {
-    if (selected >= 0) {
-      message = 'Glissez pour déplacer, tirez une poignée pour modifier le tracé.';
-    } else {
-      message = 'Touchez un objet pour le modifier. Glissez le fond pour déplacer la photo.';
-    }
-  } else if (tool === 'line') {
-    if (draft) {
-      message = 'Touchez pour ajouter un point. Double-touchez ou « Terminer » pour finir.';
-    } else {
-      message = 'Touchez pour poser le premier point de la conduite.';
-    }
-  } else if (tool === 'manhole') {
-    message = 'Touchez pour poser un regard.';
-  } else if (tool === 'acc') {
-    message = 'Touchez pour poser un accessoire.';
-  } else if (tool === 'text') {
-    message = 'Touchez où placer le texte.';
-  }
-  ui.hint.textContent = message;
+  if (!root) { return; }
+  q('#rpUndo').disabled = historyPos <= 0;
+  q('#rpRedo').disabled = historyPos >= history.length - 1;
+  q('#rpFinish').hidden = !(draft && draft.pts.length >= 2);
+  root.querySelectorAll('#rpTools button').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === tool ? 'true' : 'false'));
+  const s = q('#rp3d'), r = q('#rp3dOff');
+  s.disabled = !curCam;
+  s.title = curCam ? 'Place les objets de cette photo dans la vue 3D' : 'Cette photo n’a pas de position ou de direction';
+  s.textContent = sentFlag ? 'Mettre à jour la 3D' : 'Envoyer en 3D';
+  r.hidden = !sentFlag;
 }
 
-// Change d'outil
-function setTool(newTool) {
-  if (textEditor) {
-    closeTextEditor(false);
+// Modification d'un champ du panneau
+function onField(e, final) {
+  const t = e.target;
+  if (t.dataset.a) { // choix du préréglage à poser
+    armed[t.dataset.a] = t.value; saveCfg(); say(''); return;
   }
-  if (draft && newTool !== 'line') {
-    finishLine();
-  }
-  tool = newTool;
-  if (newTool !== 'select') {
-    selected = -1;
-  }
-  canvas.dataset.tool = newTool;
-  syncPanel();
-}
-
-// Applique un changement à l'objet sélectionné, puis enregistre
-function changeSelected(change) {
-  if (selected < 0) {
+  if (t.dataset.f === 'showGhosts') { showGhosts = t.checked; saveCfg(); render(); syncPanel(); return; }
+  const f = t.dataset.f;
+  if (!f) { return; }
+  let v = t.dataset.k === 'bool' ? t.checked : (t.dataset.k === 'num' ? Number(t.value) : t.value);
+  if (t.dataset.s) { // réglage général
+    C.S[f] = v; saveCfg();
+    if (final) { commit(); }
     return;
   }
-  change(objects[selected]);
-  commit();
+  const o = objOf(selId);
+  if (!o) { return; }
+  o[f] = v;
+  if (final && t.dataset.preset === 'acc') {
+    const d = C.accOf(v) || {};
+    Object.assign(o, { m1: d.m1 || '', m2: d.m2 || '', d: d.d || '', d2: d.d2 || '', text: '' });
+    delete o.dManual;
+  }
+  if (final && t.dataset.preset === 'mh') {
+    const d = C.mhOf(v) || {};
+    Object.assign(o, { nature: d.nature, diam: d.diam });
+  }
+  if (final || t.type === 'checkbox' || t.tagName === 'SELECT') { commit([o]); if (t.dataset.preset) { syncPanel(); } } else { render(); }
 }
 
-// Enregistre la photo avec le dessin dessus, au format PNG
-function exportPng() {
-  const exportCanvas = document.createElement('canvas');
-  exportCanvas.width = img.naturalWidth;
-  exportCanvas.height = img.naturalHeight;
-  const exportCtx = exportCanvas.getContext('2d');
-  exportCtx.drawImage(img, 0, 0);
-  drawScene(exportCtx, unit(), false);
-  exportCanvas.toBlob(function (blob) {
-    if (!blob) {
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = (photoInfo.name || 'photo').replace(/\.[^.]+$/, '') + '-reperage.png';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(function () { URL.revokeObjectURL(link.href); }, 4000);
-  }, 'image/png');
+function onAction(act) {
+  const o = selId ? objOf(selId) : null;
+  if (act === 'del' && o) { ph.objects.splice(ph.objects.indexOf(o), 1); selId = null; commit(); return; }
+  if (act === 'unlabel' && o) { delete o.lp; commit([o]); return; }
+  if (act === 'kit' && o && o.kit) { const v = C.toggleKitGroup(ph, o.kit); say(v ? 'Montage regroupé.' : 'Pièces du montage dégroupées : elles se déplacent librement.'); commit(); return; }
+  if (act === 'parallel' && o) {
+    const r = C.genParallel(ph, o, q('#rpParPipe').value, q('#rpParSide').value, Number(q('#rpParDist').value) || 14, q('#rpParKeep').checked, unit());
+    if (r.error) { say(r.error); return; }
+    say('Tracé parallèle créé' + (r.branches ? ' avec ' + r.branches + ' branchement' + (r.branches > 1 ? 's' : '') : '') + '.');
+    selId = r.line.id; commit(); return;
+  }
+  if (act === 'ext-end' || act === 'ext-start') { return startExtension(act === 'ext-start'); }
+  if (act === 'adopt' && gSel) { return adoptGhost(); }
+  if (act === 'gdel' && gSel) { return deleteGhostSource(); }
+  if (act === 'kits') { C.S.kits = C.kitsFromText(q('#rpKits').value); saveCfg(); say(C.S.kits.length + ' montage(s) enregistré(s).'); return; }
+  if (act === 'addpipe') {
+    const d = q('#npDesc').value.trim();
+    if (!d) { say('Écrivez une description.'); return; }
+    const p = { id: 'pp' + Date.now().toString(36), net: q('#npNet').value, desc: d, w: Number(q('#npW').value) || 4, dash: q('#npDash').value };
+    C.S.pipes.push(p); armed.pipe = p.id; saveCfg(); say('Conduite ajoutée et choisie.'); tab = 'draw'; syncPanel(); return;
+  }
+  if (act === 'addmh') {
+    const n = q('#nmName').value.trim();
+    if (!n) { say('Écrivez un nom.'); return; }
+    const m = { id: 'pm' + Date.now().toString(36), name: n, net: q('#nmNet').value, nature: q('#nmNat').value.trim() || n, diam: q('#nmDiam').value.trim(), prefix: q('#nmPre').value.trim() || 'R' };
+    C.S.manholes.push(m); armed.mh = m.id; saveCfg(); say('Regard ajouté et choisi.'); tab = 'draw'; syncPanel(); return;
+  }
+  if (act === 'addacc') {
+    const n = q('#naName').value.trim();
+    if (!n) { say('Écrivez un nom.'); return; }
+    const a = { id: 'pa' + Date.now().toString(36), name: n, shape: q('#naShape').value, letter: q('#naLet').value.trim().toUpperCase(), net: q('#naNet').value, tpl: q('#naTpl').value.trim() || n, m1: '', m2: '', d: '', d2: '' };
+    C.S.accessories.push(a); armed.acc = a.id; saveCfg(); say('Accessoire ajouté et choisi.'); tab = 'draw'; syncPanel(); return;
+  }
+  if (act === 'reset') {
+    if (!confirm('Remettre tous les réglages et préréglages d’origine ? Les repérages déjà faits ne changent pas.')) { return; }
+    C.loadSettings(null); C.S.pipes = C.defaults().pipes; saveCfg(); fixArmed(); syncPanel(); render(); say('Réglages remis à zéro.');
+  }
+}
+
+// Prolonger une conduite (la sienne ou celle d'une autre photo)
+function startExtension(atStart) {
+  let L, key = null;
+  if (gSel) {
+    L = ghosts && ghosts.ph.objects.find(x => x.id === gSel.oid && x.gk === gSel.key);
+    key = gSel.key;
+  } else { L = objOf(selId); }
+  if (!L || L.type !== 'line') { return; }
+  const end = atStart ? L.pts[0] : L.pts[L.pts.length - 1];
+  tool = 'line'; canvas.dataset.tool = 'line';
+  draft = { pts: [{ x: end.x, y: end.y }], ext: { key: key, oid: L.id, atStart: atStart } };
+  selId = null; gSel = null; tab = 'draw';
+  say('Cliquez les points à ajouter au ' + (atStart ? 'début' : 'bout') + ' de la conduite. Double-clic ou Entrée pour finir.');
+  syncPanel(); render();
+}
+function adoptGhost() {
+  const g = ghosts && ghosts.ph.objects.find(x => x.id === gSel.oid && x.gk === gSel.key);
+  if (!g) { return; }
+  const c = clone(g);
+  c.id = C.uid(); c.from = gSel.key + ':' + g.id; delete c.gk;
+  if (c.pts) { c.pts = c.pts.map(p => ({ x: p.x, y: p.y })); }
+  ph.objects.push(c);
+  selId = c.id; gSel = null; tab = 'obj';
+  computeGhosts();
+  say('Dessin repris dans cette photo : vous pouvez maintenant le modifier ici.');
+  commit([c]);
+}
+function deleteGhostSource() {
+  const o = others.find(x => x.key === gSel.key);
+  if (!o || !confirm('Supprimer ce dessin sur « ' + (o.name || 'l’autre photo') + ' » ?')) { return; }
+  o.rec.objs = o.rec.objs.filter(x => x.id !== gSel.oid);
+  gSel = null;
+  saveOther(o.key);
 }
 
 
-/* ---------- 10. Construire l'écran ---------- */
-/* Cette fonction n'est appelée qu'une seule fois, la première fois qu'on ouvre le repérage. */
+/* ---------- 8. Construire l'écran ---------- */
+/* Appelée une seule fois, la première fois qu'on ouvre le repérage. */
 
 function buildScreen() {
-  root = makeElement('div');
+  root = document.createElement('div');
   root.id = 'rpView';
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   root.setAttribute('aria-label', 'Repérage sur la photo');
   root.hidden = true;
-
-  // Le HTML de toute la fenêtre
   root.innerHTML =
     '<div class="rp-bar">' +
       '<div class="v-title"><b id="rpName"></b><small>Repérage de réseaux</small></div>' +
       '<span class="rp-tools" id="rpTools" role="toolbar" aria-label="Outils">' +
-        '<button type="button" data-tool="select" title="Sélectionner et déplacer">Sélection</button>' +
+        '<button type="button" data-tool="select" title="Sélectionner, déplacer, modifier">Sélection</button>' +
         '<button type="button" data-tool="line" title="Dessiner une conduite">Conduite</button>' +
+        '<button type="button" data-tool="branch" title="Branchement automatique depuis la conduite la plus proche">Branchement</button>' +
         '<button type="button" data-tool="manhole" title="Poser un regard">Regard</button>' +
         '<button type="button" data-tool="acc" title="Poser un accessoire">Accessoire</button>' +
         '<button type="button" data-tool="text" title="Ajouter un texte">Texte</button>' +
+        '<button type="button" data-tool="legend" title="Placer la légende">Légende</button>' +
       '</span>' +
       '<span class="rp-act">' +
         '<button class="vb wide" id="rpUndo" type="button" title="Annuler (Ctrl+Z)">Annuler</button>' +
@@ -981,336 +769,188 @@ function buildScreen() {
     '<div class="rp-body">' +
       '<div class="rp-stage"><canvas id="rpCv"></canvas><span class="rp-msg" id="rpMsg">Chargement…</span></div>' +
       '<aside class="rp-side">' +
-        '<div class="rp-grp"><h4>Réseau</h4><div id="rpNets" class="rp-nets"></div></div>' +
-        '<div class="rp-grp"><h4>Texte affiché</h4>' +
-          '<input id="rpLabel" type="text" maxlength="80" placeholder="Ex. Ø200 PP SN16" autocomplete="off" aria-label="Texte affiché sur l’objet">' +
-          '<div id="rpDiams" class="rp-chips"></div></div>' +
-        '<div class="rp-grp" id="rpAccRow"><h4>Accessoire</h4><div id="rpShapes" class="rp-chips"></div>' +
-          '<input id="rpLetter" type="text" maxlength="3" placeholder="Lettre (V, C, T…)" aria-label="Lettre dans l’accessoire"></div>' +
-        '<div class="rp-grp"><h4>Taille des traits</h4>' +
-          '<input id="rpSize" type="range" min="0.6" max="2.4" step="0.1" value="1" aria-label="Taille des traits et des textes"></div>' +
-        '<div class="rp-grp rp-end">' +
+        '<div class="rp-tabs" role="tablist"><button class="rp-tab" type="button" data-tab="draw">Dessiner</button><button class="rp-tab" type="button" data-tab="obj">Objet</button><button class="rp-tab" type="button" data-tab="opts">Options</button></div>' +
+        '<div id="rpPanel" class="rp-panel"></div>' +
+        '<div class="rp-end">' +
           '<button class="btn small" id="rpFinish" type="button" hidden>Terminer la conduite</button>' +
-          '<button class="btn small danger" id="rpDel" type="button">Supprimer</button>' +
-          '<button class="btn small" id="rpClear" type="button">Tout effacer</button></div>' +
-        '<p class="hint" id="rpHint"></p>' +
+          '<button class="btn small primary" id="rp3d" type="button">Envoyer en 3D</button>' +
+          '<button class="btn small" id="rp3dOff" type="button" hidden>Retirer de la 3D</button>' +
+          '<button class="btn small" id="rpClear" type="button">Tout effacer</button>' +
+        '</div>' +
+        '<p class="hint" id="rpHint" aria-live="polite"></p>' +
       '</aside>' +
     '</div>';
   document.body.appendChild(root);
-
-  // On retrouve les éléments qu'on vient de créer pour pouvoir les utiliser
-  ui.tools = root.querySelector('#rpTools');
-  ui.nets = root.querySelector('#rpNets');
-  ui.label = root.querySelector('#rpLabel');
-  ui.letter = root.querySelector('#rpLetter');
-  ui.diams = root.querySelector('#rpDiams');
-  ui.shapes = root.querySelector('#rpShapes');
-  ui.accRow = root.querySelector('#rpAccRow');
-  ui.undo = root.querySelector('#rpUndo');
-  ui.redo = root.querySelector('#rpRedo');
-  ui.del = root.querySelector('#rpDel');
-  ui.finish = root.querySelector('#rpFinish');
-  ui.hint = root.querySelector('#rpHint');
-  canvas = root.querySelector('#rpCv');
+  canvas = q('#rpCv');
   ctx = canvas.getContext('2d');
 
-  // Les boutons de réseaux, de diamètres et de formes sont créés avec une boucle
-  for (let i = 0; i < NETS.length; i++) {
-    const button = makeElement('button', 'rp-net', '<i style="background:' + NETS[i].col + '"></i>' + protectText(NETS[i].name));
-    button.type = 'button';
-    button.dataset.net = NETS[i].id;
-    ui.nets.appendChild(button);
-  }
-  for (let i = 0; i < DIAMS.length; i++) {
-    const button = makeElement('button', 'chip', DIAMS[i]);
-    button.type = 'button';
-    button.dataset.d = DIAMS[i];
-    ui.diams.appendChild(button);
-  }
-  for (let i = 0; i < SHAPES.length; i++) {
-    const button = makeElement('button', 'chip', SHAPES[i][1]);
-    button.type = 'button';
-    button.dataset.shape = SHAPES[i][0];
-    ui.shapes.appendChild(button);
-  }
+  q('#rpTools').addEventListener('click', function (e) { const b = e.target.closest('button'); if (b) { setTool(b.dataset.tool); } });
+  root.querySelector('.rp-tabs').addEventListener('click', function (e) { const b = e.target.closest('button'); if (b) { tab = b.dataset.tab; syncPanel(); } });
+  const panel = q('#rpPanel');
+  panel.addEventListener('input', function (e) { if (e.target.dataset.f && e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT') { onField(e, false); } });
+  panel.addEventListener('change', function (e) { onField(e, true); });
+  panel.addEventListener('click', function (e) { const b = e.target.closest('[data-do]'); if (b) { onAction(b.dataset.do); } });
 
-  // Clic sur un outil
-  ui.tools.addEventListener('click', function (event) {
-    const button = event.target.closest('button');
-    if (button) {
-      setTool(button.dataset.tool);
-    }
+  q('#rpFinish').addEventListener('click', finishLine);
+  q('#rpClear').addEventListener('click', function () {
+    if (ph.objects.length && confirm('Effacer tout le repérage de cette photo ?')) { ph.objects = []; selId = null; draft = null; commit(); }
   });
+  q('#rpUndo').addEventListener('click', () => undo(-1));
+  q('#rpRedo').addEventListener('click', () => undo(1));
+  q('#rpFit').addEventListener('click', fitToScreen);
+  q('#rpPng').addEventListener('click', exportPng);
+  q('#rpClose').addEventListener('click', close);
+  q('#rp3d').addEventListener('click', () => sendTo3D(false));
+  q('#rp3dOff').addEventListener('click', removeFrom3D);
 
-  // Clic sur un réseau
-  ui.nets.addEventListener('click', function (event) {
-    const button = event.target.closest('button');
-    if (!button) {
-      return;
-    }
-    settings.net = button.dataset.net;
-    changeSelected(function (obj) { obj.net = settings.net; });
-    syncPanel();
-  });
-
-  // Clic sur un diamètre
-  ui.diams.addEventListener('click', function (event) {
-    const button = event.target.closest('button');
-    if (!button) {
-      return;
-    }
-    settings.label = button.dataset.d;
-    changeSelected(function (obj) {
-      if (obj.type === 'line') {
-        obj.label = settings.label;
-      }
-    });
-    syncPanel();
-  });
-
-  // Clic sur une forme
-  ui.shapes.addEventListener('click', function (event) {
-    const button = event.target.closest('button');
-    if (!button) {
-      return;
-    }
-    settings.shape = button.dataset.shape;
-    changeSelected(function (obj) {
-      if (obj.type === 'acc') {
-        obj.shape = settings.shape;
-      }
-    });
-    syncPanel();
-  });
-
-  // Quand on écrit dans la case "Texte affiché"
-  ui.label.addEventListener('input', function () {
-    settings.label = ui.label.value;
-    if (selected >= 0) {
-      const obj = objects[selected];
-      if (obj.type === 'text') {
-        obj.text = ui.label.value;
-      } else {
-        obj.label = ui.label.value;
-      }
-      render();
-    }
-  });
-  ui.label.addEventListener('change', function () {
-    if (selected >= 0) {
-      commit();
-    }
-  });
-
-  // Quand on écrit la lettre de l'accessoire
-  ui.letter.addEventListener('input', function () {
-    settings.letter = ui.letter.value.toUpperCase();
-    if (selected >= 0 && objects[selected].type === 'acc') {
-      objects[selected].letter = settings.letter;
-      render();
-    }
-  });
-  ui.letter.addEventListener('change', function () {
-    if (selected >= 0) {
-      commit();
-    }
-  });
-
-  // Le curseur de taille
-  root.querySelector('#rpSize').addEventListener('input', function (event) {
-    settings.size = Number(event.target.value);
-    render();
-  });
-
-  // Supprimer l'objet sélectionné
-  ui.del.addEventListener('click', function () {
-    if (selected >= 0) {
-      objects.splice(selected, 1);
-      selected = -1;
-      commit();
-      syncPanel();
-    }
-  });
-
-  ui.finish.addEventListener('click', finishLine);
-
-  // Tout effacer (après confirmation)
-  root.querySelector('#rpClear').addEventListener('click', function () {
-    if (objects.length > 0 && confirm('Effacer tout le repérage de cette photo ?')) {
-      objects = [];
-      selected = -1;
-      draft = null;
-      commit();
-      syncPanel();
-    }
-  });
-
-  ui.undo.addEventListener('click', function () { undo(-1); });
-  ui.redo.addEventListener('click', function () { undo(1); });
-  root.querySelector('#rpFit').addEventListener('click', fitToScreen);
-  root.querySelector('#rpPng').addEventListener('click', exportPng);
-  root.querySelector('#rpClose').addEventListener('click', close);
-
-  // Les événements de la souris et du doigt sur la zone de dessin
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
-  // Empêche le navigateur de retirer le focus du champ de texte quand on clique
-  canvas.addEventListener('mousedown', function (event) { event.preventDefault(); });
+  canvas.addEventListener('mousedown', e => e.preventDefault()); // garde le focus dans la zone de texte
   canvas.addEventListener('dblclick', onDoubleClick);
   canvas.addEventListener('wheel', onWheel, { passive: false });
-  canvas.addEventListener('contextmenu', function (event) { event.preventDefault(); });
-
-  // Si la fenêtre change de taille, on réajuste la photo
-  window.addEventListener('resize', function () {
-    if (!root.hidden) {
-      fitToScreen();
-    }
-  });
-
-  // Barre d'espace : déplacer la photo
-  window.addEventListener('keyup', function (event) {
-    if (event.code === 'Space') {
-      spaceDown = false;
-    }
-  });
-
-  // Raccourcis clavier
-  window.addEventListener('keydown', function (event) {
-    if (root.hidden) {
-      return;
-    }
-    const tag = event.target.tagName || '';
-    const isTyping = (tag === 'INPUT' || tag === 'TEXTAREA');
-
-    if (event.code === 'Space' && !isTyping) {
-      spaceDown = true;
-      event.preventDefault();
-    }
-    if (isTyping) {
-      return; // quand on écrit, les raccourcis ne doivent pas agir
-    }
-
-    const key = event.key.toLowerCase();
-    const withCtrl = event.ctrlKey || event.metaKey;
-    if (withCtrl && key === 'z') {
-      event.preventDefault();
-      if (event.shiftKey) {
-        undo(1);
-      } else {
-        undo(-1);
-      }
-    } else if (withCtrl && key === 'y') {
-      event.preventDefault();
-      undo(1);
-    } else if (event.key === 'Enter' && draft) {
-      finishLine();
-    } else if (event.key === 'Escape') {
-      event.stopPropagation();
-      if (draft) {
-        draft = null;
-        render();
-      } else if (tool !== 'select') {
-        setTool('select');
-      } else {
-        close();
-      }
-    } else if ((event.key === 'Delete' || event.key === 'Backspace') && selected >= 0) {
-      event.preventDefault();
-      ui.del.click();
-    }
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('resize', function () { if (!root.hidden) { fitToScreen(); } });
+  window.addEventListener('keyup', function (e) { if (e.code === 'Space') { spaceDown = false; } });
+  window.addEventListener('keydown', function (e) {
+    if (root.hidden) { return; }
+    const tag = e.target.tagName || '', typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    if (e.code === 'Space' && !typing) { spaceDown = true; e.preventDefault(); }
+    if (typing) { return; }
+    const key = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && key === 'z') { e.preventDefault(); undo(e.shiftKey ? 1 : -1); }
+    else if (ctrl && key === 'y') { e.preventDefault(); undo(1); }
+    else if (e.key === 'Enter' && draft) { finishLine(); }
+    else if (e.key === 'Escape') {
+      e.stopPropagation();
+      if (draft) { draft = null; render(); } else if (tool !== 'select') { setTool('select'); } else if (selId || gSel) { selId = null; gSel = null; syncPanel(); render(); } else { close(); }
+    } else if ((e.key === 'Delete' || e.key === 'Backspace') && selId) { e.preventDefault(); onAction('del'); }
   }, true);
 }
 
 
-/* ---------- 11. Les fonctions utilisées par le reste du site ---------- */
+/* ---------- 9. Envoi en 3D et export ---------- */
 
-// Les repérages enregistrés avec la toute première version (1.17.0) utilisaient
-// des types abrégés : l = ligne, m = regard, a = accessoire, t = texte.
-// Cette fonction les convertit pour qu'on puisse toujours les ouvrir.
-function convertOldObjects(list) {
-  const names = { l: 'line', m: 'manhole', a: 'acc', t: 'text' };
-  for (let i = 0; i < list.length; i++) {
-    if (list[i].t && !list[i].type) {
-      list[i].type = names[list[i].t];
-      delete list[i].t;
-    }
+// Envoie le repérage de cette photo dans la vue 3D (silent = sans message)
+function sendTo3D(silent) {
+  if (!curCam) { say('Cette photo n’a pas de position ou de direction (GPS / boussole) : impossible de la placer en 3D.'); return; }
+  const r = C.toNetItems(ph, curCam);
+  if (!info.onSend3D) { return; }
+  info.onSend3D(r.items);
+  if (!sentFlag) { sentFlag = true; saveNow(); }
+  if (!silent) {
+    say(r.items.length ? r.items.length + ' élément' + (r.items.length > 1 ? 's' : '') + ' envoyé' + (r.items.length > 1 ? 's' : '') + ' en 3D' + (r.skipped ? ' (' + r.skipped + ' ignoré' + (r.skipped > 1 ? 's' : '') + ' : hors du sol visible)' : '') + '.' : 'Rien à envoyer : placez des objets sur le sol de la photo.');
+    syncPanel();
   }
-  return list;
+  updateButtons();
+}
+function removeFrom3D() {
+  if (info.onSend3D) { info.onSend3D(null); }
+  sentFlag = false; saveNow(); say('Repérage retiré de la 3D.'); updateButtons();
 }
 
-// Ouvre le repérage pour une photo.
-// options = { name, src, data, onSave, onClose }
-//   name   : le nom de la photo
-//   src    : l'adresse de l'image à afficher
-//   data   : le repérage déjà enregistré (ou rien)
-//   onSave : fonction appelée à chaque modification
-//   onClose: fonction appelée à la fermeture
+// Les éléments 3D d'un repérage enregistré (utilisé par le site pour mettre la 3D à jour)
+export function recordToItems(rec, photo) {
+  if (!rec || !rec.objs) { return null; }
+  const p = { w: rec.w, h: rec.h, objects: JSON.parse(JSON.stringify(rec.objs)) };
+  const cam = makeCamera(photo, { w: rec.w, h: rec.h });
+  return cam ? C.toNetItems(p, cam).items : null;
+}
+
+function exportPng() {
+  const cv = document.createElement('canvas');
+  cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  const c = cv.getContext('2d');
+  c.drawImage(img, 0, 0);
+  C.draw(c, ph, unit(), { ui: false });
+  cv.toBlob(function (blob) {
+    if (!blob) { return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (info.name || 'photo').replace(/\.[^.]+$/, '') + '-reperage.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+  }, 'image/png');
+}
+
+
+/* ---------- 10. Les fonctions utilisées par le reste du site ---------- */
+
+// Remet à l'échelle un repérage enregistré sur une photo de taille différente
+function rescale(objs, r) {
+  const f = v => (typeof v === 'number' ? v * r : v);
+  objs.forEach(function (o) {
+    ['x', 'y', 'cx', 'cy', 'rx', 'ry'].forEach(k => { if (k in o) { o[k] = f(o[k]); } });
+    if (o.pts) { o.pts.forEach(p => { p.x *= r; p.y *= r; }); }
+    if (o.lp) { o.lp.x *= r; o.lp.y *= r; }
+  });
+  return objs;
+}
+// Lit un repérage enregistré (ancienne ou nouvelle version) pour une photo de largeur w
+function readRecord(data, w, h) {
+  if (!data) { return { objs: [], sent: false }; }
+  if (Array.isArray(data)) { return { objs: C.migrate(data, w), sent: false }; }
+  let objs = JSON.parse(JSON.stringify(data.objs || []));
+  if (data.w && Math.abs(data.w - w) > 1) { rescale(objs, w / data.w); }
+  return { objs: objs, sent: !!data.sent };
+}
+
+/* Ouvre le repérage pour une photo.
+   options = {
+     name, src,           nom et adresse de la photo
+     data,                repérage déjà enregistré
+     photo,               position et direction de la photo (pour la 3D et les autres photos)
+     others,              [{ key, name, photo, data }] : les autres photos qui ont un repérage
+     onSave(record),      appelée à chaque modification
+     onSaveOther(key, record),  appelée quand on modifie le dessin d'une autre photo
+     onSend3D(items|null),      envoi (ou retrait) du repérage dans la vue 3D
+     onClose()
+   } */
 export function open(options) {
-  if (!root) {
-    buildScreen();
-  }
-  photoInfo = options;
-
-  // On repart de zéro, avec le repérage enregistré s'il existe
-  objects = [];
-  if (Array.isArray(options.data)) {
-    objects = convertOldObjects(JSON.parse(JSON.stringify(options.data)));
-  }
-  selected = -1;
-  draft = null;
-  history = [takeSnapshot()];
-  historyPos = 0;
-  tool = 'select';
-  canvas.dataset.tool = 'select';
-
-  root.querySelector('#rpName').textContent = options.name || 'Photo';
+  if (!root) { buildScreen(); }
+  info = options;
+  ph = null; img = null; selId = null; gSel = null; draft = null; hover = null; hoverSnap = null; ghosts = null;
+  tool = 'select'; tab = 'draw'; canvas.dataset.tool = 'select';
+  fixArmed();
+  q('#rpName').textContent = options.name || 'Photo';
   root.hidden = false;
-
-  const message = root.querySelector('#rpMsg');
-  message.hidden = false;
-  message.textContent = 'Chargement…';
-  img = null;
-
-  // On charge la photo, puis on l'affiche quand elle est prête
-  const picture = new Image();
-  picture.onload = function () {
-    img = picture;
-    message.hidden = true;
+  const msg = q('#rpMsg');
+  msg.hidden = false; msg.textContent = 'Chargement…';
+  say('');
+  const pic = new Image();
+  pic.onload = function () {
+    img = pic;
+    msg.hidden = true;
+    const rec = readRecord(options.data, pic.naturalWidth, pic.naturalHeight);
+    ph = { w: pic.naturalWidth, h: pic.naturalHeight, objects: rec.objs };
+    sentFlag = rec.sent;
+    curCam = makeCamera(options.photo, { w: ph.w, h: ph.h });
+    // Les autres photos : on garde seulement celles qui ont un repérage au nouveau format
+    others = (options.others || []).map(o => ({ key: o.key, name: o.name, photo: o.photo, rec: o.data && o.data.v === 2 ? JSON.parse(JSON.stringify(o.data)) : null })).filter(o => o.rec);
+    computeGhosts();
+    C.syncAll(ph);
+    history = [C.snapshot(ph.objects)]; historyPos = 0;
     fitToScreen();
     syncPanel();
+    if (!curCam) { say('Cette photo n’a pas de position ou de direction : le repérage reste possible, mais pas l’envoi en 3D.'); }
+    else if (ghosts) { say('Les dessins des autres photos apparaissent en transparence : cliquez-en un pour le modifier ou le prolonger.'); }
   };
-  picture.onerror = function () {
-    message.textContent = 'Cette photo ne peut pas être repérée dans le navigateur.';
-  };
-  picture.src = options.src;
-
+  pic.onerror = function () { msg.textContent = 'Cette photo ne peut pas être repérée dans le navigateur.'; };
+  pic.src = options.src;
   syncPanel();
-  root.querySelector('#rpClose').focus();
+  q('#rpClose').focus();
 }
 
-// Ferme le repérage
 export function close() {
-  if (!root || root.hidden) {
-    return;
-  }
-  if (textEditor) {
-    closeTextEditor(true);
-  }
-  if (draft) {
-    finishLine();
-  }
+  if (!root || root.hidden) { return; }
+  if (textEditor) { closeTextEditor(true); }
+  if (draft) { draft = null; }
   root.hidden = true;
   img = null;
-  const whenClosed = photoInfo && photoInfo.onClose;
-  photoInfo = null;
-  if (whenClosed) {
-    whenClosed();
-  }
+  const f = info && info.onClose;
+  info = null;
+  if (f) { f(); }
 }
 
-// Dit si le repérage est ouvert (utilisé par la visionneuse pour la touche Échap)
-export function isOpen() {
-  return !!root && !root.hidden;
-}
+export function isOpen() { return !!root && !root.hidden; }

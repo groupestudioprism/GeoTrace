@@ -1,9 +1,9 @@
 /* GeoTrace – cache de l'application pour un démarrage rapide et hors connexion.
    Les fonds de carte ne sont pas mis en cache : ils demandent une connexion. */
-const CACHE = 'geotrace-v1.17.1';
+const CACHE = 'geotrace-v1.18.0';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
-  'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js', 'assets/chantier.js', 'assets/devs.js', 'assets/phases.js', 'assets/nets.js', 'assets/planning.js', 'assets/repere.js', 'assets/zones3d.js',
+  'assets/app.css', 'assets/app.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js', 'assets/chantier.js', 'assets/devs.js', 'assets/phases.js', 'assets/nets.js', 'assets/planning.js', 'assets/repere.js', 'assets/repere-core.js', 'assets/photoproj.js', 'assets/zones3d.js',
   'assets/symbol.png', 'assets/wordmark.svg', 'assets/wordmark-dark.svg', 'assets/sturno-emblem.png', 'assets/logo-geotrace.png', 'assets/favicon.png',
   'vendor/leaflet/leaflet.css', 'vendor/leaflet/MarkerCluster.css', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.markercluster.js',
   'vendor/leaflet/images/layers.png', 'vendor/leaflet/images/layers-2x.png', 'vendor/leaflet/images/marker-icon.png',

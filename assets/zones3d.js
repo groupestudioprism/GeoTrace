@@ -298,9 +298,18 @@ export function buildNets(nets, toEN, colors) {
   const group = new THREE.Group(); group.name = 'reseaux'; let segs = 0;
   const geo = new THREE.CylinderGeometry(1, 1, 1, 10), ball = new THREE.SphereGeometry(1, 10, 8), up = new THREE.Vector3(0, 1, 0);
   nets.forEach(n => {
-    if (!n.pts || n.pts.length < 2 || segs > 9000) return;
-    const col = (colors && colors[n.type]) || '#6b7480', m = mat(col), z = n.depth > 0 ? -n.depth : n.depth < 0 ? -n.depth : .15, r = Math.max(.12, Math.min(1.5, (+n.diam || 100) / 1500));
+    if (!n.pts || n.pts.length < (n.kind ? 1 : 2) || segs > 9000) return;
+    const col = n.col || (colors && colors[n.type]) || '#6b7480', m = mat(col), z = n.depth > 0 ? -n.depth : n.depth < 0 ? -n.depth : .15, r = Math.max(.12, Math.min(1.5, (+n.diam || 100) / 1500));
     const P = n.pts.map(p => { const e = toEN(p[0], p[1]); return new THREE.Vector3(e[0], e[1], z); }), root = new THREE.Group();
+    if (n.kind) {
+      // Regard : un puits vertical de la surface jusqu'au fond. Accessoire : une boule sur la conduite.
+      const e = P[0];
+      if (n.kind === 'regard') {
+        const h = Math.max(.6, Math.abs(z)), rr = Math.max(.25, Math.min(1.2, (+n.diam || 800) / 2000)), c = new THREE.Mesh(geo, m);
+        c.scale.set(rr, h, rr); c.rotation.x = Math.PI / 2; c.position.set(e.x, e.y, -h / 2); root.add(c);
+      } else { const s = new THREE.Mesh(ball, m); s.scale.setScalar(Math.max(.2, r * 1.6)); s.position.copy(e); root.add(s); }
+      root.userData.itemId = n.id; group.add(root); return;
+    }
     for (let i = 1; i < P.length; i++) {
       const a = P[i - 1], b = P[i], d = new THREE.Vector3().subVectors(b, a), L = d.length(); if (L < .02) continue;
       const c = new THREE.Mesh(geo, m); c.scale.set(r, L, r); c.position.copy(a).addScaledVector(d, .5); c.quaternion.setFromUnitVectors(up, d.normalize()); root.add(c); segs++;
