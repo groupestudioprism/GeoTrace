@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.29.0 : l'outil de repérage complet dans GeoTrace
+
+- Nouveau bouton « Repérage » : ouvre en plein écran l'outil d'origine « Repérage de réseaux sur photos » (photos et signalisation : projets, favoris, réglages, exports images, zip et PowerPoint, KML, panneaux), sans rien retirer. Fichier : `repere-app.html`.
+- Adaptations : bouton « Retour à GeoTrace », thème clair/sombre synchronisé, et envoi à l'outil des photos affichées dans GeoTrace (automatique à l'ouverture, ou bouton « Envoyer les photos de la carte »).
+- Le repérage direct sur la carte (Chantier > Réseaux) reste disponible.
+
 ## Version 1.28.9 : textes dézoomés
 
 - Quand la conduite est plus fine que le texte (dézoom), le nom n'est plus dans une pastille qui cache le trait : il se pose au-dessus, avec un halo blanc.

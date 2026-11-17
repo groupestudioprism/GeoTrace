@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.28.9';
+const VERSION = '1.29.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -45,6 +45,7 @@ const IC = {
   download: '<path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  pin: '<path d="M12 21s-6-5.6-6-10a6 6 0 1112 0c0 4.4-6 10-6 10z"/><circle cx="12" cy="11" r="2.2"/>',
   zone: '<path d="M5 7l8-3 6 6-3 9-10-1z"/><circle cx="5" cy="7" r="1.3"/><circle cx="13" cy="4" r="1.3"/><circle cx="19" cy="10" r="1.3"/><circle cx="16" cy="19" r="1.3"/><circle cx="6" cy="18" r="1.3"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
@@ -998,9 +999,11 @@ function refreshIcons() { markers.forEach((m, id) => { const p = photos.find(x =
 
 function setTheme(t) {
   document.documentElement.dataset.theme = t; prefs.theme = t; savePrefs();
+  try { const f = document.querySelector('#rpView iframe'); if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'gt-theme', theme: t }, location.origin); } catch (e) { /* ignoré */ }
   const b = $('themeBtn'); b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon');
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = t === 'dark' ? '#0d1b2e' : '#04264b';
 }
+$('rpBtn').addEventListener('click', () => import('./repereview.js').then(m => m.open({ photos: () => visible() })).catch(e => status('Repérage indisponible : ' + e.message)));
 $('themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 /* ================= Panneau ================= */

@@ -755,3 +755,10 @@ body.on-welcome .pop-wrap { display: none; }
 .rs-wrow { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .rs-wrow .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-wrow input { width: 64px; }
+
+/* Repérage sur photos : l'outil complet en plein écran */
+#rpView { position: fixed; inset: 0; z-index: 3000; display: flex; flex-direction: column; background: var(--bg, #fff); }
+#rpView[hidden] { display: none; }
+.rp-bar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line, rgba(127,127,127,.3)); background: var(--panel, #fff); }
+.rp-sp { flex: 1; }
+.rp-frame { flex: 1; width: 100%; border: 0; }
