@@ -224,6 +224,11 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.18.3 : dessins visibles sur la photo, calage par points communs
+
+- **Dessins sur la photo** : dans la visionneuse, le repérage de la photo (et celui des photos voisines, en transparence) s'affiche directement sur l'image, sans ouvrir « Repérer ». Bouton **« Dessins »** pour les afficher ou les masquer ; ils suivent le zoom et la rotation.
+- **Caler par points communs** (Repérer > Dessiner > Caler la photo) : une photo voisine s'affiche en haut à gauche ; cliquez un point reconnaissable (angle de bâtiment, bordure, regard), puis le même endroit sur la photo en cours. Avec 1 à 2 points le cap, l'inclinaison, le roulis et le zoom sont réglés ; à partir de 3 points la position et la hauteur le sont aussi. « Autre photo de référence » change de voisine. Le réglage sert aussi dans la vue 3D.
+
 ## Version 1.18.2 : calage automatique des photos
 
 Mesuré sur 224 photos drone réelles : l'erreur de placement vient surtout du GPS, de la hauteur et du cap de chaque photo (environ 2 % de la distance, soit 20 à 150 px sur une photo de 2400 px).

@@ -678,3 +678,13 @@ body.on-welcome .pop-wrap { display: none; }
   .rp-nets { grid-template-columns: repeat(3, 1fr); }
   .rp-net { font-size: .72rem; }
 }
+
+/* Calage par points communs : photo de référence en haut à gauche */
+.rp-ref { position: absolute; left: 8px; top: 8px; width: 46%; height: 46%; min-width: 260px; min-height: 200px; display: flex; flex-direction: column; background: #000; border: 2px solid #ff2d8a; border-radius: 8px; overflow: hidden; z-index: 5; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+.rp-ref-h { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px; background: rgba(0,0,0,.75); color: #fff; font-size: 12px; }
+.rp-ref canvas { flex: 1; min-height: 0; width: 100%; touch-action: none; cursor: crosshair; }
+
+/* Dessins du repérage affichés sur la photo de la visionneuse */
+.v-stage > img, .v-stage > .v-over { grid-area: 1 / 1; }
+.v-over { pointer-events: none; transform-origin: center; will-change: transform; }
+.v-over[hidden] { display: none; }

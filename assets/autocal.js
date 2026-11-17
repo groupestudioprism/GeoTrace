@@ -118,7 +118,7 @@ function track(Wp, B, S) {
 
 /* Cherche le petit réglage de B (cap, inclinaison, décalage est / nord, hauteur) qui ramène chaque point du sol
    sur l'endroit mesuré. Moindres carrés avec pondération qui écarte les mesures aberrantes (arbres, véhicules...). */
-function fit(photoB, size, pts, a0) {
+export function fit(photoB, size, pts, a0) {
   const names = ['yaw', 'pitch', 'e', 'n', 'z'], scale = [1, 1, 1, 1, 1];
   const resid = function (x) {
     const adj = Object.assign({}, a0);

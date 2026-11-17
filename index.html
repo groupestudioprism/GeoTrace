@@ -334,6 +334,7 @@
     <span class="v-sep"></span>
     <button class="vb" id="vZoomOut" type="button" aria-label="Zoom arrière" data-ic="minus"></button>
     <button class="vb" id="vZoomIn" type="button" aria-label="Zoom avant" data-ic="plus"></button>
+    <button class="vb wide" id="vOvl" type="button" aria-pressed="true" title="Afficher ou masquer les dessins sur la photo">Dessins</button>
     <button class="vb wide" id="vRep" type="button" title="Dessiner conduites, regards et accessoires sur la photo">Repérer</button>
     <button class="vb" id="vRotate" type="button" aria-label="Pivoter" data-ic="rotate"></button>
     <button class="vb" id="vReset" type="button" aria-label="Taille d’origine" data-ic="fit"></button>
@@ -343,7 +344,7 @@
     <button class="vb" id="vClose" type="button" aria-label="Fermer" data-ic="close"></button>
   </div>
   <div class="v-body">
-    <div class="v-stage" id="vStage"><img id="vImg" alt="" draggable="false"><span class="v-msg" id="vMsg" hidden></span></div>
+    <div class="v-stage" id="vStage"><img id="vImg" alt="" draggable="false"><canvas id="vOver" class="v-over"></canvas><span class="v-msg" id="vMsg" hidden></span></div>
     <aside class="v-info" id="vInfo"></aside>
   </div>
 </div>

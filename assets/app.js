@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.18.2';
+const VERSION = '1.18.3';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -687,6 +687,7 @@ function openViewer(p) {
 function applyZoom() {
   const img = $('vImg');
   img.style.transform = `translate(${vz.x}px, ${vz.y}px) rotate(${vz.r}deg) scale(${vz.s})`;
+  $('vOver').style.transform = img.style.transform;
   $('vStage').style.cursor = vz.s > 1 ? 'grab' : 'default';
 }
 function resetZoom(keepRot) { vz = { s: 1, x: 0, y: 0, r: keepRot ? vz.r : 0 }; applyZoom(); }
@@ -705,7 +706,7 @@ async function showInViewer() {
   const src = p.kind === 'remote' ? p.url : await displayUrl(p);
   if (my !== vToken) return;
   if (!src) { msg.textContent = 'Ce format ne peut pas être affiché dans le navigateur. Téléchargez la photo pour l’ouvrir.'; return; }
-  img.onload = () => { if (my === vToken) { msg.hidden = true; img.hidden = false; } };
+  img.onload = () => { if (my === vToken) { msg.hidden = true; img.hidden = false; paintOver(); } };
   img.onerror = () => { if (my === vToken) { img.hidden = true; msg.hidden = false; msg.textContent = 'Cette photo n’a pas pu être affichée.'; } };
   img.src = src;
 }
@@ -721,6 +722,7 @@ function renderInfoAddr(p) {
   const dl = $('vInfo').querySelector('dl'); if (dl && !dl.textContent.includes('Adresse')) dl.insertAdjacentHTML('beforeend', `<dt>Adresse</dt><dd>${esc(p.addr)}</dd>`);
 }
 function closeViewer() {
+  $('vOver').hidden = true;
   $('viewer').hidden = true; $('vImg').removeAttribute('src'); vToken++;
   document.body.style.overflow = '';
   const p = vList[vIdx]; if (p) { const m = markers.get(p.id); if (m && group.getVisibleParent && group.getVisibleParent(m) !== m) { /* reste regroupé */ } }
@@ -762,9 +764,32 @@ async function openRepere() {
       const o = photos.find(x => x.key === key);
       if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
     },
-    onSend3D: items => sendRepTo3D(p.key, items)
+    onSend3D: items => sendRepTo3D(p.key, items),
+    onClose: () => paintOver()
   });
 }
+// Dessins du repérage (et ceux des autres photos reportés ici) posés sur la photo de la visionneuse
+let ovlOn = store.get('geotrace:ovl', true);
+async function paintOver() {
+  const cv = $('vOver'), img = $('vImg'), p = vList[vIdx], b = $('vOvl');
+  if (!cv || !p) return;
+  const mine = reps[p.key] && reps[p.key].v === 2 && (reps[p.key].objs || []).length;
+  const oth = photos.some(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null);
+  b.hidden = !(mine || oth); b.setAttribute('aria-pressed', String(!!ovlOn));
+  cv.hidden = true;
+  if (!ovlOn || b.hidden || !img.naturalWidth) return;
+  const my = vToken;
+  if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { return; } }
+  if (my !== vToken) return;
+  let M = null; try { M = await maq(); } catch (e) { M = null; }
+  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ photo: poseOf(o, M), data: reps[o.key] }));
+  const k = Math.min(1, 2400 / img.naturalWidth);
+  Rep.paintOverlay(cv, { w: Math.round(img.naturalWidth * k), h: Math.round(img.naturalHeight * k), data: reps[p.key], photo: poseOf(p, M), others, showOthers: true });
+  cv.style.width = img.clientWidth + 'px'; cv.style.height = img.clientHeight + 'px';
+  cv.hidden = false;
+}
+$('vOvl').addEventListener('click', () => { ovlOn = !ovlOn; store.set('geotrace:ovl', ovlOn); paintOver(); });
+window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
 function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
 $('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);

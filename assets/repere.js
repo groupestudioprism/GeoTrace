@@ -24,6 +24,7 @@
 
 import * as C from './repere-core.js';
 import { makeCamera, solveAdj } from './photoproj.js';
+import { fit as fitPts } from './autocal.js';
 
 export const NETS = C.S.networks; // gardé pour compatibilité
 
@@ -58,6 +59,7 @@ let hintText = '';
 let curAdj = null;     // réglages fins de la photo (cap, inclinaison, roulis, zoom, décalages), les mêmes que dans la vue 3D
 let calib = null;      // calage en cours : { pairs, pending, start }
 let sendTimer = null;
+let ref = null;        // photo de référence affichée en haut à gauche pendant le calage par points
 let autoBusy = false;  // calage automatique en cours
 
 const CFG = 'geotrace:repere:cfg';
@@ -119,6 +121,81 @@ async function autoCal() {
   } catch (e) { console.error(e); say('Le calage automatique a échoué.'); }
   finally { autoBusy = false; if (root && info) { syncPanel(); } }
 }
+
+
+/* Calage par points communs : une photo voisine s'affiche en haut à gauche. On y clique un point,
+   puis le même endroit sur la photo en cours. Chaque couple affine la pose de la photo en cours. */
+async function startRef() {
+  if (!info || !info.neighbors || !curCam || ref) { return; }
+  say('Recherche des photos voisines…');
+  const list = await info.neighbors();
+  if (!list.length) { say('Aucune photo voisine (moins de 120 m, avec position GPS).'); return; }
+  const items = [];
+  for (const n of list) {
+    const im = await new Promise(function (ok) { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = n.src; });
+    if (im) { items.push({ photo: n.photo, im: im, cam: makeCamera(n.photo, { w: im.naturalWidth, h: im.naturalHeight }) }); }
+  }
+  const usable = items.filter(x => x.cam);
+  if (!usable.length) { say('Les photos voisines ne peuvent pas servir de référence.'); return; }
+  if (draft) { draft = null; }
+  tool = 'calib'; canvas.dataset.tool = 'calib'; selId = null; gSel = null;
+  calib = { pairs: [], pending: null, start: Object.assign({}, curAdj), ref: true };
+  const box = document.createElement('div');
+  box.className = 'rp-ref';
+  box.innerHTML = '<div class="rp-ref-h"><b></b><small>molette : zoom, glisser : déplacer</small></div><canvas></canvas>';
+  q('.rp-stage').appendChild(box);
+  ref = { box: box, cv: box.querySelector('canvas'), items: usable, idx: 0, view: { x: 0, y: 0, s: 1 }, drag: null };
+  ref.cv.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    const r = ref.cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, v = ref.view, ns = clamp(v.s * (e.deltaY < 0 ? 1.2 : 1 / 1.2), 0.03, 20), f = ns / v.s;
+    v.x = mx - (mx - v.x) * f; v.y = my - (my - v.y) * f; v.s = ns; refDraw();
+  }, { passive: false });
+  ref.cv.addEventListener('pointerdown', function (e) { ref.cv.setPointerCapture(e.pointerId); ref.drag = { x: e.clientX, y: e.clientY, vx: ref.view.x, vy: ref.view.y, moved: false }; });
+  ref.cv.addEventListener('pointermove', function (e) {
+    const d = ref.drag; if (!d) { return; }
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) { d.moved = true; }
+    if (d.moved) { ref.view.x = d.vx + e.clientX - d.x; ref.view.y = d.vy + e.clientY - d.y; refDraw(); }
+  });
+  ref.cv.addEventListener('pointerup', function (e) {
+    const d = ref.drag; ref.drag = null;
+    if (!d || d.moved || !calib) { return; }
+    const r = ref.cv.getBoundingClientRect(), v = ref.view, it = ref.items[ref.idx];
+    const x = (e.clientX - r.left - v.x) / v.s, y = (e.clientY - r.top - v.y) / v.s;
+    const g = it.cam.toGround(x, y);
+    if (!g) { say('Ce point est trop près de l’horizon : choisissez un point plus bas dans la photo de référence.'); return; }
+    calib.pending = { g: [g.lat, g.lon], at: { x: x, y: y } };
+    say('Maintenant, cliquez le même endroit sur cette photo (grande image).');
+    refDraw();
+  });
+  refShow();
+  say('Cliquez un point reconnaissable dans la photo de référence (en haut à gauche), puis le même endroit sur cette photo.');
+  syncPanel(); render();
+}
+function refShow() {
+  const it = ref.items[ref.idx], r = ref.cv.getBoundingClientRect();
+  ref.box.querySelector('b').textContent = 'Référence : ' + (it.photo.name || '') + ' (' + (ref.idx + 1) + '/' + ref.items.length + ')';
+  const w = r.width || 400, h = r.height || 300;
+  ref.view.s = Math.min(w / it.im.naturalWidth, h / it.im.naturalHeight);
+  ref.view.x = (w - it.im.naturalWidth * ref.view.s) / 2; ref.view.y = (h - it.im.naturalHeight * ref.view.s) / 2;
+  refDraw();
+}
+function refNext() { if (!ref) { return; } ref.idx = (ref.idx + 1) % ref.items.length; if (calib) { calib.pending = null; } refShow(); }
+function refDraw() {
+  if (!ref) { return; }
+  const c = ref.cv, r = c.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * k) || c.height !== Math.round(r.height * k)) { c.width = Math.round(r.width * k); c.height = Math.round(r.height * k); }
+  const x = c.getContext('2d'), v = ref.view, it = ref.items[ref.idx], u = it.im.naturalWidth / 1000;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
+  x.setTransform(k * v.s, 0, 0, k * v.s, k * v.x, k * v.y);
+  x.drawImage(it.im, 0, 0);
+  x.strokeStyle = '#ff2d8a'; x.fillStyle = '#ff2d8a'; x.lineWidth = 2 / v.s; x.font = 'bold ' + 14 / v.s + 'px sans-serif';
+  const mark = (p, label) => { x.beginPath(); x.moveTo(p.x - 8 / v.s, p.y); x.lineTo(p.x + 8 / v.s, p.y); x.moveTo(p.x, p.y - 8 / v.s); x.lineTo(p.x, p.y + 8 / v.s); x.stroke(); if (label) { x.fillText(label, p.x + 9 / v.s, p.y - 9 / v.s); } };
+  if (calib) {
+    calib.pairs.forEach((p, i) => { if (p.ref === ref.idx) { mark(p.at, String(i + 1)); } });
+    if (calib.pending) { x.beginPath(); x.arc(calib.pending.at.x, calib.pending.at.y, 11 / v.s, 0, 7); x.stroke(); }
+  }
+}
+function refClose() { if (ref) { ref.box.remove(); ref = null; } }
 
 
 /* ---------- 3. Les réglages enregistrés ---------- */
@@ -206,10 +283,11 @@ function drawCalib(u) {
   if (!calib) { return; }
   ctx.save();
   ctx.lineWidth = 2 * u; ctx.strokeStyle = '#ff2d8a';
-  calib.pairs.forEach(function (q) {
+  calib.pairs.forEach(function (q, i) {
     ctx.beginPath(); ctx.moveTo(q.px.x - 7 * u, q.px.y); ctx.lineTo(q.px.x + 7 * u, q.px.y); ctx.moveTo(q.px.x, q.px.y - 7 * u); ctx.lineTo(q.px.x, q.px.y + 7 * u); ctx.stroke();
+    if (calib.ref) { ctx.fillStyle = '#ff2d8a'; ctx.font = 'bold ' + 14 * u + 'px sans-serif'; ctx.fillText(String(i + 1), q.px.x + 9 * u, q.px.y - 9 * u); }
   });
-  if (calib.pending) { ctx.beginPath(); ctx.arc(calib.pending.at.x, calib.pending.at.y, 9 * u, 0, 7); ctx.stroke(); }
+  if (calib.pending && !calib.ref) { ctx.beginPath(); ctx.arc(calib.pending.at.x, calib.pending.at.y, 9 * u, 0, 7); ctx.stroke(); }
   ctx.restore();
 }
 
@@ -357,6 +435,7 @@ function ghostAnchors() {
   return out;
 }
 function downCalib(p, tol) {
+  if (calib.ref && !calib.pending) { say('Cliquez d’abord le point dans la photo de référence (en haut à gauche), puis ici le même endroit.'); return; }
   if (!calib.pending) {
     let best = null, bd = tolPx(40);
     ghostAnchors().forEach(function (a) { const d = Math.hypot(a.x - p.x, a.y - p.y); if (d < bd) { bd = d; best = a; } });
@@ -366,13 +445,21 @@ function downCalib(p, tol) {
     render();
     return;
   }
-  calib.pairs.push({ g: calib.pending.g, px: { x: p.x, y: p.y } });
+  calib.pairs.push({ g: calib.pending.g, px: { x: p.x, y: p.y }, ref: ref ? ref.idx : -1, at: calib.pending.at });
   calib.pending = null;
-  const a = solveAdj(Object.assign({}, info.photo, { adj: calib.start }), { w: ph.w, h: ph.h }, calib.pairs);
-  applyAdj(a, false);
+  solveNow();
   const n = calib.pairs.length;
-  say(n + ' point' + (n > 1 ? 's' : '') + ' placé' + (n > 1 ? 's' : '') + (n === 1 ? ' (cap et inclinaison réglés). Un 2e point règle aussi le roulis et le zoom.' : '.') + ' Continuez ou terminez le calage.');
-  syncPanel();
+  say(n + ' point' + (n > 1 ? 's' : '') + ' placé' + (n > 1 ? 's' : '') + (n < 3 && calib.ref ? '. Avec 3 points ou plus, la position et la hauteur sont réglées aussi.' : '.') + ' Continuez ou terminez le calage.');
+  refDraw(); syncPanel();
+}
+// Recalcule le réglage de la photo avec les couples de points placés
+function solveNow() {
+  const size = { w: ph.w, h: ph.h }, base = Object.assign({}, info.photo, { adj: calib.start });
+  if (!calib.pairs.length) { applyAdj(calib.start, false); return; }
+  if (calib.pairs.length >= 3) {
+    const r = fitPts(base, size, calib.pairs.map(q => ({ lat: q.g[0], lon: q.g[1], qx: q.px.x, qy: q.px.y })), calib.start);
+    applyAdj(r.adj, false);
+  } else { applyAdj(solveAdj(base, size, calib.pairs), false); }
 }
 function startCalib() {
   if (!ghosts) { say('Aucun dessin d’une autre photo dans cette vue : rien pour caler.'); return; }
@@ -386,6 +473,7 @@ function startCalib() {
 function endCalib(ok) {
   if (!calib) { return; }
   const c = calib;
+  refClose();
   calib = null; tool = 'select'; canvas.dataset.tool = 'select';
   if (ok && c.pairs.length) { applyAdj(curAdj, true); say('Photo calée. Le réglage est aussi utilisé dans la vue 3D.'); }
   else { applyAdj(c.start, false); say(''); }
@@ -637,11 +725,13 @@ function calibBlock() {
   const sl = (f, label, min, max, step, unit) => '<label class="rp-f"><span>' + label + ' : <b>' + (Math.round(a[f] * 100) / 100) + unit + '</b></span><input type="range" data-adj="' + f + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + a[f] + '"></label>';
   let h = '<div class="rp-grp"><h4>Caler la photo</h4>';
   if (calib) {
-    h += '<p class="hint">Calage en cours : ' + calib.pairs.length + ' point(s) placé(s).</p>' +
+    h += '<p class="hint">Calage en cours : ' + calib.pairs.length + ' point(s) placé(s).' + (calib.ref ? ' Cliquez un point reconnaissable dans la photo de référence, puis le même endroit sur cette photo (angle de bâtiment, bordure, regard, marquage au sol). 3 points suffisent, 5 à 6 bien répartis donnent le meilleur résultat.' : '') + '</p>' +
+      (calib.ref ? '<div class="rp-row"><button class="btn small" data-do="ref-next" type="button">Autre photo de référence</button></div>' : '') +
       '<div class="rp-row"><button class="btn small primary" data-do="calib-ok" type="button">Terminer</button><button class="btn small" data-do="calib-undo" type="button">Retirer le dernier</button><button class="btn small" data-do="calib-cancel" type="button">Annuler</button></div>';
   } else {
     h += '<p class="hint">Si les dessins des autres photos ne tombent pas au bon endroit, la position ou le cap de cette photo est légèrement faux (GPS, boussole). Calez-la sur eux : le réglage sert aussi dans la vue 3D.</p>' +
       '<div class="rp-row"><button class="btn small primary" data-do="autocal" type="button"' + (autoBusy || !info.neighbors ? ' disabled' : '') + '>' + (autoBusy ? 'Calage…' : 'Recaler automatiquement') + '</button></div>' +
+      '<div class="rp-row"><button class="btn small" data-do="refcal" type="button"' + (info.neighbors ? '' : ' disabled') + '>Caler par points communs</button></div>' +
       '<div class="rp-row"><button class="btn small" data-do="calib" type="button"' + (ghosts ? '' : ' disabled') + '>Caler sur un dessin</button><button class="btn small" data-do="adj-reset" type="button">Remettre à zéro</button></div>' +
       '<details class="rp-det"><summary>Réglage fin</summary>' + sl('yaw', 'Cap', -45, 45, 0.1, '°') + sl('pitch', 'Inclinaison', -30, 30, 0.1, '°') + sl('roll', 'Roulis', -15, 15, 0.1, '°') + sl('zoom', 'Zoom', 0.6, 1.6, 0.01, '×') + sl('e', 'Décalage est', -40, 40, 0.5, ' m') + sl('n', 'Décalage nord', -40, 40, 0.5, ' m') + sl('z', 'Hauteur', -40, 40, 0.5, ' m') + '</details>';
   }
@@ -798,12 +888,14 @@ function onAction(act) {
     selId = r.line.id; commit(); return;
   }
   if (act === 'autocal') { return autoCal(); }
+  if (act === 'refcal') { return startRef(); }
+  if (act === 'ref-next') { return refNext(); }
   if (act === 'calib') { return startCalib(); }
   if (act === 'calib-ok') { return endCalib(true); }
   if (act === 'calib-cancel') { return endCalib(false); }
   if (act === 'calib-undo' && calib) {
     calib.pairs.pop(); calib.pending = null;
-    applyAdj(calib.pairs.length ? solveAdj(Object.assign({}, info.photo, { adj: calib.start }), { w: ph.w, h: ph.h }, calib.pairs) : calib.start, false);
+    solveNow(); refDraw();
     syncPanel(); return;
   }
   if (act === 'adj-reset') { applyAdj(ADJ0(), true); say('Réglages de la photo remis à zéro.'); syncPanel(); return; }
@@ -1089,10 +1181,38 @@ export function open(options) {
   q('#rpClose').focus();
 }
 
+/* Dessine le repérage d'une photo (et, si on veut, celui des autres photos reporté ici) sur un canvas posé sur la photo
+   affichée dans la visionneuse : on voit les dessins sans rouvrir le repérage.
+   o = { w, h, data, photo, others:[{photo,data}], showOthers } */
+export function paintOverlay(cv, o) {
+  cv.width = o.w; cv.height = o.h;
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, o.w, o.h);
+  const u = o.w / 1000;
+  const cam = o.photo ? makeCamera(o.photo, { w: o.w, h: o.h }) : null;
+  if (o.showOthers && cam) {
+    const objs = [];
+    (o.others || []).forEach(function (x) {
+      if (!x.data || x.data.v !== 2 || !x.data.objs) { return; }
+      const ca = makeCamera(x.photo, { w: x.data.w, h: x.data.h });
+      if (!ca) { return; }
+      x.data.objs.forEach(function (ob) { const p = C.projectObject(JSON.parse(JSON.stringify(ob)), ca, cam); if (p) { objs.push(p); } });
+    });
+    if (objs.length) { c.save(); c.globalAlpha = 0.55; C.draw(c, { w: o.w, h: o.h, objects: objs }, u, { ui: false }); c.restore(); }
+  }
+  if (o.data && o.data.v === 2 && o.data.objs && o.data.objs.length) {
+    const sx = o.w / o.data.w;
+    const objs = JSON.parse(JSON.stringify(o.data.objs));
+    if (Math.abs(sx - 1) > 0.001) { c.save(); c.scale(sx, sx); C.draw(c, { w: o.data.w, h: o.data.h, objects: objs }, o.data.w / 1000, { ui: false }); c.restore(); }
+    else { C.draw(c, { w: o.w, h: o.h, objects: objs }, u, { ui: false }); }
+  }
+}
+
 export function close() {
   if (!root || root.hidden) { return; }
   if (textEditor) { closeTextEditor(true); }
   if (calib) { endCalib(true); }
+  refClose();
   if (draft) { draft = null; }
   clearTimeout(sendTimer);
   root.hidden = true;
