@@ -224,6 +224,11 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.25.0 : la maquette ne bouge plus dans la vue 3D
+
+Avant, la maquette était tournée (angle du nord) et déplacée pour se poser sur la carte. Maintenant elle reste exactement dans ses coordonnées d'origine. Ce sont le terrain, les photos, les réseaux et la caméra qui sont placés autour d'elle. En vue superposée, la photo est derrière et la maquette, intacte, est devant : la caméra reprend la position, le cap, l'inclinaison et le champ de la photo.
+La carte 2D (maquette posée sur la carte) garde son placement.
+
 ## Version 1.24.0 : retrait du scan 3D et de l'onglet Réseaux
 
 À refaire plus tard. Retirés : le scan 3D (nuage de points), le bouton Réseaux et le plan en vue de dessus, les réseaux dessinés sur la carte, et les fichiers `plan.js` et `netlayer.js`.
