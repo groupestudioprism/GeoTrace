@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.18.4';
+const VERSION = '1.19.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -792,6 +792,48 @@ async function paintOver() {
 }
 $('vOvl').addEventListener('click', () => { ovlOn = !ovlOn; store.set('geotrace:ovl', ovlOn); paintOver(); });
 window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
+/* Calage de tout le projet : points communs entre toutes les photos voisines, réglage de toutes les photos ensemble */
+let pcLayer = null, pcRun = null;
+async function projectCalib() {
+  if (pcRun) return;
+  const list = photos.filter(p => p.lat != null && p.heading != null);
+  if (list.length < 2) { status('Il faut au moins 2 photos avec position GPS et direction.', { ms: 4000 }); return; }
+  let box = document.getElementById('pcBox');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'pcBox'; box.setAttribute('role', 'status');
+    box.innerHTML = '<b>Calage du projet</b><span id="pcTxt"></span><progress id="pcBar" max="1" value="0"></progress><button class="btn small" id="pcStop" type="button">Arrêter</button>';
+    document.body.appendChild(box);
+  }
+  box.hidden = false;
+  const run = pcRun = { stop: false };
+  document.getElementById('pcStop').onclick = () => { run.stop = true; };
+  const txt = document.getElementById('pcTxt'), bar = document.getElementById('pcBar');
+  let M = null; try { M = await maq(); } catch (e) { M = null; }
+  let PC = null;
+  try { PC = await import('./projcal.js'); } catch (e) { console.error(e); }
+  if (!PC) { box.hidden = true; pcRun = null; status('Calage du projet indisponible.', { ms: 4000 }); return; }
+  const items = list.map(p => ({ key: p.key, pose: poseOf(p, M), load: async () => {
+    const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
+    if (!src) return null;
+    return await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+  } }));
+  let r = null;
+  try { r = await PC.calibrateProject({ photos: items, onProgress: (t, f) => { txt.textContent = t; bar.value = f || 0; }, cancelled: () => run.stop }); }
+  catch (e) { console.error(e); r = { error: 'Le calage a échoué.' }; }
+  box.hidden = true; pcRun = null;
+  if (!r || r.cancelled) { status('Calage du projet arrêté : rien n’a été modifié.', { ms: 4000 }); return; }
+  if (r.error) { status('Calage du projet : ' + r.error, { ms: 6000 }); return; }
+  // On enregistre le réglage de chaque photo (calage des réseaux), puis on montre le nuage de points sur la carte
+  for (const k in r.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(r.adjs[k])); } catch (e) { /* stockage indisponible */ } }
+  if (pcLayer) { pcLayer.remove(); pcLayer = null; }
+  if (window.L && map && r.points.length) {
+    const rend = L.canvas({ padding: 0.3 });
+    pcLayer = L.layerGroup(r.points.map(q => L.circleMarker(q, { renderer: rend, radius: 2, weight: 0, fillColor: '#ff2d8a', fillOpacity: .8, interactive: false }))).addTo(map);
+  }
+  status('Projet calé : ' + r.stats.photos + ' photos, ' + r.stats.pairs + ' paires, ' + r.stats.obs + ' points communs. Écart moyen ' + r.stats.before.toFixed(1) + ' → ' + r.stats.after.toFixed(1) + ' px. Les dessins sont recalculés à l’ouverture.', { ms: 9000 });
+  if (!$('viewer').hidden) paintOver();
+}
+$('pcBtn').addEventListener('click', projectCalib);
 function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
 $('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);

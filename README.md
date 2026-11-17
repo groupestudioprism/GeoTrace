@@ -224,6 +224,15 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.19.0 : calage de tout le projet (nuage de points commun)
+
+Bouton **« Calage projet »** (barre du haut). Le site compare toutes les photos voisines entre elles (6 plus proches, moins de 150 m), retrouve les détails visibles sur deux photos (les « points communs », qui forment un nuage) puis règle **toutes les photos en même temps** (cap, inclinaison, position, hauteur) pour que ces points tombent au même endroit du sol vus de chaque photo. Le GPS et la boussole servent de rappel : une photo mal reliée reste proche de ses valeurs d'origine. Trois passes de plus en plus fines.
+
+- Mesuré sur les 222 photos de test : environ 1 à 1,5 min ; écart médian entre photos voisines de 14–150 px avant calage à 3–17 px après (une paire est restée vers 20–40 px).
+- Le réglage est enregistré pour chaque photo (calage des réseaux, indépendant de celui de la maquette) et les dessins se recalculent à l'ouverture. Le nuage de points s'affiche sur la carte (points roses).
+- Bouton « Arrêter » : rien n'est modifié si on interrompt.
+- Limites : sol supposé plat, photos sans voisine à moins de 150 m non réglées, points proches de l'horizon ignorés.
+
 ## Version 1.18.4 : calages séparés pour la maquette et les réseaux
 
 Le calage d'une photo est maintenant **double et indépendant** : celui de la **maquette** (vue 3D, comme avant) et celui des **réseaux** (repérage sur photo, calage automatique et par points). Caler les réseaux ne bouge plus la maquette, et inversement. Les réseaux envoyés en 3D restent posés au bon endroit du terrain grâce au calage des réseaux. Les photos déjà calées pour la maquette gardent leur réglage ; le calage des réseaux repart de zéro.

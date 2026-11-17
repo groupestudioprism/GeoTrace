@@ -20,14 +20,12 @@ import { makeCamera } from './photoproj.js';
 
 const W = 480;       // largeur des images de travail (passages 1 et 2) ; le 3e passage affine en 900 px
 const W3 = 900;
-const T = 21;        // taille du carré comparé (pixels)
-const STEP = 24;     // écart entre deux points mesurés
 const MAXD = 250;    // au-delà (mètres) le sol n'est plus fiable
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const pause = () => new Promise(r => setTimeout(r, 0)); // laisse l'écran respirer
 
 // Image -> niveaux de gris, à la taille de travail
-function gray(img, W) {
+export function gray(img, W) {
   const w = W, h = Math.round(W * img.naturalHeight / img.naturalWidth);
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -44,7 +42,7 @@ function sample(im, x, y) {
 }
 
 // La photo de référence A vue depuis la pose de B : image redressée + sol touché par chaque pixel
-function warp(A, B, camA, camB) {
+export function warp(A, B, camA, camB) {
   const aw = new Float32Array(B.w * B.h).fill(-1), gl = new Float64Array(B.w * B.h * 2).fill(NaN);
   let ok = 0;
   for (let y = 0; y < B.h; y++) {
@@ -64,7 +62,8 @@ function warp(A, B, camA, camB) {
 
 /* Mesure le décalage : pour chaque point d'une grille, on cherche où le petit carré de l'image redressée
    ressemble le plus à l'image B (corrélation normalisée), dans une fenêtre de ±S pixels. */
-function track(Wp, B, S) {
+export function track(Wp, B, S, TT, ST) {
+  const T = TT || 21, STEP = ST || 24;
   const r = (T - 1) / 2, w = B.w, h = B.h, out = [];
   // sommes cumulées de B et B² : la moyenne et la variance d'une fenêtre se lisent en 4 additions
   const I1 = new Float64Array((w + 1) * (h + 1)), I2 = new Float64Array((w + 1) * (h + 1));
