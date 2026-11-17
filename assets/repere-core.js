@@ -236,6 +236,9 @@ export function loadSettings(saved) {
 
 /* ---------- 2. Petites fonctions utiles ---------- */
 
+// Échelle des textes : les dessins suivent le zoom, mais l'écriture reste lisible (réglée par la carte)
+let TXTK = 1;
+export function setTextScale(k) { TXTK = k > 0 ? k : 1; }
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // Sur la carte (ph.free) il n'y a pas de bord de photo : un texte n'est jamais ramené dans un cadre
 const fitIn = (ph, v, size, k) => ph.free ? v : clamp(v, 0, Math.max(0, ph[k] - size));
@@ -608,7 +611,7 @@ function drawLineLabel(c, o, u, ph) {
   const text = o.text != null && o.text !== '' ? o.text : def.desc;
   if (!text) { return; }
   const pts = o.pts, col = o.col || colOf(def.net), lw = def.w * u, pos = o.pos || S.labelPos || 'on', box = S.labelBox !== false;
-  let fs = (o.fs || S.fs) * u;
+  let fs = (o.fs || S.fs) * u * TXTK;
   c.save(); c.font = font(fs, true); c.textBaseline = 'middle'; c.lineJoin = 'round';
   const chars = Array.from(text); let cw, cum, tw;
   const meas = () => { c.font = font(fs, true); cw = chars.map(ch => c.measureText(ch).width); cum = [0]; cw.forEach((w, i) => cum.push(cum[i] + w)); tw = cum[cum.length - 1]; };
@@ -830,7 +833,7 @@ function placeLabels(c, ph, u) {
     return sc;
   };
   const spec = (o, k) => {
-    let fs = (o.fs || S.fs) * u * k;
+    let fs = (o.fs || S.fs) * u * k * TXTK;
     const lines = o.type === 'manhole' ? manholeLines(o) : accText(o).split('\n').filter(t => t.trim()).map((t, i) => ({ t: t, b: i === 0 }));
     let m = boxSize(c, lines, fs);
     const kk = ph.free ? 1 : Math.min(1, ph.w * 0.92 / m.w, ph.h * 0.92 / m.h);
@@ -914,7 +917,7 @@ function legendRows(ph) {
   return rows;
 }
 function drawLegend(c, o, ph, u) {
-  const fs = (o.fs || S.fs * 0.9) * u, rows = legendRows(ph), pad = fs * 0.6, hs = fs * 1.7, sw = fs * 3.2;
+  const fs = (o.fs || S.fs * 0.9) * u * TXTK, rows = legendRows(ph), pad = fs * 0.6, hs = fs * 1.7, sw = fs * 3.2;
   c.save(); c.font = font(fs, false);
   let mw = c.measureText('Légende').width;
   const txt = rows.map(r => (r.k === 'pipe' ? ((netOf(r.d.net) || { name: '' }).name + ' : ' + r.d.desc) : r.d.name));

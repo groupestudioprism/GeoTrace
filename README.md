@@ -228,6 +228,11 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.8 : les dessins suivent le zoom
+
+- Conduites, regards, accessoires et coudes grossissent et rétrécissent avec la carte (de 0,3 à 2,5 fois leur taille de référence) ; les textes suivent aussi mais restent lisibles (11 à 20 px). Les poignées gardent une taille constante.
+- Les regards gardent leur taille relative aux conduites quel que soit le zoom.
+
 ## Version 1.28.7 : texte de taille constante
 
 - Sur la carte, les textes (conduites, regards, accessoires) gardent la même taille à l'écran quel que soit le zoom : plus de réduction. Quand une conduite devient trop courte pour son texte (dézoom), il est masqué et réapparaît en zoomant.

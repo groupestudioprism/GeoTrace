@@ -23,7 +23,10 @@ const latOf = y => 180 / Math.PI * (2 * Math.atan(Math.exp((0.5 - y / WORLD) * 2
 const toP = ll => ({ x: mx(ll[1] != null ? ll[1] : ll.lng) - ref.x, y: my(ll[0] != null ? ll[0] : ll.lat) - ref.y });
 const toLL = p => [latOf(p.y + ref.y), lonOf(p.x + ref.x)];
 const scale = () => Math.pow(2, map.getZoom() - Z0);
-const unit = () => K / scale();
+// Les dessins suivent le zoom (entre 0,3 et 2,5 fois leur taille de référence) ; le texte reste lisible (11 à 20 px)
+const elScale = () => Math.max(0.3, Math.min(2.5, Math.pow(2, map.getZoom() - 19.5)));
+const unit = () => K * elScale() / scale();
+const txtK = () => { const px = 16 * elScale(); return Math.max(11, Math.min(20, px)) / px; };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const objOf = id => ph.objects.find(o => o.id === id);
 const clean = o => JSON.parse(JSON.stringify(o, (k, v) => (k[0] === '_' ? undefined : v)));
@@ -63,7 +66,11 @@ function fixArmed() {
   if (!C.accOf(armed.acc)) armed.acc = (C.S.accessories[2] || C.S.accessories[0] || {}).id;
 }
 const saveArmed = () => { try { localStorage.setItem('geotrace:rsxarm', JSON.stringify(armed)); } catch (e) { /* ignoré */ } };
-const fixU = () => { ph.w = ph.h = 1000 * unit(); ph.free = true; };
+const fixU = () => {
+  const u = unit(); ph.w = ph.h = 1000 * u; ph.free = true; if (C && C.setTextScale) C.setTextScale(txtK());
+  // un regard garde sa taille relative aux conduites : rx/ry suivent l'unité courante
+  ph.objects.forEach(m => { if (m.type !== 'manhole') return; if (!(m.rxu > 0)) { m.rxu = (m.rx || 11 * u) / u; m.ryu = (m.ry || 11 * u) / u; } m.rx = m.rxu * u; m.ry = m.ryu * u; });
+};
 
 /* ---------- historique ---------- */
 function commit(moved) {
@@ -106,8 +113,7 @@ function paint() {
   const s = scale(), o = origin(), u = unit();
   c.setTransform(dpr * s, 0, 0, dpr * s, -o.x * s * dpr, -o.y * s * dpr);
   fixU();
-  ph.objects.forEach(m => { if (m.type === 'manhole' && !(m.rx > 0)) m.rx = m.ry = 11 * u; });
-  C.draw(c, ph, u, { ui: !!tool, selected: sel ? [sel] : [], hs: 1 });
+  C.draw(c, ph, u, { ui: !!tool, selected: sel ? [sel] : [], hs: 1 / elScale() });
   if (draft && draft.pts.length) {
     const pd = C.pipeOf(draft.pipe || armed.pipe) || { w: 4, net: '' };
     const pts = draft.pts.concat(hover ? [hoverSnap ? hoverSnap.pos : hover] : []);
@@ -299,6 +305,7 @@ function onDragMove(e) {
     if (d.o.type === 'manhole') {
       const co = Math.cos(-(d.o.rot || 0)), si = Math.sin(-(d.o.rot || 0)), dx = p.x - d.o.cx, dy = p.y - d.o.cy, lx = dx * co - dy * si, ly = dx * si + dy * co, mn = 2 * u;
       if (/^rx/.test(d.hid)) d.o.rx = Math.max(mn, Math.abs(lx)); else d.o.ry = Math.max(mn, Math.abs(ly));
+      d.o.rxu = d.o.rx / u; d.o.ryu = d.o.ry / u;
       C.syncAll(ph, [d.o]);
     } else { const r = Math.hypot(p.x - d.o.x, p.y - d.o.y); d.o.size = Math.max(2, Math.min(40, r / u)); d.o.autoSize = null; }
   } else if (d.kind === 'label') d.o.lp = { x: p.x - d.dx, y: p.y - d.dy };
