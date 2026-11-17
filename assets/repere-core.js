@@ -237,6 +237,8 @@ export function loadSettings(saved) {
 /* ---------- 2. Petites fonctions utiles ---------- */
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// Sur la carte (ph.free) il n'y a pas de bord de photo : un texte n'est jamais ramené dans un cadre
+const fitIn = (ph, v, size, k) => ph.free ? v : clamp(v, 0, Math.max(0, ph[k] - size));
 let counter = 0;
 export const uid = () => 'o' + Date.now().toString(36) + (++counter).toString(36);
 
@@ -598,7 +600,7 @@ function drawLine(c, o, u, mode) {
 }
 // Le texte d'une conduite : écrit lettre à lettre le long du tracé (comme l'outil d'origine), dans une pastille blanche
 // bordée de la couleur du réseau, au meilleur endroit libre ; réduit s'il manque de la place, masqué si vraiment trop court.
-let LBL_AVOID = [], LBL_PLACED = [];
+let LBL_AVOID = [], LBL_PLACED = [], LBL_LINES = [], LBL_RECTS = [];
 function lblTextColor(col) { return luminance(col) > 0.5 ? darken(col, 0.22) : col; }
 function drawLineLabel(c, o, u) {
   if (o.showLabel === false || o.pts.length < 2) { return; }
@@ -628,6 +630,8 @@ function drawLineLabel(c, o, u) {
         for (const q of LBL_AVOID) { if (Math.hypot(q.x - p.x, q.y - p.y) < q.r + fs * 0.6) { sc += 45; } }
         for (const q of LBL_PLACED) { if (q.o !== o.id && Math.hypot(q.x - p.x, q.y - p.y) < fs * 0.95) { sc += 40; } }
         for (const v of pts) { if (Math.hypot(v.x - p.x, v.y - p.y) < fs * 0.8) { sc += 6; } }
+        for (const q of LBL_LINES) { if (q.o !== o.id && Math.hypot(q.x - p.x, q.y - p.y) < fs * 0.95) { sc += 25; } }
+        for (const b of LBL_RECTS) { if (p.x >= b.x - fs * 0.6 && p.x <= b.x + b.w + fs * 0.6 && p.y >= b.y - fs * 0.6 && p.y <= b.y + b.h + fs * 0.6) { sc += 70; } }
       }
       if (sc < bs) { bs = sc; st0 = st; }
     }
@@ -825,7 +829,7 @@ function placeLabels(c, ph, u) {
     let fs = (o.fs || S.fs) * u * k;
     const lines = o.type === 'manhole' ? manholeLines(o) : accText(o).split('\n').filter(t => t.trim()).map((t, i) => ({ t: t, b: i === 0 }));
     let m = boxSize(c, lines, fs);
-    const kk = Math.min(1, ph.w * 0.92 / m.w, ph.h * 0.92 / m.h);
+    const kk = ph.free ? 1 : Math.min(1, ph.w * 0.92 / m.w, ph.h * 0.92 / m.h);
     if (kk < 1) { fs *= kk; m = boxSize(c, lines, fs); }
     return { fs: fs, lines: lines, m: m };
   };
@@ -834,7 +838,7 @@ function placeLabels(c, ph, u) {
   labelled.forEach(function (o) {
     if (!o.lp) { return; }
     const m = spec(o, 1).m;
-    boxes.push({ x: clamp(o.lp.x, 0, Math.max(0, ph.w - m.w)), y: clamp(o.lp.y, 0, Math.max(0, ph.h - m.h)), w: m.w, h: m.h });
+    boxes.push({ x: fitIn(ph, o.lp.x, m.w, 'w'), y: fitIn(ph, o.lp.y, m.h, 'h'), w: m.w, h: m.h });
   });
   const gaps = [8 * u, 8 * u + 9 * u, 8 * u + 18 * u], ang = [-45, 45, -135, 135, 0, 180, -90, 90, -20, 20, -160, 160];
   labelled.forEach(function (o) {
@@ -846,7 +850,7 @@ function placeLabels(c, ph, u) {
         const r = a * Math.PI / 180, co = Math.cos(r), si = Math.sin(r);
         let x = cx + co * (ext + g) - (co < -0.3 ? m.w : (Math.abs(co) <= 0.3 ? m.w / 2 : 0));
         let y = cy + si * (ext + g) - (si < -0.3 ? m.h : (Math.abs(si) <= 0.3 ? m.h / 2 : 0));
-        x = clamp(x, 0, Math.max(0, ph.w - m.w)); y = clamp(y, 0, Math.max(0, ph.h - m.h));
+        x = fitIn(ph, x, m.w, 'w'); y = fitIn(ph, y, m.h, 'h');
         const raw = cost({ x: x, y: y, w: m.w, h: m.h }, o), sc = gi * 40 + ai * 3 + raw;
         if (sc < bs) { bs = sc; best = { x: x, y: y, raw: raw }; }
       }));
@@ -864,6 +868,7 @@ function placeLabels(c, ph, u) {
     boxes.push({ x: r.x, y: r.y, w: sp.m.w, h: sp.m.h });
     o._ap = { x: r.x, y: r.y };
   });
+  spec.boxes = boxes;
   return spec;
 }
 function drawLabels(c, ph, u, spec) {
@@ -873,7 +878,7 @@ function drawLabels(c, ph, u, spec) {
     const sp = spec(o, o._fk || 1);
     const pos = o.lp || o._ap;
     if (!pos) { return; }
-    const m = sp.m, x = clamp(pos.x, 0, Math.max(0, ph.w - m.w)), y = clamp(pos.y, 0, Math.max(0, ph.h - m.h));
+    const m = sp.m, x = fitIn(ph, pos.x, m.w, 'w'), y = fitIn(ph, pos.y, m.h, 'h');
     const col = o.type === 'manhole' ? colOf(o.net || (mhOf(o.mhId) || {}).net) : accColor(o, ph, u);
     const cx = o.type === 'manhole' ? o.cx : o.x, cy = o.type === 'manhole' ? o.cy : o.y;
     const ext = o.type === 'manhole' ? Math.max(o.rx, o.ry) : (o.size || 8) * u;
@@ -911,7 +916,7 @@ function drawLegend(c, o, ph, u) {
   const txt = rows.map(r => (r.k === 'pipe' ? ((netOf(r.d.net) || { name: '' }).name + ' : ' + r.d.desc) : r.d.name));
   txt.forEach(t => { mw = Math.max(mw, c.measureText(t).width + sw + fs * 0.6); });
   const w = mw + pad * 2, h = (rows.length + 1) * hs + pad;
-  const x = clamp(o.x, 0, Math.max(0, ph.w - w)), y = clamp(o.y, 0, Math.max(0, ph.h - h));
+  const x = fitIn(ph, o.x, w, 'w'), y = fitIn(ph, o.y, h, 'h');
   c.fillStyle = 'rgba(255,255,255,.93)'; c.strokeStyle = 'rgba(20,30,40,.5)'; c.lineWidth = u; c.beginPath(); c.rect(x, y, w, h); c.fill(); c.stroke();
   c.fillStyle = '#131B24'; c.textBaseline = 'middle'; c.textAlign = 'left'; c.font = font(fs, true); c.fillText('Légende', x + pad, y + pad * 0.5 + hs * 0.5);
   rows.forEach(function (r, i) {
@@ -1009,13 +1014,16 @@ export function draw(c, ph, u, opt) {
   ph.objects.filter(o => o.type === 'manhole').forEach(o => drawManhole(c, o, u));
   ph.objects.filter(o => o.type === 'acc').forEach(o => drawAcc(c, o, ph, u));
   drawWarnings(c, ph, u);
-  LBL_PLACED = []; LBL_AVOID = [];
+  LBL_PLACED = []; LBL_AVOID = []; LBL_LINES = [];
   ph.objects.forEach(o => {
     if (o.type === 'acc') { LBL_AVOID.push({ x: o.x, y: o.y, r: (o.size || 8) * u * 1.5 }); }
     else if (o.type === 'manhole') { LBL_AVOID.push({ x: o.cx, y: o.cy, r: Math.max(o.rx, o.ry) * 1.1 }); }
+    else if (o.type === 'line' && o.pts.length > 1) { const L = polyLens(o.pts); for (let t = 0; t <= L[L.length - 1]; t += 4 * u) { const q = pointAt(o.pts, L, t); LBL_LINES.push({ x: q.x, y: q.y, o: o.id }); } }
   });
-  lines.forEach(o => drawLineLabel(c, o, u));
+  // les encadrés (regards, accessoires) sont placés d'abord ; les textes de conduite les évitent ensuite
   const spec = placeLabels(c, ph, u);
+  LBL_RECTS = spec.boxes || [];
+  lines.forEach(o => drawLineLabel(c, o, u));
   drawLabels(c, ph, u, spec);
   ph.objects.filter(o => o.type === 'text').forEach(o => drawText(c, o, u));
   ph.objects.filter(o => o.type === 'legend').forEach(o => drawLegend(c, o, ph, u));
@@ -1424,7 +1432,7 @@ export function placeAcc(ph, p, def, u, tol) {
   const n = defs.length, step = 44 * u;
   let dx = p.x - best.x, dy = p.y - best.y, dist = Math.hypot(dx, dy);
   if (dist < 8 * u) { dx = -Math.sin(best.a); dy = Math.cos(best.a); dist = 0; } else { dx /= dist; dy /= dist; }
-  const total = Math.max(dist, (n - 1) * step), inside = q => q.x >= 0 && q.x <= ph.w && q.y >= 0 && q.y <= ph.h;
+  const total = Math.max(dist, (n - 1) * step), inside = q => ph.free || (q.x >= 0 && q.x <= ph.w && q.y >= 0 && q.y <= ph.h);
   if (!inside({ x: best.x + dx * total, y: best.y + dy * total })) { dx = -dx; dy = -dy; }
   const E = { x: best.x + dx * total, y: best.y + dy * total }, kid = uid(), objs = [];
   const branch = { id: uid(), type: 'line', pipeId: kitBranchPipe(best.pd, brOd).id, pts: [{ x: best.x, y: best.y }, { x: E.x, y: E.y }], kit: kid, kg: true, kbr: true };

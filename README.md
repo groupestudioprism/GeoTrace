@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.6 : textes lisibles et recalculés à chaque modification
+
+- Correction : sur la carte, les encadrés (regards, accessoires) et textes étaient ramenés dans un cadre de photo fictif ; ils restent maintenant à côté de leur objet, quelle que soit la position.
+- Les encadrés sont placés d'abord, puis les textes de conduite les évitent, ainsi que les autres conduites, regards, accessoires et coudes.
+- Tout est recalculé à chaque modification (ajout, déplacement, changement de type).
+
 ## Version 1.28.5 : textes des conduites et palette sans doublon
 
 - Le texte d'une conduite s'écrit lettre à lettre le long du tracé, dans une pastille blanche bordée de la couleur du réseau (comme l'outil d'origine) ; il évite les coudes, tés, regards et accessoires, se réduit si la conduite est courte et se masque si elle est trop courte.

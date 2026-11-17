@@ -63,7 +63,7 @@ function fixArmed() {
   if (!C.accOf(armed.acc)) armed.acc = (C.S.accessories[2] || C.S.accessories[0] || {}).id;
 }
 const saveArmed = () => { try { localStorage.setItem('geotrace:rsxarm', JSON.stringify(armed)); } catch (e) { /* ignoré */ } };
-const fixU = () => { ph.w = ph.h = 1000 * unit(); };
+const fixU = () => { ph.w = ph.h = 1000 * unit(); ph.free = true; };
 
 /* ---------- historique ---------- */
 function commit(moved) {
