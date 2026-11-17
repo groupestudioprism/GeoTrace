@@ -109,7 +109,11 @@ export function track(Wp, B, S, TT, ST) {
       let second = -2;
       for (let dy = -S; dy <= S; dy++) { for (let dx = -S; dx <= S; dx++) { if (Math.abs(dx - bx) + Math.abs(dy - by) > 5) { const v = score[(dy + S) * side + dx + S]; if (v > second) { second = v; } } } }
       if (best - second < 0.03) { continue; }
-      out.push({ lat: Wp.gl[(y * w + x) * 2], lon: Wp.gl[(y * w + x) * 2 + 1], qx: x + bx, qy: y + by, sc: best });
+      // précision inférieure au pixel : on ajuste une parabole sur le pic de corrélation
+      let fx = 0, fy = 0;
+      if (bx > -S && bx < S) { const l = score[(by + S) * side + bx - 1 + S], c = score[(by + S) * side + bx + S], r = score[(by + S) * side + bx + 1 + S], dn = l - 2 * c + r; if (dn < -1e-6) { fx = clamp(0.5 * (l - r) / dn, -0.5, 0.5); } }
+      if (by > -S && by < S) { const l = score[(by - 1 + S) * side + bx + S], c = score[(by + S) * side + bx + S], r = score[(by + 1 + S) * side + bx + S], dn = l - 2 * c + r; if (dn < -1e-6) { fy = clamp(0.5 * (l - r) / dn, -0.5, 0.5); } }
+      out.push({ lat: Wp.gl[(y * w + x) * 2], lon: Wp.gl[(y * w + x) * 2 + 1], qx: x + bx + fx, qy: y + by + fy, sc: best });
     }
   }
   return out;

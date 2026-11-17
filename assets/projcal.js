@@ -21,20 +21,29 @@
 import { makeCamera } from './photoproj.js';
 import { gray, warp, track, isNadir, bestYaw } from './autocal.js';
 
-const NAMES = ['yaw', 'pitch', 'e', 'n', 'z'];
-const SIG = [3, 2, 4, 4, 4];      // écart "normal" par paramètre (°, °, m, m, m) : sert de rappel vers le départ
-const LIM = [15, 10, 15, 15, 15]; // jamais au-delà
+const NAMES = ['yaw', 'pitch', 'e', 'n', 'z', 'roll', 'zoom'];
+const K = NAMES.length;
+const SIG = [3, 2, 4, 4, 4, 1.5, 0.02];      // écart "normal" par paramètre (°, °, m, m, m) : sert de rappel vers le départ
+const LIM = [15, 10, 15, 15, 15, 6, 0.08]; // jamais au-delà
 const PRIOR_K = 3;                // poids du rappel (en pixels par écart normal)
 const ROUNDS = [
   { W: 240, S: 22, T: 15, step: 14 },
   { W: 480, S: 16, T: 21, step: 24 },
-  { W: 480, S: 10, T: 21, step: 20 }
+  { W: 480, S: 10, T: 21, step: 20 },
+  { W: 720, S: 8, T: 25, step: 26 }
 ];
 const pause = () => new Promise(r => setTimeout(r, 0));
 
 function dist(a, b) {
   const k = Math.PI / 180, R = 6371008.8;
   return Math.hypot((a.lon - b.lon) * k * R * Math.cos(a.lat * k), (a.lat - b.lat) * k * R);
+}
+
+// Image à 720 px de large, en octets (3e passage)
+function up(img) {
+  const g = gray(img, 720), g8 = new Uint8Array(g.g.length);
+  for (let k = 0; k < g8.length; k++) { g8[k] = g.g[k]; }
+  return { g: g8, w: g.w, h: g.h };
 }
 
 // Image réduite de moitié (moyenne de 2×2), en octets
@@ -72,7 +81,7 @@ export async function calibrateProject(opt) {
     const g = gray(img, 480), g8 = new Uint8Array(g.g.length);
     for (let k = 0; k < g8.length; k++) { g8[k] = g.g[k]; }
     const full = { g: g8, w: g.w, h: g.h };
-    P.push({ key: ph.key, pose: ph.pose, im: { 480: full, 240: half(full) }, adj: Object.assign({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 }, ph.pose.adj || {}) });
+    P.push({ key: ph.key, pose: ph.pose, im: { 480: full, 240: half(full), 720: up(img) }, adj: Object.assign({ yaw: 0, pitch: 0, roll: 0, e: 0, n: 0, z: 0, zoom: 1 }, ph.pose.adj || {}) });
     await pause();
   }
   if (P.length < 2) { return { error: 'Il faut au moins 2 photos avec position GPS et direction.' }; }
@@ -145,12 +154,12 @@ export async function calibrateProject(opt) {
 /* Moindres carrés pondérés (Levenberg-Marquardt) sur les 5 paramètres de chaque photo.
    Pour un point commun vu en (a) et (b) : sa position au sol déduite de (a) doit retomber sur (b), et inversement. */
 async function solveAll(P, pairs, stop) {
-  const n = P.length, N = 5 * n, S0 = 480;
+  const n = P.length, N = K * n, S0 = 480;
   const sizes = P.map(p => ({ w: S0, h: p.im[480].h }));
   const mk = (i, adj) => makeCamera(Object.assign({}, P[i].pose, { adj: adj }), sizes[i]);
   const all = [];
   pairs.forEach(pr => pr.obs.forEach(o => all.push({ a: pr.a, b: pr.b, o: o })));
-  const withAdj = (i, x, idx, d) => { const a = Object.assign({}, P[i].adj); NAMES.forEach((k, m) => { a[k] = x[i * 5 + m] + (m === idx ? d : 0); }); return a; };
+  const withAdj = (i, x, idx, d) => { const a = Object.assign({}, P[i].adj); NAMES.forEach((k, m) => { a[k] = x[i * K + m] + (m === idx ? d : 0); }); return a; };
 
   // résidus d'un point commun (4 nombres) à partir de deux caméras
   const resid = function (ca, cb, o, sa, sb) {
@@ -163,13 +172,13 @@ async function solveAll(P, pairs, stop) {
     return out;
   };
   const x = new Float64Array(N);
-  P.forEach((p, i) => p.x0.forEach((v, m) => { x[i * 5 + m] = v; }));
+  P.forEach((p, i) => p.x0.forEach((v, m) => { x[i * K + m] = v; }));
 
   const costOf = function (xv) {
     const cams = P.map((p, i) => mk(i, withAdj(i, xv, -1, 0)));
     let c = 0;
     all.forEach(function (e) { const r = resid(cams[e.a], cams[e.b], e.o, sizes[e.a], sizes[e.b]); for (let k = 0; k < 4; k++) { const d = Math.abs(r[k]); c += d < 3 ? d * d : 6 * d - 9; } });
-    for (let i = 0; i < N; i++) { const m = i % 5, z = PRIOR_K * (xv[i] - P[(i / 5) | 0].x0[m]) / SIG[m]; c += z * z; }
+    for (let i = 0; i < N; i++) { const m = i % K, z = PRIOR_K * (xv[i] - P[(i / K) | 0].x0[m]) / SIG[m]; c += z * z; }
     return c;
   };
   const medOf = function (xv) {
@@ -184,7 +193,7 @@ async function solveAll(P, pairs, stop) {
     if (stop()) { return null; }
     // caméras de base et caméras légèrement décalées (un paramètre à la fois)
     const base = P.map((p, i) => mk(i, withAdj(i, x, -1, 0)));
-    const H = [0.05, 0.05, 0.1, 0.1, 0.1];
+    const H = [0.05, 0.05, 0.1, 0.1, 0.1, 0.05, 0.003];
     const pert = P.map((p, i) => NAMES.map((k, m) => mk(i, withAdj(i, x, m, H[m]))));
     const A = new Float64Array(N * N), g = new Float64Array(N);
     for (let e = 0; e < all.length; e++) {
@@ -192,17 +201,17 @@ async function solveAll(P, pairs, stop) {
       const r0 = resid(base[E.a], base[E.b], E.o, sa, sb);
       // pondération robuste, par résidu
       const w = r0.map(v => { const d = Math.abs(v); return d <= 3 ? 1 : 3 / d; });
-      const J = []; // 10 colonnes : 5 de a, 5 de b
-      for (let m = 0; m < 5; m++) { const r1 = resid(pert[E.a][m], base[E.b], E.o, sa, sb); J.push(r1.map((v, k) => (v - r0[k]) / H[m])); }
-      for (let m = 0; m < 5; m++) { const r1 = resid(base[E.a], pert[E.b][m], E.o, sa, sb); J.push(r1.map((v, k) => (v - r0[k]) / H[m])); }
+      const J = []; // 2K colonnes : K de a, K de b
+      for (let m = 0; m < K; m++) { const r1 = resid(pert[E.a][m], base[E.b], E.o, sa, sb); J.push(r1.map((v, k) => (v - r0[k]) / H[m])); }
+      for (let m = 0; m < K; m++) { const r1 = resid(base[E.a], pert[E.b][m], E.o, sa, sb); J.push(r1.map((v, k) => (v - r0[k]) / H[m])); }
       const idx = [];
-      for (let m = 0; m < 5; m++) { idx.push(E.a * 5 + m); }
-      for (let m = 0; m < 5; m++) { idx.push(E.b * 5 + m); }
-      for (let u = 0; u < 10; u++) {
+      for (let m = 0; m < K; m++) { idx.push(E.a * K + m); }
+      for (let m = 0; m < K; m++) { idx.push(E.b * K + m); }
+      for (let u = 0; u < 2 * K; u++) {
         let gu = 0;
         for (let k = 0; k < 4; k++) { gu += J[u][k] * w[k] * r0[k]; }
         g[idx[u]] -= gu;
-        for (let v = u; v < 10; v++) {
+        for (let v = u; v < 2 * K; v++) {
           let s = 0;
           for (let k = 0; k < 4; k++) { s += J[u][k] * w[k] * J[v][k]; }
           A[idx[u] * N + idx[v]] += s;
@@ -212,9 +221,9 @@ async function solveAll(P, pairs, stop) {
       if (e % 4000 === 0) { await pause(); }
     }
     for (let i = 0; i < N; i++) {
-      const m = i % 5, kk = PRIOR_K / SIG[m];
+      const m = i % K, kk = PRIOR_K / SIG[m];
       A[i * N + i] += kk * kk;
-      g[i] -= kk * kk * (x[i] - P[(i / 5) | 0].x0[m]);
+      g[i] -= kk * kk * (x[i] - P[(i / K) | 0].x0[m]);
     }
     // essais avec un amortissement croissant jusqu'à ce que le coût baisse
     let ok = false;
@@ -222,14 +231,14 @@ async function solveAll(P, pairs, stop) {
       const d = cholSolve(A, g, N, lambda);
       if (!d) { lambda *= 10; continue; }
       const xn = new Float64Array(N);
-      for (let i = 0; i < N; i++) { const m = i % 5, x0 = P[(i / 5) | 0].x0[m]; xn[i] = Math.max(x0 - LIM[m], Math.min(x0 + LIM[m], x[i] + d[i])); }
+      for (let i = 0; i < N; i++) { const m = i % K, x0 = P[(i / K) | 0].x0[m]; xn[i] = Math.max(x0 - LIM[m], Math.min(x0 + LIM[m], x[i] + d[i])); }
       const cn = costOf(xn);
       if (cn < cost) { x.set(xn); const gain = cost - cn; cost = cn; lambda = Math.max(lambda / 3, 1e-3); ok = true; if (gain < 1e-3 * cost) { it = 99; } } else { lambda *= 5; }
     }
     if (!ok) { break; }
     await pause();
   }
-  P.forEach((p, i) => { NAMES.forEach((k, m) => { p.adj[k] = x[i * 5 + m]; }); });
+  P.forEach((p, i) => { NAMES.forEach((k, m) => { p.adj[k] = x[i * K + m]; }); });
   const after = medOf(x);
 
   // le nuage : milieu des deux positions au sol de chaque point commun (au plus 12 000 points)

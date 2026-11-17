@@ -224,6 +224,13 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.19.3 : calage du projet nettement plus précis
+
+- **Mesure plus fine** : les points communs sont maintenant mesurés au sous-pixel et une 4e passe est faite sur des images plus grandes (720 px).
+- **Réglage plus complet** : en plus du cap, de l'inclinaison, de la position et de la hauteur, chaque photo reçoit aussi un réglage de **roulis** et de **zoom (focale)**.
+- Mesuré sur les 222 photos de test (16 paires comparées à des points repérés dans l'image) : écart médian **de 45 px avant calage à 6 px** (11 px dans la version précédente) ; la plupart des paires sont sous 10 px, les vues de dessus prises à plus de 90 m de haut restent vers 15 px (relief du terrain non modélisé).
+- Le calage complet prend environ 3 minutes pour 220 photos (barre de progression).
+
 ## Version 1.19.2 : meilleur calage en vue de dessus
 
 - Le cap d'un drone qui regarde à la verticale est peu fiable : le calage essaie plusieurs rotations et garde celle qui donne les points communs les plus nets (calage du projet et calage automatique d'une photo).
