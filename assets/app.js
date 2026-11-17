@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.23.0';
+const VERSION = '1.23.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -780,7 +780,12 @@ async function openRepere() {
   });
 }
 async function openPlan() {
-  if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
+  if (planBusy) return;
+  planBusy = true;
+  try { await openPlanInner(); } catch (e) { console.error(e); status('Le plan n’a pas pu s’ouvrir : ' + (e && e.message || e), { ms: 6000 }); } finally { planBusy = false; }
+}
+let planBusy = false;
+async function openPlanInner() {
   status('Préparation du plan…');
   let PL = null, M = null;
   try { PL = await import('./plan.js'); planGeom = PL.planGeometry; if (!Rep) Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Plan indisponible.', { ms: 4000 }); return; }
@@ -789,8 +794,8 @@ async function openPlan() {
   if (!P0) { status('Ajoutez d’abord des photos (ou zoomez la carte sur le chantier).', { ms: 4000 }); return; }
   let built = null;
   try { built = await PL.buildPlan(null, P0); } catch (e) { console.error(e); }
-  if (!built || !built.blob || !built.ok) { status('Le plan n’a pas pu être chargé (fond aérien IGN indisponible).', { ms: 5000 }); return; }
-  status('');
+  if (!built || !built.blob) { status('Le plan n’a pas pu être créé.', { ms: 5000 }); return; }
+  status(built.ok ? '' : 'Fond aérien IGN indisponible : plan sur fond gris, vous pouvez dessiner quand même.', built.ok ? {} : { ms: 5000 });
   const url = URL.createObjectURL(built.blob);
   const others = photos.filter(o => reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
   Rep.open({
