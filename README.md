@@ -224,6 +224,11 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.20.1 : site plus léger et calage disponible plus tôt
+
+- **Chargement** : les trois logos de la page d'accueil pesaient 500 Ko sur 920 Ko téléchargés. Ils sont redimensionnés à la taille réellement affichée (×3 pour les écrans denses) et compressés : environ 45 Ko, sans différence visible. La page d'accueil se charge ainsi deux fois plus légère.
+- **Calage du projet** : le réglage des photos est maintenant appliqué dès qu'il est calculé. Le scan 3D, plus long, se termine ensuite en arrière-plan (bouton « Arrêter » pour le couper sans perdre le calage). Avant, tout attendait la fin du scan.
+
 ## Version 1.20.0 : scan 3D du chantier et calage des vues de dessus
 
 **Scan 3D.** Le nuage de points n'est plus plat. Après le calage du projet, GeoTrace cherche les points communs entre les photos voisines en supposant que le sol est à plusieurs hauteurs (0, 4, 9, 16 et 28 m : sol, toits, arbres, talus). Les deux rayons de chaque point se croisent dans l'espace : on obtient sa position et sa hauteur, avec la couleur prise sur les photos. Les croisements peu nets sont écartés. Le résultat est gardé dans le navigateur avec le projet.

@@ -156,14 +156,15 @@ export async function calibrateProject(opt) {
     points = r.points;
   }
 
-  const scanPairs = await scanPass(P, pairs, say, stop);
-  if (scanPairs === null) { return { cancelled: true }; }
-  const scan = triangulate(P, scanPairs);
-  stats.scanPts = scan.n;
   stats.pairObs = pairs.map(pr => [P[pr.a].key, P[pr.b].key, pr.obs.length]);
   const adjs = {};
   P.forEach(p => { adjs[p.key] = p.adj; });
-  return { adjs: adjs, stats: stats, points: points, scan: scan };
+  // Le réglage des photos est prêt : on le rend tout de suite (l'appelant l'applique), puis on calcule le scan 3D, plus long.
+  const res = { adjs: adjs, stats: stats, points: points, scan: null };
+  if (opt.onCalibrated) { opt.onCalibrated(res); }
+  const scanPairs = await scanPass(P, pairs, say, stop);
+  if (scanPairs) { res.scan = triangulate(P, scanPairs); stats.scanPts = res.scan.n; }
+  return res;
 }
 
 /* Moindres carrés pondérés (Levenberg-Marquardt) sur les 5 paramètres de chaque photo.

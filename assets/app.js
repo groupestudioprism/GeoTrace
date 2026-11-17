@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.20.0';
+const VERSION = '1.20.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -840,24 +840,32 @@ async function projectCalib(auto) {
     if (!src) return null;
     return await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
   } }));
+  // Dès que le réglage des photos est prêt on l'applique ; le scan 3D, plus long, se termine ensuite en arrière-plan.
+  let applied = false;
+  const apply = res => {
+    applied = true;
+    try { localStorage.setItem(PCSIG, pcSig(list)); } catch (e) { /* stockage indisponible */ }
+    for (const k in res.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(res.adjs[k])); } catch (e) { /* stockage indisponible */ } }
+    if (pcLayer) { pcLayer.remove(); pcLayer = null; }
+    if (window.L && map && res.points.length) {
+      const rend = L.canvas({ padding: 0.3 });
+      pcLayer = L.layerGroup(res.points.map(q => L.circleMarker(q, { renderer: rend, radius: 2, weight: 0, fillColor: '#ff2d8a', fillOpacity: .8, interactive: false }))).addTo(map);
+    }
+    status('Projet calé : ' + res.stats.photos + ' photos, ' + res.stats.pairs + ' paires, ' + res.stats.obs + ' points communs. Écart moyen ' + res.stats.before.toFixed(1) + ' → ' + res.stats.after.toFixed(1) + ' px. Les dessins sont recalculés à l’ouverture. Le scan 3D se calcule…', { ms: 7000 });
+    if (!$('viewer').hidden) paintOver();
+  };
   let r = null;
-  try { r = await PC.calibrateProject({ photos: items, onProgress: (t, f) => { txt.textContent = t; bar.value = f || 0; }, cancelled: () => run.stop }); }
+  try { r = await PC.calibrateProject({ photos: items, onProgress: (t, f) => { txt.textContent = t; bar.value = f || 0; }, cancelled: () => run.stop, onCalibrated: apply }); }
   catch (e) { console.error(e); r = { error: 'Le calage a échoué.' }; }
   box.hidden = true; pcRun = null;
-  if (!r || r.cancelled) { status('Calage du projet arrêté : rien n’a été modifié.', { ms: 4000 }); return; }
-  if (r.error && auto) { status('Calage automatique impossible : ' + r.error, { ms: 6000 }); return; }
-  if (r.error) { status('Calage du projet : ' + r.error, { ms: 6000 }); return; }
-  // On enregistre le réglage de chaque photo (calage des réseaux), puis on montre le nuage de points sur la carte
-  try { localStorage.setItem(PCSIG, pcSig(list)); } catch (e) { /* stockage indisponible */ }
-  for (const k in r.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(r.adjs[k])); } catch (e) { /* stockage indisponible */ } }
-  if (r.scan && r.scan.n > 0) { scanCloud = r.scan; scanSet({ sig: pcSig(list), cloud: r.scan }); paintScanBtn(); }
-  if (pcLayer) { pcLayer.remove(); pcLayer = null; }
-  if (window.L && map && r.points.length) {
-    const rend = L.canvas({ padding: 0.3 });
-    pcLayer = L.layerGroup(r.points.map(q => L.circleMarker(q, { renderer: rend, radius: 2, weight: 0, fillColor: '#ff2d8a', fillOpacity: .8, interactive: false }))).addTo(map);
+  if (!applied) {
+    if (!r || r.cancelled) { status('Calage du projet arrêté : rien n’a été modifié.', { ms: 4000 }); return; }
+    if (r.error && auto) { status('Calage automatique impossible : ' + r.error, { ms: 6000 }); return; }
+    if (r.error) { status('Calage du projet : ' + r.error, { ms: 6000 }); return; }
+    apply(r);
   }
-  status('Projet calé : ' + r.stats.photos + ' photos, ' + r.stats.pairs + ' paires, ' + r.stats.obs + ' points communs. Écart moyen ' + r.stats.before.toFixed(1) + ' → ' + r.stats.after.toFixed(1) + ' px. Les dessins sont recalculés à l’ouverture.', { ms: 9000 });
-  if (!$('viewer').hidden) paintOver();
+  if (r && r.scan && r.scan.n > 0) { scanCloud = r.scan; scanSet({ sig: pcSig(list), cloud: r.scan }); paintScanBtn(); status('Scan 3D prêt : ' + r.scan.n + ' points. Bouton « Scan 3D » en haut.', { ms: 6000 }); }
+  else { status('Projet calé. Scan 3D : pas assez de points communs ou calcul arrêté.', { ms: 5000 }); }
 }
 $('pcBtn').addEventListener('click', () => projectCalib(false));
 function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
