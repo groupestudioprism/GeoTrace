@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.2 : reprendre un réseau déjà dessiné
+
+Outil Conduite : le premier clic décide. Au bout d'une conduite (cercle vert), elle est **prolongée** (même type, coudes et raccords recalculés) ; sur un coude, un regard ou un accessoire, une nouvelle conduite **repart de là** avec le même type ; au milieu d'une conduite, elle s'**accroche** (té automatique). Boutons « Prolonger la fin / le début » dans la fenêtre de sélection.
+
 ## Version 1.28.1 : vrais symboles et accessoires de l'outil d'origine
 
 Les accessoires du repérage utilisent maintenant la bibliothèque de 256 symboles de l'outil (`assets/symlib.js`) : vannes, purges, ventouses, poteaux, raccords… ; coudes en chevrons, tés à trois branches, alignement des symboles « en ligne » sur la conduite, gamme étendue de conduites, regards et accessoires. Palette en cartes avec le symbole et bibliothèque filtrable par réseau.

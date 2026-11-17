@@ -109,15 +109,15 @@ function paint() {
   ph.objects.forEach(m => { if (m.type === 'manhole') m.rx = m.ry = 8 * u * (m.k || 1); });
   C.draw(c, ph, u, { ui: !!tool, selected: sel ? [sel] : [], hs: 1 });
   if (draft && draft.pts.length) {
-    const pd = C.pipeOf(armed.pipe) || { w: 4, net: '' };
+    const pd = C.pipeOf(draft.pipe || armed.pipe) || { w: 4, net: '' };
     const pts = draft.pts.concat(hover ? [hoverSnap ? hoverSnap.pos : hover] : []);
     c.save(); c.lineJoin = 'round'; c.lineCap = 'round'; c.strokeStyle = C.colOf(pd.net); c.lineWidth = pd.w * u; c.globalAlpha = .85;
     if (pd.dash === 'dashed') c.setLineDash([pd.w * u * 3.4, pd.w * u * 2.2]); else if (pd.dash === 'dotted') c.setLineDash([.01, pd.w * u * 2.3]);
     c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.stroke(); c.setLineDash([]); c.globalAlpha = 1;
     draft.pts.forEach(p => { c.beginPath(); c.arc(p.x, p.y, 4 * u, 0, 7); c.fillStyle = '#fff'; c.fill(); c.lineWidth = 1.6 * u; c.strokeStyle = '#12b5f0'; c.stroke(); });
-    if (hoverSnap) { c.beginPath(); c.arc(hoverSnap.pos.x, hoverSnap.pos.y, 6 * u, 0, 7); c.strokeStyle = '#ffd400'; c.lineWidth = 2 * u; c.stroke(); }
     c.restore();
   }
+  if (tool === 'line' && hoverSnap) { c.save(); c.beginPath(); c.arc(hoverSnap.pos.x, hoverSnap.pos.y, 7 * u, 0, 7); c.strokeStyle = hoverSnap.ext ? '#16a34a' : '#ffd400'; c.lineWidth = 2.4 * u; c.stroke(); c.restore(); }
 }
 
 /* ---------- souris ---------- */
@@ -138,7 +138,7 @@ function setTool(t) {
 }
 const HINT = {
   select: 'Cliquez un dessin pour le sélectionner, glissez-le pour le déplacer, ses poignées pour le modifier.',
-  line: 'Cliquez les points de la conduite, double-clic ou Entrée pour finir. Elle s’accroche aux regards et conduites.',
+  line: 'Cliquez le départ : au bout d’une conduite (cercle vert) elle se prolonge, sur un coude, un regard ou une conduite elle repart de là. Double-clic ou Entrée pour finir.',
   br: 'Cliquez une façade, un regard ou un accessoire : le branchement part de la conduite la plus proche.',
   manhole: 'Cliquez l’emplacement du regard.', acc: 'Cliquez l’emplacement de l’accessoire (les raccords se posent seuls sur la conduite).', text: 'Cliquez où poser le texte.'
 };
@@ -150,8 +150,14 @@ function onClick(e) {
   const p = toP(e.latlng), u = unit(), tol = tolPx(9);
   fixU();
   if (tool === 'line') {
+    if (!draft) {
+      const st = startTarget(p, u, tol);
+      draft = { pts: [st.pt], ext: st.ext, pipe: st.pipe || armed.pipe };
+      if (st.pipe && st.pipe !== armed.pipe) { armed.pipe = st.pipe; saveArmed(); fillPalette(); }
+      status(st.ext ? 'Prolongement de la conduite : cliquez les points suivants, double-clic pour finir.' : st.msg || 'Cliquez les points suivants.', { ms: 3500 });
+      draw(); return;
+    }
     const tg = C.snapTarget(ph, p, u, tol, null), pt = tg ? C.snappedPoint(ph, tg, p) : { x: p.x, y: p.y };
-    if (!draft) draft = { pts: [] };
     const last = draft.pts[draft.pts.length - 1];
     if (!(last && Math.hypot(last.x - pt.x, last.y - pt.y) <= tolPx(3))) draft.pts.push(pt);
     draw();
@@ -172,16 +178,66 @@ function onClick(e) {
 }
 function finishLine() {
   if (!draft) return;
-  const pts = draft.pts.slice(); draft = null; hover = null; hoverSnap = null;
+  const d = draft, pts = d.pts.slice(); draft = null; hover = null; hoverSnap = null;
   if (pts.length < 2) { draw(); return; }
-  add(C.newLine(pts, armed.pipe));
+  if (d.ext) {
+    const L = objOf(d.ext.oid); if (!L) { draw(); return; }
+    const addp = pts.slice(1);
+    if (d.ext.atStart) L.pts.unshift(...addp.reverse()); else L.pts.push(...addp);
+    sel = L.id; commit([L]); return;
+  }
+  add(C.newLine(pts, d.pipe || armed.pipe));
+}
+
+/* Où commence une conduite ? Au bout d'une conduite (on la prolonge), sur un coude, un regard ou un accessoire
+   (on repart de là, avec le même type de conduite), au milieu d'une conduite (départ accroché), ou librement. */
+function startTarget(p, u, tol) {
+  const endTol = tolPx(14);
+  let best = null;
+  ph.objects.forEach(L => {
+    if (L.type !== 'line' || L.pts.length < 2) return;
+    [[0, true], [L.pts.length - 1, false]].forEach(([i, atStart]) => {
+      const q = L.pts[i], d = Math.hypot(q.x - p.x, q.y - p.y);
+      if (d <= endTol && (!best || d < best.d)) best = { d, L, i, atStart };
+    });
+  });
+  const tg = C.snapTarget(ph, p, u, tol, null);
+  // un objet (coude, regard, accessoire) a la priorité sur le bout d'une conduite qui le rejoint
+  if (tg && (tg.k === 'mh' || tg.k === 'acc')) {
+    const o = tg.o, cx = tg.k === 'mh' ? o.cx : o.x, cy = tg.k === 'mh' ? o.cy : o.y, rad = tolPx(10);
+    const ends = [];
+    ph.objects.forEach(L => {
+      if (L.type !== 'line' || L.pts.length < 2) return;
+      [[0, true], [L.pts.length - 1, false]].forEach(([i, atStart]) => {
+        const q = L.pts[i];
+        if ((q.link && q.link.id === o.id) || Math.hypot(q.x - cx, q.y - cy) <= rad) ends.push({ L, atStart });
+      });
+    });
+    const pt = C.snappedPoint(ph, tg, p);
+    if (ends.length === 1) { const e = ends[0], q = e.atStart ? e.L.pts[0] : e.L.pts[e.L.pts.length - 1]; return { pt: { x: q.x, y: q.y }, ext: { oid: e.L.id, atStart: e.atStart }, pipe: e.L.pipeId }; }
+    if (ends.length > 1) return { pt, pipe: ends[0].L.pipeId, msg: 'Nouvelle conduite depuis ce raccord, du même type que celle qui y arrive.' };
+    return { pt, msg: 'Nouvelle conduite depuis cet élément.' };
+  }
+  if (best) { const q = best.L.pts[best.i]; return { pt: { x: q.x, y: q.y }, ext: { oid: best.L.id, atStart: best.atStart }, pipe: best.L.pipeId }; }
+  if (tg) return { pt: C.snappedPoint(ph, tg, p), msg: 'Nouvelle conduite accrochée à la conduite : cliquez les points suivants.' };
+  return { pt: { x: p.x, y: p.y } };
+}
+// Bouton « Prolonger » d'une conduite sélectionnée
+function extend(atStart) {
+  const L = sel && objOf(sel); if (!L || L.type !== 'line') return;
+  const q = atStart ? L.pts[0] : L.pts[L.pts.length - 1];
+  if (tool !== 'line') setTool('line');
+  draft = { pts: [{ x: q.x, y: q.y }], ext: { oid: L.id, atStart }, pipe: L.pipeId };
+  armed.pipe = L.pipeId; saveArmed(); fillPalette(); palShow(); btns(); hint(); draw();
+  status('Cliquez les points du prolongement, double-clic pour finir.', { ms: 3500 });
 }
 function onDbl() { if (tool === 'line') finishLine(); }
 function onMove(e) {
-  if (tool !== 'line' || !draft) return;
+  if (tool !== 'line') return;
   const r = map.getContainer().getBoundingClientRect(), s = scale(), o = origin();
   hover = { x: o.x + (e.originalEvent.clientX - r.left) / s, y: o.y + (e.originalEvent.clientY - r.top) / s };
-  const tg = C.snapTarget(ph, hover, unit(), tolPx(9), null); hoverSnap = tg ? { pos: C.snappedPoint(ph, tg, hover) } : null;
+  if (draft) { const tg = C.snapTarget(ph, hover, unit(), tolPx(9), null); hoverSnap = tg ? { pos: C.snappedPoint(ph, tg, hover) } : null; }
+  else { fixU(); const st = startTarget(hover, unit(), tolPx(9)); hoverSnap = (st.ext || st.msg) ? { pos: st.pt, ext: !!st.ext } : null; }
   draw();
 }
 
@@ -351,6 +407,7 @@ function props() {
   else if (o.type === 'manhole') h = `<label>Type<select data-k="mhId">${opts(C.S.manholes, o.mhId, m => m.name)}</select></label>` + f('num', 'Numéro', o.num) + f('nature', 'Nature', o.nature) + f('diam', 'Diamètre (mm)', o.diam) + f('extra', 'Ligne en plus', o.extra);
   else if (o.type === 'acc') h = `<label>Type<select data-k="accId">${opts(C.S.accessories, o.accId, a => a.name)}</select></label>` + f('d', 'Diamètre', o.d) + f('d2', 'Diamètre 2', o.d2) + f('m1', 'Matériau', o.m1) + f('m2', 'Matériau 2', o.m2) + f('note', 'Note', o.note) + f('text', 'Texte libre', o.text);
   else if (o.type === 'text') h = f('text', 'Texte', o.text);
+  if (o.type === 'line') h += '<div class="rs-row"><button type="button" class="btn small" data-x="end">Prolonger la fin</button><button type="button" class="btn small" data-x="start">Prolonger le début</button></div>';
   box.innerHTML = '<h4>Sélection</h4>' + h; box.hidden = false;
 }
 function onProp(e) {
@@ -417,6 +474,7 @@ export function init(ctx) {
   $('rsFin').addEventListener('click', finishLine);
   [['rsPipe', 'pipe'], ['rsMh', 'mh']].forEach(([id, k]) => $(id).addEventListener('change', () => { armed[k] = $(id).value; saveArmed(); }));
   $('rsProps').addEventListener('change', onProp);
+  $('rsProps').addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (b) extend(b.dataset.x === 'start'); });
   $('rsAccQ').addEventListener('input', accGrid); $('rsLib').addEventListener('toggle', libGrid);
   $('rsGeo').addEventListener('click', exportGeo); $('rsCsv').addEventListener('click', exportCsv);
   $('rsClear').addEventListener('click', e => {
