@@ -199,6 +199,3 @@ Dans la visionneuse, le bouton « Repérer » ouvre la photo en mode dessin. On 
 
 La molette ou le pincement zoome, le fond se déplace au doigt ou à la souris (ou clic droit, ou barre d'espace). Annuler et rétablir sont disponibles (Ctrl+Z et Ctrl+Y). « Exporter l'image » enregistre la photo avec le dessin. Le repérage est gardé dans le navigateur pour chaque photo, et le bouton affiche le nombre d'objets dessinés.
 
-## Version 1.17.1 : repérage réécrit en version simple
-
-Le fichier `assets/repere.js` est réécrit dans un style simple et très commenté (fonctions courtes, noms clairs, boucles classiques), pour servir de point de départ à la lecture du code. Le comportement et l'affichage sont identiques. Les repérages enregistrés avec la 1.17.0 sont convertis automatiquement à l'ouverture.
