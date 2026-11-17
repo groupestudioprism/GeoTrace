@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.4 : palette à onglets dans Réseaux
+
+- Dès l'ouverture de Chantier > Réseaux : onglets Favoris, Conduites, Regards, Accessoires, Textes, Réglages, comme dans l'outil d'origine.
+- Listes par réseau avec aperçu du trait, épaisseur et étoile de favori ; en mode Sélection, un clic change le type de l'objet sélectionné.
+- Ajout d'un diamètre, réglages des automatismes (coudes, tés, raccords, fin de conduite) et des épaisseurs.
+
 ## Version 1.28.3 : même géométrie que l'outil d'origine
 
 - Regards ovales avec rotation, poignées sur les 4 côtés et poignée de rotation, bouton « Pivoter de 90° ».

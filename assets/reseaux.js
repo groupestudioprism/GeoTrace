@@ -363,7 +363,7 @@ const ICONS = {
 const TOOLS = [['select', 'Sélectionner', 'V'], ['line', 'Conduite', 'L'], ['br', 'Branchement', 'B'], ['manhole', 'Regard', 'R'], ['acc', 'Accessoire', 'A'], ['text', 'Texte', 'T']];
 async function pick(t) {
   if (!(await ensure())) return;
-  setTool(t); palShow();
+  setTool(t); if (tool) palTab = { line: 'pipes', br: 'pipes', manhole: 'mh', acc: 'acc', text: 'misc' }[tool] || palTab; palShow();
 }
 function btns() {
   document.querySelectorAll('#rsTools [data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
@@ -378,28 +378,137 @@ function fillPalette() {
   if (!C) return;
   $('rsPipe').innerHTML = opts(C.S.pipes, armed.pipe, p => p.desc);
   $('rsMh').innerHTML = opts(C.S.manholes, armed.mh, m => m.name);
-  accGrid();
+  renderPal(); accGrid();
 }
 function palShow() {
   const on = { line: 'rsPipe', br: 'rsPipe', manhole: 'rsMh' }[tool];
-  ['rsPipe', 'rsMh'].forEach(id => { $(id).closest('label').hidden = id !== on; });
-  $('rsAccBox').hidden = tool !== 'acc'; if (tool === 'acc') accGrid();
   if (C && on) { const pd = C.pipeOf(armed.pipe); if (tool === 'br' && pd && pd.dash !== 'dotted') { const b = C.S.pipes.find(q => q.dash === 'dotted' && C.netCat(q.net) === C.netCat(pd.net)); if (b) { armed.pipe = b.id; fillPalette(); saveArmed(); } } }
+  renderPal();
 }
 
-/* Accessoires : cartes avec le vrai symbole, et bibliothèque de symboles de l'outil d'origine */
-let libNet = '';
+/* ---------- Palette à onglets (comme l'outil d'origine) ---------- */
+let palTab = 'pipes', addingPipe = false;
+const PTABS = [['fav', '★ Favoris'], ['pipes', 'Conduites'], ['mh', 'Regards'], ['acc', 'Accessoires'], ['misc', 'Textes'], ['set', 'Réglages']];
+const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const favs = () => (C.S.favs = C.S.favs || { pipe: [], mh: [], acc: [] });
+const isFav = (k, id) => (favs()[k] || []).includes(id);
+function toggleFav(k, id) { const a = (favs()[k] = favs()[k] || []), i = a.indexOf(id); if (i >= 0) a.splice(i, 1); else a.push(id); persistSettings(); renderPal(); accGrid(); }
+function star(k, id) {
+  const s = el('span', 'rs-star' + (isFav(k, id) ? ' on' : ''), isFav(k, id) ? '★' : '☆'); s.setAttribute('role', 'button'); s.tabIndex = 0;
+  s.title = isFav(k, id) ? 'Retirer des favoris' : 'Ajouter aux favoris (accès rapide)'; s.setAttribute('aria-label', 'Favori');
+  const go = e => { e.stopPropagation(); e.preventDefault(); toggleFav(k, id); };
+  s.addEventListener('click', go); s.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') go(e); }); return s;
+}
+function pipeSwatch(def) {
+  const col = C.colOf(def.net), th = Math.max(2, Math.min(13, def.w * 1.1)), sw = el('span', 'rs-swl');
+  const st = def.dash === 'dotted' ? `background:radial-gradient(circle,${col} 45%,transparent 50%) 0 0/${th * 2.2}px ${th}px repeat-x` : def.dash === 'dashed' ? `background:repeating-linear-gradient(90deg,${col} 0 9px,transparent 9px 14px)` : `background:${col}`;
+  sw.style.cssText = `display:block;width:30px;height:${th}px;border-radius:${def.dash === 'solid' ? th / 2 : 0}px;${st}`; return sw;
+}
+/* en mode Sélection, un préréglage change celui de l'objet sélectionné du même type */
+function applyPreset(type, key, id) {
+  const o = tool === 'select' && sel ? objOf(sel) : null;
+  if (!o || o.type !== type) return false;
+  o[key] = id;
+  if (type === 'manhole') { const d = C.mhOf(id); if (d) { o.nature = d.nature; o.diam = d.diam; } }
+  if (type === 'acc') { const d = C.accOf(id); if (d) { o.m1 = d.m1; o.m2 = d.m2; o.d = d.d; o.d2 = d.d2; } }
+  commit([o]); props(); status('Objet modifié.', { ms: 2000 }); return true;
+}
+function usePreset(k, id) {
+  const m = { pipe: ['pipeId', 'line', 'line'], mh: ['mhId', 'manhole', 'manhole'], acc: ['accId', 'acc', 'acc'] }[k];
+  armed[k] = id; saveArmed();
+  if (!applyPreset(m[0] === 'pipeId' ? 'line' : m[1], m[0], id)) { const want = m[2]; if (tool !== want && !(want === 'line' && tool === 'br')) setTool(want); }
+  renderPal(); accGrid();
+}
+function chip(k, id, sw, label, side) {
+  const on = armed[k] === id && ({ pipe: tool === 'line' || tool === 'br', mh: tool === 'manhole', acc: tool === 'acc' })[k];
+  const b = el('button', 'rs-chip2' + (on ? ' on' : '')); b.type = 'button';
+  const s = el('span', 'sw'); s.append(sw); b.append(s, el('span', 'tx', label)); if (side) b.append(el('span', 'w', side)); b.append(star(k, id));
+  b.addEventListener('click', () => usePreset(k, id)); return b;
+}
+const chipPipe = p => chip('pipe', p.id, pipeSwatch(p), p.desc, String(p.w));
+function chipMh(m) { const col = C.colOf(m.net), s = el('span'); s.style.cssText = `display:block;width:26px;height:16px;border-radius:50%;border:3px solid ${col};background:${col}47`; return chip('mh', m.id, s, m.name, netName(m.net)); }
+function chipAcc(a) { const cv2 = document.createElement('canvas'); C.drawIcon(cv2, Object.assign({}, a)); return chip('acc', a.id, cv2, a.name, ''); }
+function favBlock(box, k, title, arr, mk) {
+  const L = (favs()[k] || []).map(id => arr.find(x => x.id === id)).filter(Boolean); if (!L.length) return false;
+  box.append(el('div', 'rs-netname', '★ ' + title)); L.forEach(x => box.append(mk(x))); return true;
+}
+function setPalTab(t) { palTab = t; renderPal(); accGrid(); }
+function renderPal() {
+  const pal = $('rsPal'); if (!pal) return;
+  if (!C) { pal.hidden = true; return; }
+  pal.hidden = false;
+  const tb = $('rsPTabs'); tb.textContent = '';
+  PTABS.forEach(([k, v]) => { const b = el('button', 'rs-ptab' + (k === palTab ? ' on' : ''), v); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(k === palTab)); b.addEventListener('click', () => setPalTab(k)); tb.append(b); });
+  const box = $('rsPBody'); box.textContent = '';
+  $('rsAccBox').hidden = palTab !== 'acc';
+  const hint = t => box.append(el('p', 'hint', t));
+  if (palTab === 'fav') {
+    hint('Vos choix rapides. Cliquez l’étoile ☆ à droite d’un élément (onglets Conduites, Regards, Accessoires) pour l’ajouter ici.');
+    const a = favBlock(box, 'pipe', 'Conduites', C.S.pipes, chipPipe), b = favBlock(box, 'mh', 'Regards', C.S.manholes, chipMh), c = favBlock(box, 'acc', 'Accessoires', C.S.accessories, chipAcc);
+    if (!(a || b || c)) box.append(el('div', 'rs-empty', 'Aucun favori pour le moment.'));
+    else { const v = el('button', 'btn small', 'Vider les favoris'); v.type = 'button'; v.addEventListener('click', () => { C.S.favs = { pipe: [], mh: [], acc: [] }; persistSettings(); renderPal(); accGrid(); }); box.append(v); }
+  } else if (palTab === 'pipes') {
+    hint('Choisissez une conduite, puis cliquez sur la carte pour poser les points. Double-clic ou Entrée pour terminer. Maj : angle de 45°.');
+    favBlock(box, 'pipe', 'Favoris', C.S.pipes, chipPipe);
+    C.S.networks.forEach(n => {
+      const list = C.S.pipes.filter(p => p.net === n.id); if (!list.length) return;
+      const h = el('div', 'rs-netname'), d = el('span', 'dot'); d.style.background = n.color; h.append(d, document.createTextNode(n.name)); box.append(h);
+      list.forEach(p => box.append(chipPipe(p)));
+    });
+    if (!addingPipe) { const ad = el('button', 'btn small rs-wide', '+ Ajouter un diamètre'); ad.type = 'button'; ad.addEventListener('click', () => { addingPipe = true; renderPal(); }); box.append(ad); }
+    else {
+      const cur = C.pipeOf(armed.pipe), nf = { net: cur ? cur.net : C.S.networks[0].id, desc: '', w: 4, dash: 'solid' }, card = el('div', 'rs-form');
+      const fld = (lab, inp) => { const l = el('label', 'ch-field', lab); l.append(inp); return l; };
+      const ns = el('select', 'ch-ty'); C.S.networks.forEach(n => { const o = el('option', null, n.name); o.value = n.id; ns.append(o); }); ns.value = nf.net; ns.onchange = () => { nf.net = ns.value; };
+      const tx = el('input', 'ch-ty'); tx.placeholder = 'Par exemple : Ø90 PEHD PN16'; tx.oninput = () => { nf.desc = tx.value; };
+      const nm = el('input', 'ch-ty'); nm.type = 'number'; nm.min = .5; nm.max = 30; nm.step = .5; nm.value = 4; nm.oninput = () => { nf.w = parseFloat(nm.value) || 4; };
+      const ds = el('select', 'ch-ty'); [['solid', 'Plein'], ['dashed', 'Tirets'], ['dotted', 'Pointillé']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; ds.append(o); }); ds.onchange = () => { nf.dash = ds.value; };
+      const ok = el('button', 'btn small', 'Ajouter et tracer'), no = el('button', 'btn small', 'Annuler'); ok.type = no.type = 'button';
+      ok.addEventListener('click', () => {
+        if (!nf.desc.trim()) { status('Saisissez le texte du diamètre.', { ms: 2500 }); return; }
+        const p = { id: 'p' + Math.random().toString(36).slice(2, 9), net: nf.net, desc: nf.desc.trim(), w: nf.w, dash: /branchement/i.test(nf.desc) ? 'dotted' : nf.dash };
+        C.S.pipes.push(p); persistSettings(); armed.pipe = p.id; saveArmed(); addingPipe = false; if (tool !== 'line') setTool('line'); renderPal();
+      });
+      no.addEventListener('click', () => { addingPipe = false; renderPal(); });
+      const row = el('div', 'rs-row'); row.append(ok, no); card.append(fld('Réseau', ns), fld('Texte', tx), fld('Épaisseur', nm), fld('Trait', ds), row); box.append(card); setTimeout(() => tx.focus(), 0);
+    }
+  } else if (palTab === 'mh') {
+    hint('Cliquez sur la carte pour poser un regard. Ensuite, déformez-le et tournez-le avec les poignées.');
+    favBlock(box, 'mh', 'Favoris', C.S.manholes, chipMh);
+    C.S.manholes.forEach(m => box.append(chipMh(m)));
+  } else if (palTab === 'acc') {
+    hint('Cliquez sur la carte pour placer l’accessoire. Les champs (matériaux, diamètres) se remplissent dans le panneau Sélection.');
+  } else if (palTab === 'misc') {
+    hint('Placez un texte libre (nom de rue, remarque) à un endroit où aucune conduite ne passe, puis déplacez-le.');
+    const t = el('button', 'btn small rs-wide', 'Texte libre (cliquer sur la carte)'); t.type = 'button'; t.addEventListener('click', () => { if (tool !== 'text') setTool('text'); renderPal(); }); box.append(t);
+  } else renderSet(box);
+}
+function renderSet(box) {
+  box.append(el('p', 'hint', 'Réglages communs avec l’outil de repérage des photos.'));
+  const cb = (k, lab, dflt) => {
+    const l = el('label', 'rs-chk'), i = document.createElement('input'); i.type = 'checkbox'; i.checked = C.S[k] == null ? dflt : !!C.S[k];
+    i.onchange = () => { C.S[k] = i.checked; persistSettings(); if (/^auto|kitsOn/.test(k)) { C.syncAll(ph); commit([]); } };
+    l.append(i, document.createTextNode(' ' + lab)); box.append(l);
+  };
+  cb('autoEnd', 'Terminer la conduite dès qu’on la relie à un regard ou un accessoire', true);
+  cb('autoCoude', 'Coudes automatiques', true); cb('autoTe', 'Tés automatiques', true); cb('autoRed', 'Réductions automatiques', true);
+  cb('autoRac', 'Raccords automatiques', true); cb('autoBr', 'Piquages de branchement', true); cb('autoCit', 'Citerneaux', true);
+  cb('autoFit', 'Pose automatique des raccords', true); cb('kitsOn', 'Montages automatiques', true);
+  box.append(el('h4', 'rs-h', 'Épaisseur des conduites'));
+  C.S.pipes.forEach(p => {
+    const row = el('div', 'rs-wrow'); row.append(pipeSwatch(p), el('span', 'tx', p.desc));
+    const n = el('input', 'ch-ty'); n.type = 'number'; n.min = .5; n.max = 30; n.step = .5; n.value = p.w; n.setAttribute('aria-label', 'Épaisseur ' + p.desc);
+    n.onchange = () => { p.w = Math.max(.5, Math.min(30, parseFloat(n.value) || p.w)); persistSettings(); renderPal(); draw(); }; row.append(n); box.append(row);
+  });
+}
 function accGrid() {
   if (!C || !$('rsAccGrid')) return;
   const q = ($('rsAccQ').value || '').trim().toLowerCase(), g = $('rsAccGrid'); g.textContent = '';
-  C.S.accessories.forEach(a => {
-    if (q && !(a.name.toLowerCase().includes(q) || (a.sym || '').toLowerCase().includes(q))) return;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'rs-card' + (a.id === armed.acc ? ' on' : ''); b.title = a.name; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(a.id === armed.acc));
-    const cv2 = document.createElement('canvas'); const s = document.createElement('span'); s.textContent = a.name;
-    b.append(cv2, s); C.drawIcon(cv2, Object.assign({}, a, { net: a.net })); b.style.setProperty('--c', C.colOf(a.net));
-    b.addEventListener('click', () => { armed.acc = a.id; saveArmed(); accGrid(); }); g.append(b);
-  });
-  if (!g.children.length) g.textContent = 'Aucun accessoire trouvé.';
+  if (palTab === 'acc') {
+    favBlock(g, 'acc', 'Favoris', C.S.accessories, chipAcc);
+    C.S.accessories.forEach(a => { if (q && !(a.name.toLowerCase().includes(q) || (a.sym || '').toLowerCase().includes(q))) return; g.append(chipAcc(a)); });
+    if (!g.children.length) g.textContent = 'Aucun accessoire trouvé.';
+  }
   libGrid();
 }
 function libGrid() {
