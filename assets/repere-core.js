@@ -610,8 +610,10 @@ function drawLineLabel(c, o, u, ph) {
   const def = pipeOf(o.pipeId) || { w: 4, net: '', desc: '' };
   const text = o.text != null && o.text !== '' ? o.text : def.desc;
   if (!text) { return; }
-  const pts = o.pts, col = o.col || colOf(def.net), lw = def.w * u, pos = o.pos || S.labelPos || 'on', box = S.labelBox !== false;
+  const pts = o.pts, col = o.col || colOf(def.net), lw = def.w * u;
   let fs = (o.fs || S.fs) * u * TXTK;
+  // Dézoomé, la conduite est plus fine que le texte : plus de pastille, le texte se pose au-dessus du trait pour ne pas le cacher
+  const slim = lw < fs * 0.55, pos = slim ? 'above' : (o.pos || S.labelPos || 'on'), box = S.labelBox !== false && !slim;
   c.save(); c.font = font(fs, true); c.textBaseline = 'middle'; c.lineJoin = 'round';
   const chars = Array.from(text); let cw, cum, tw;
   const meas = () => { c.font = font(fs, true); cw = chars.map(ch => c.measureText(ch).width); cum = [0]; cw.forEach((w, i) => cum.push(cum[i] + w)); tw = cum[cum.length - 1]; };

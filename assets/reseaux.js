@@ -24,9 +24,9 @@ const toP = ll => ({ x: mx(ll[1] != null ? ll[1] : ll.lng) - ref.x, y: my(ll[0] 
 const toLL = p => [latOf(p.y + ref.y), lonOf(p.x + ref.x)];
 const scale = () => Math.pow(2, map.getZoom() - Z0);
 // Les dessins suivent le zoom (entre 0,3 et 2,5 fois leur taille de référence) ; le texte reste lisible (11 à 20 px)
-const elScale = () => Math.max(0.3, Math.min(2.5, Math.pow(2, map.getZoom() - 19.5)));
+const elScale = () => Math.max(0.45, Math.min(2.5, Math.pow(2, map.getZoom() - 19.5)));
 const unit = () => K * elScale() / scale();
-const txtK = () => { const px = 16 * elScale(); return Math.max(11, Math.min(20, px)) / px; };
+const txtK = () => { const px = 16 * elScale(); return Math.max(10, Math.min(17, px)) / px; };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const objOf = id => ph.objects.find(o => o.id === id);
 const clean = o => JSON.parse(JSON.stringify(o, (k, v) => (k[0] === '_' ? undefined : v)));
