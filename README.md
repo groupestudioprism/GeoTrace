@@ -224,6 +224,14 @@ Quand on ouvre une photo, les repérages des autres photos proches apparaissent 
 
 Les photos sans position ou sans direction se repèrent toujours, mais ne peuvent ni être envoyées en 3D ni montrer les autres photos. Les repérages de la version 1.17.0 sont convertis à l'ouverture. Nouveaux fichiers : `assets/repere-core.js` (moteur) et `assets/photoproj.js` (lien photo / terrain).
 
+## Version 1.21.0 : dessiner sur le plan, les dessins se placent dans toutes les photos
+
+Nouveau bouton **Plan** (en haut). Il ouvre la carte aérienne IGN en vue de dessus, avec les mêmes outils que le repérage d'une photo (conduite, branchement, regard, accessoire, texte, légende, accroches). Comme le plan est une vraie carte, les dessins sont placés exactement sur le terrain : ils se reportent ensuite **dans toutes les photos** (en transparence dans « Repérer », et sur la photo dans la visionneuse avec le bouton « Dessins »), et inversement les repérages des photos apparaissent sur le plan.
+- Le plan couvre toutes les photos avec une marge de 90 m (résolution jusqu'à 20 cm par pixel). Dès qu'on a dessiné dessus, sa zone est figée pour que les dessins ne glissent pas.
+- Pas de calage à faire sur le plan. La précision dans une photo dépend du calage de cette photo (calage automatique du projet).
+- « Envoyer en 3D » fonctionne aussi depuis le plan.
+- Nouveau fichier : `assets/plan.js`. La caméra du plan est une vue de dessus exacte, sans perspective (dans `photoproj.js`).
+
 ## Version 1.20.1 : site plus léger et calage disponible plus tôt
 
 - **Chargement** : les trois logos de la page d'accueil pesaient 500 Ko sur 920 Ko téléchargés. Ils sont redimensionnés à la taille réellement affichée (×3 pour les écrans denses) et compressés : environ 45 Ko, sans différence visible. La page d'accueil se charge ainsi deux fois plus légère.

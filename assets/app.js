@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.20.1';
+const VERSION = '1.21.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -733,6 +733,10 @@ function closeViewer() {
 /* Repérage sur photo : annotation simple, rangée par photo dans le navigateur */
 let Rep = null;
 const reps = store.get('geotrace:repere', {});
+/* Le plan : vue de dessus (carte aérienne) où l'on dessine ; ses dessins se reportent dans toutes les photos. */
+const PLAN_KEY = 'plan:main';
+let planPose = store.get('geotrace:planpose', null);
+const planEntry = () => (planPose && reps[PLAN_KEY] && reps[PLAN_KEY].v === 2 && (reps[PLAN_KEY].objs || []).length) ? [{ key: PLAN_KEY, name: 'Plan', photo: planPose, data: reps[PLAN_KEY] }] : [];
 // Calage de la photo pour les RÉSEAUX : séparé de celui de la maquette (clé propre)
 const rAdj = p => { try { return JSON.parse(localStorage.getItem('geotrace:rvue:' + (p.key || p.name)) || 'null') || undefined; } catch (e) { return undefined; } };
 const poseOf = (p, M) => ({ key: p.key, name: p.name, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, adj: rAdj(p) });
@@ -752,7 +756,7 @@ async function openRepere() {
   // Les réglages fins de chaque photo (ceux de la vue 3D) servent aussi ici : même caméra des deux côtés
   let M = null; try { M = await maq(); } catch (e) { M = null; }
   // Les autres photos qui ont déjà un repérage (au nouveau format) : leurs dessins sont montrés dans celle-ci
-  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
+  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] })).concat(planEntry());
   Rep.open({
     name: p.name, src, data: reps[p.key], photo: poseOf(p, M), others,
     onAdj: a => { try { localStorage.setItem('geotrace:rvue:' + (p.key || p.name), JSON.stringify(a)); } catch (e) { /* stockage indisponible */ } },
@@ -769,19 +773,52 @@ async function openRepere() {
     onSaveOther: (key, d) => {
       reps[key] = d; saveReps();
       const o = photos.find(x => x.key === key);
-      if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
+      if (d.sent && (o || key === PLAN_KEY)) { const items = Rep.recordToItems(d, key === PLAN_KEY ? planPose : poseOf(o, M)); if (items) sendRepTo3D(key, items); }
     },
     onSend3D: items => sendRepTo3D(p.key, items),
     onClose: () => paintOver()
   });
 }
+async function openPlan() {
+  if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
+  status('Préparation du plan…');
+  let PL = null, M = null;
+  try { PL = await import('./plan.js'); if (!Rep) Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Plan indisponible.', { ms: 4000 }); return; }
+  try { M = await maq(); } catch (e) { M = null; }
+  const located = photos.filter(o => o.lat != null && o.lon != null);
+  let bounds;
+  if (located.length) {
+    const la = located.map(o => o.lat), lo = located.map(o => o.lon), mLat = 90 / 111320, mLon = 90 / (111320 * Math.cos(la[0] * Math.PI / 180));
+    bounds = [[Math.min(...la) - mLat, Math.min(...lo) - mLon], [Math.max(...la) + mLat, Math.max(...lo) + mLon]];
+  } else { const b = map.getBounds(); bounds = [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]; }
+  const hasDraw = reps[PLAN_KEY] && (reps[PLAN_KEY].objs || []).length;
+  let built = null;
+  try { built = await PL.buildPlan(bounds, planPose && hasDraw ? planPose : null); } catch (e) { console.error(e); }
+  if (!built || !built.blob || !built.ok) { status('Le plan n’a pas pu être chargé (fond aérien IGN indisponible).', { ms: 5000 }); return; }
+  if (!(planPose && hasDraw)) { planPose = Object.assign({}, built.pose, { w: built.w, h: built.h }); store.set('geotrace:planpose', planPose); }
+  status('');
+  const url = URL.createObjectURL(built.blob);
+  const others = photos.filter(o => reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ key: o.key, name: o.name, photo: poseOf(o, M), data: reps[o.key] }));
+  Rep.open({
+    name: 'Plan (vue de dessus)', src: url, data: reps[PLAN_KEY], photo: planPose, others,
+    onSave: d => { if (d.objs.length) reps[PLAN_KEY] = d; else delete reps[PLAN_KEY]; saveReps(); },
+    onSaveOther: (key, d) => {
+      reps[key] = d; saveReps();
+      const o = photos.find(x => x.key === key);
+      if (d.sent && o) { const items = Rep.recordToItems(d, poseOf(o, M)); if (items) sendRepTo3D(key, items); }
+    },
+    onSend3D: items => sendRepTo3D(PLAN_KEY, items),
+    onClose: () => { setTimeout(() => URL.revokeObjectURL(url), 2000); if (!$('viewer').hidden) paintOver(); }
+  });
+}
+$('planBtn').addEventListener('click', openPlan);
 // Dessins du repérage (et ceux des autres photos reportés ici) posés sur la photo de la visionneuse
 let ovlOn = store.get('geotrace:ovl', true);
 async function paintOver() {
   const cv = $('vOver'), img = $('vImg'), p = vList[vIdx], b = $('vOvl');
   if (!cv || !p) return;
   const mine = reps[p.key] && reps[p.key].v === 2 && (reps[p.key].objs || []).length;
-  const oth = photos.some(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null);
+  const oth = planEntry().length > 0 || photos.some(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null);
   b.hidden = !(mine || oth); b.setAttribute('aria-pressed', String(!!ovlOn));
   cv.hidden = true;
   if (!ovlOn || b.hidden || !img.naturalWidth) return;
@@ -789,7 +826,7 @@ async function paintOver() {
   if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { return; } }
   if (my !== vToken) return;
   let M = null; try { M = await maq(); } catch (e) { M = null; }
-  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ photo: poseOf(o, M), data: reps[o.key] }));
+  const others = photos.filter(o => o.key !== p.key && reps[o.key] && reps[o.key].v === 2 && o.lat != null).map(o => ({ photo: poseOf(o, M), data: reps[o.key] })).concat(planEntry().map(e => ({ photo: e.photo, data: e.data })));
   const k = Math.min(1, 2400 / img.naturalWidth);
   Rep.paintOverlay(cv, { w: Math.round(img.naturalWidth * k), h: Math.round(img.naturalHeight * k), data: reps[p.key], photo: poseOf(p, M), others, showOthers: true });
   cv.style.width = img.clientWidth + 'px'; cv.style.height = img.clientHeight + 'px';
