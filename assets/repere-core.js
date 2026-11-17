@@ -126,7 +126,7 @@ function defaults() {
   accessories.push(Object.assign({}, MANCHON));
   return {
     networks: networks, pipes: pipes, manholes: manholes, accessories: accessories, kits: JSON.parse(JSON.stringify(KITS)),
-    fs: 14, casing: true, labelPos: 'on',
+    fs: 14, casing: true, labelPos: 'on', labelBox: true, autoEnd: true, favs: { pipe: [], mh: [], acc: [] },
     autoFit: true, autoCoude: true, autoTe: true, autoRed: true, autoRac: true, autoBr: true, autoCit: true,
     kitsOn: true, crossTr: true, warnCross: false, size: 1
   };
@@ -596,17 +596,60 @@ function drawLine(c, o, u, mode) {
     c.save(); c.beginPath(); cr.forEach(q => { c.moveTo(q.x + q.r, q.y); c.arc(q.x, q.y, q.r, 0, Math.PI * 2); }); c.clip(); c.globalAlpha = 0.36; paint(); c.restore();
   } else { c.save(); paint(); c.restore(); }
 }
-// Le texte d'une conduite, posé au milieu et tourné dans le sens du tracé
+// Le texte d'une conduite : écrit lettre à lettre le long du tracé (comme l'outil d'origine), dans une pastille blanche
+// bordée de la couleur du réseau, au meilleur endroit libre ; réduit s'il manque de la place, masqué si vraiment trop court.
+let LBL_AVOID = [], LBL_PLACED = [];
+function lblTextColor(col) { return luminance(col) > 0.5 ? darken(col, 0.22) : col; }
 function drawLineLabel(c, o, u) {
   if (o.showLabel === false || o.pts.length < 2) { return; }
   const def = pipeOf(o.pipeId) || { w: 4, net: '', desc: '' };
   const text = o.text != null && o.text !== '' ? o.text : def.desc;
   if (!text) { return; }
-  const col = o.col || colOf(def.net), fs = (o.fs || S.fs) * u, L = polyLens(o.pts), q = pointAt(o.pts, L, L[L.length - 1] / 2);
-  let ang = q.a;
-  if (ang > Math.PI / 2 || ang < -Math.PI / 2) { ang += Math.PI; }
-  c.save(); c.translate(q.x, q.y); c.rotate(ang);
-  haloText(c, text, 0, S.labelPos === 'above' ? -(def.w * u / 2 + fs * 0.7) : 0, fs, luminance(col) > 0.5 ? darken(col, 0.38) : col, 'center');
+  const pts = o.pts, col = o.col || colOf(def.net), lw = def.w * u, pos = o.pos || S.labelPos || 'on', box = S.labelBox !== false;
+  let fs = (o.fs || S.fs) * u;
+  c.save(); c.font = font(fs, true); c.textBaseline = 'middle'; c.lineJoin = 'round';
+  const chars = Array.from(text); let cw, cum, tw;
+  const meas = () => { c.font = font(fs, true); cw = chars.map(ch => c.measureText(ch).width); cum = [0]; cw.forEach((w, i) => cum.push(cum[i] + w)); tw = cum[cum.length - 1]; };
+  meas();
+  const L = polyLens(pts), total = L[L.length - 1];
+  if (total <= 0) { c.restore(); return; }
+  if (o.showLabel !== true && tw * 0.8 + fs * 0.7 > total * 0.95) { c.restore(); return; }
+  if (tw + fs * 0.9 > total * 0.95) { fs *= Math.max(0.45, total * 0.95 / (tw + fs * 0.9)); meas(); }
+  const mid = pointAt(pts, L, total / 2), flip = Math.cos(mid.a) < 0;
+  const off = pos === 'on' ? 0 : (pos === 'below' ? -(lw / 2 + fs * (box ? 0.86 : 0.62)) : (lw / 2 + fs * (box ? 0.86 : 0.62)));
+  const at = (sm) => { const p = pointAt(pts, L, flip ? total - clamp(sm, 0, total) : clamp(sm, 0, total)), a = flip ? p.a + Math.PI : p.a; return { x: p.x + Math.sin(a) * off, y: p.y - Math.cos(a) * off, a: a }; };
+  let st0 = (total - tw) / 2;
+  if (tw < total * 0.96) {
+    let bs = 1e18;
+    for (const f of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.12, 0.88]) {
+      const st = clamp((flip ? 1 - f : f) * total - tw / 2, 0, total - tw); let sc = Math.abs(f - 0.5) * 12;
+      for (let sm = st; sm <= st + tw + 0.1; sm += fs * 0.7) {
+        const p = at(sm);
+        for (const q of LBL_AVOID) { if (Math.hypot(q.x - p.x, q.y - p.y) < q.r + fs * 0.6) { sc += 45; } }
+        for (const q of LBL_PLACED) { if (q.o !== o.id && Math.hypot(q.x - p.x, q.y - p.y) < fs * 0.95) { sc += 40; } }
+        for (const v of pts) { if (Math.hypot(v.x - p.x, v.y - p.y) < fs * 0.8) { sc += 6; } }
+      }
+      if (sc < bs) { bs = sc; st0 = st; }
+    }
+  }
+  for (let sm = st0; sm <= st0 + tw + 0.1; sm += fs * 0.5) { const p = at(sm); LBL_PLACED.push({ x: p.x, y: p.y, o: o.id }); }
+  if (box) {
+    const capW = fs * 1.5, pad = fs * 0.45, trace = () => {
+      c.beginPath(); let first = true;
+      for (let sm = st0 - pad; sm <= st0 + tw + pad + 0.01; sm += Math.max(fs * 0.35, 2)) { const p = at(sm); if (first) { c.moveTo(p.x, p.y); first = false; } else { c.lineTo(p.x, p.y); } }
+    };
+    c.save(); c.lineCap = 'round'; c.lineJoin = 'round'; c.setLineDash([]);
+    trace(); c.strokeStyle = col; c.lineWidth = capW + fs * 0.2; c.stroke();
+    trace(); c.strokeStyle = '#FFFFFF'; c.lineWidth = capW; c.stroke();
+    c.restore();
+  }
+  const fill = box ? lblTextColor(col) : (luminance(col) > 0.5 ? darken(col, 0.38) : col);
+  for (let i = 0; i < chars.length; i++) {
+    const p = at(st0 + cum[i] + cw[i] / 2);
+    c.save(); c.translate(p.x, p.y); c.rotate(p.a);
+    if (!box) { c.lineWidth = fs * 0.3; c.strokeStyle = '#FFFFFF'; c.strokeText(chars[i], -cw[i] / 2, 0); }
+    c.fillStyle = fill; c.fillText(chars[i], -cw[i] / 2, 0); c.restore();
+  }
   c.restore();
 }
 
@@ -966,6 +1009,11 @@ export function draw(c, ph, u, opt) {
   ph.objects.filter(o => o.type === 'manhole').forEach(o => drawManhole(c, o, u));
   ph.objects.filter(o => o.type === 'acc').forEach(o => drawAcc(c, o, ph, u));
   drawWarnings(c, ph, u);
+  LBL_PLACED = []; LBL_AVOID = [];
+  ph.objects.forEach(o => {
+    if (o.type === 'acc') { LBL_AVOID.push({ x: o.x, y: o.y, r: (o.size || 8) * u * 1.5 }); }
+    else if (o.type === 'manhole') { LBL_AVOID.push({ x: o.cx, y: o.cy, r: Math.max(o.rx, o.ry) * 1.1 }); }
+  });
   lines.forEach(o => drawLineLabel(c, o, u));
   const spec = placeLabels(c, ph, u);
   drawLabels(c, ph, u, spec);

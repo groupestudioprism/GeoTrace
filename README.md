@@ -228,6 +228,11 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.28.5 : textes des conduites et palette sans doublon
+
+- Le texte d'une conduite s'écrit lettre à lettre le long du tracé, dans une pastille blanche bordée de la couleur du réseau (comme l'outil d'origine) ; il évite les coudes, tés, regards et accessoires, se réduit si la conduite est courte et se masque si elle est trop courte.
+- Les outils Regard, Accessoire et Texte ne sont plus en double : on choisit l'onglet de la palette (Regards, Accessoires, Textes), qui active l'outil. Restent Sélectionner, Conduite et Branchement.
+
 ## Version 1.28.4 : palette à onglets dans Réseaux
 
 - Dès l'ouverture de Chantier > Réseaux : onglets Favoris, Conduites, Regards, Accessoires, Textes, Réglages, comme dans l'outil d'origine.

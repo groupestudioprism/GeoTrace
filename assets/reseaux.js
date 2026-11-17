@@ -360,7 +360,7 @@ const ICONS = {
   acc: '<circle cx="12" cy="12" r="7"/><path d="M12 8.5v7M8.5 12h7"/>',
   text: '<path d="M5 6h14M12 6v13M9 19h6"/>'
 };
-const TOOLS = [['select', 'Sélectionner', 'V'], ['line', 'Conduite', 'L'], ['br', 'Branchement', 'B'], ['manhole', 'Regard', 'R'], ['acc', 'Accessoire', 'A'], ['text', 'Texte', 'T']];
+const TOOLS = [['select', 'Sélectionner', 'V'], ['line', 'Conduite', 'L'], ['br', 'Branchement', 'B']];
 async function pick(t) {
   if (!(await ensure())) return;
   setTool(t); if (tool) palTab = { line: 'pipes', br: 'pipes', manhole: 'mh', acc: 'acc', text: 'misc' }[tool] || palTab; palShow();
@@ -432,7 +432,13 @@ function favBlock(box, k, title, arr, mk) {
   const L = (favs()[k] || []).map(id => arr.find(x => x.id === id)).filter(Boolean); if (!L.length) return false;
   box.append(el('div', 'rs-netname', '★ ' + title)); L.forEach(x => box.append(mk(x))); return true;
 }
-function setPalTab(t) { palTab = t; renderPal(); accGrid(); }
+async function setPalTab(t) {
+  palTab = t;
+  // l'onglet choisit l'outil : plus besoin de le désigner deux fois
+  const want = { pipes: 'line', mh: 'manhole', acc: 'acc', misc: 'text' }[t];
+  if (want && await ensure()) { if (tool !== want && !(want === 'line' && tool === 'br')) setTool(want); }
+  renderPal(); accGrid();
+}
 function renderPal() {
   const pal = $('rsPal'); if (!pal) return;
   if (!C) { pal.hidden = true; return; }
