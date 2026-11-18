@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.35.0 : la 3D sans maquette
+
+- Le bouton 3D (Photos en 3D) s'ouvre sans maquette Revit : on voit la photo aérienne en relief autour de ce qui est affiché sur la carte, avec les photos, zones, déviations, réseaux, phases et engins. Tout reste modifiable en direct.
+- Carte zoomée sur le chantier : la 3D couvre la zone visible. Carte dézoomée avec des photos chargées : la 3D les englobe toutes.
+- Avec une maquette, rien ne change (elle doit être placée).
+
 ## Version 1.34.2 : zoom 3D rapide stable
 
 - Les crans de molette reçus entre deux images sont cumulés puis appliqués d'un coup : plus de saccades, de sauts ni de traversée d'objets quand on zoome vite. La caméra ne descend plus sous le sol.

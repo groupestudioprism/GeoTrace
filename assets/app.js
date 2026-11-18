@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.34.2';
+const VERSION = '1.35.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1372,7 +1372,17 @@ function groundTool(ll, kind, ev) {
 }
 async function open3d(focusId) {
   const M = await maq();
-  if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
+  let virtual = null;
+  if (M.state.model) { if (!M.isPlaced()) { setMaqPanel(true); maqError('Placez d’abord la maquette avec au moins 2 points de calage.'); return; } }
+  else {
+    // pas de maquette : la 3D montre le terrain, les photos et le chantier autour de ce qu'on voit sur la carte
+    const pl = placedOf(visible()), c = map.getCenter(), b = map.getBounds();
+    if (map.getZoom() < 13 && pl.length) {
+      const la = pl.reduce((a, p) => a + p.lat, 0) / pl.length, lo = pl.reduce((a, p) => a + p.lon, 0) / pl.length, cc = L.latLng(la, lo);
+      virtual = { lat: la, lon: lo, half: Math.max(150, Math.min(3000, Math.max(...pl.map(p => cc.distanceTo([p.lat, p.lon]))) * 1.1)) };
+    } else if (map.getZoom() >= 12) virtual = { lat: c.lat, lon: c.lng, half: Math.max(150, Math.min(3000, c.distanceTo([c.lat, b.getEast()]) * 1.2)) };
+    else { status('Zoomez sur le chantier pour ouvrir la 3D.', { ms: 4000 }); return; }
+  }
   if (!$('viewer').hidden) closeViewer();
   map.closePopup();
   const ph = placedOf(visible());
@@ -1381,11 +1391,11 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden'; setSplit(split3d);
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote, onGround: groundTool, onItem: id => { if (Chantier) Chantier.selectItem(id); }, onMoveItem: (id, la, lo) => { if (Chantier) Chantier.moveEngin(id, la, lo); } }); }
+  try { await M.open3D($('v3Host'), { virtual, photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote, onGround: groundTool, onItem: id => { if (Chantier) Chantier.selectItem(id); }, onMoveItem: (id, la, lo) => { if (Chantier) Chantier.moveEngin(id, la, lo); } }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; }
-  $('v3Title').textContent = 'Maquette en 3D';
+  $('v3Title').textContent = virtual ? 'Vue 3D du chantier' : 'Maquette en 3D';
   lastSite = JSON.stringify(siteNow()); { const id = Chantier && Chantier.selectedEngin ? Chantier.selectedEngin() : null; if (id) Maq.v3Select(id); }
   if (split3d) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); }
   buildStrip();

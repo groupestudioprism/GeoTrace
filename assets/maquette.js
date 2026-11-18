@@ -500,9 +500,12 @@ function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localSt
 function disposeTree(g) { g.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && o.userData.dispose) { if (o.geometry) o.geometry.dispose(); [].concat(o.material || []).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } }); }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote, onItem, onGround, onMoveItem }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote, onItem, onGround, onMoveItem, virtual = null }) {
   close3D();
-  const m = state.model; if (!m || !state.sol || !state.frame) return null;
+  // sans maquette : un site vide (terrain, photos, zones, réseaux, engins) autour d'un point GPS, repère local à l'identité
+  let m = state.model, virt = false;
+  if (!m && virtual) { virt = true; const h = virtual.half || 150; m = { group: new THREE.Group(), box: new THREE.Box3(new THREE.Vector3(-h, -h, 0), new THREE.Vector3(h, h, 8)) }; state.frame = makeFrame(virtual.lat, virtual.lon); state.sol = { s: 1, theta: 0, t: [0, 0], rms: 0, residuals: [] }; }
+  if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
   host.appendChild(renderer.domElement); renderer.domElement.className = 'v3-canvas';
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0xbcd3e6);
@@ -515,10 +518,10 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 30000); camera.up.set(0, 0, 1);
   const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000; controls.zoomToCursor = false; controls.minDistance = 0.02; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   // emprise terrain de la maquette et des photos proches
-  const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
+  const bb = new THREE.Box3().setFromObject(holder); if (bb.isEmpty()) bb.copy(m.box); const c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
   const radius = Math.max(60, Math.max(sz.x, sz.y) * 0.9), cE = c.clone().applyMatrix4(Tm);   // cE : le même centre, mais en coordonnées terrain (pour les photos et le sol)
   const bounds = [cE.x - radius * 1.2, cE.y - radius * 1.2, cE.x + radius * 1.2, cE.y + radius * 1.2];
-  v3 = { host, renderer, scene, camera, controls, holder, raf: 0, dead: false, photoMeshes: [], ground: null, onPhoto, onElement, center: c, radius, lock: null };
+  v3 = { host, renderer, scene, camera, controls, holder, raf: 0, dead: false, photoMeshes: [], ground: null, onPhoto, onElement, center: c, radius, lock: null, virtual: virt };
   const headingOf = p => p.heading != null ? p.heading : Math.atan2(cE.x - p._e, cE.y - p._n) / RAD;
   // photos : repère de l'appareil, plan de l'image à sa place dans le champ, et pyramide de vue
   const markers = new THREE.Group(); world.add(markers);
@@ -857,6 +860,7 @@ export function v3Has() { return !!v3; }
 export function v3Camera() { return v3 ? { world: v3.world, controls: v3.controls, camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
 export function close3D() {
   if (!v3) return;
+  if (v3.virtual) { state.sol = null; state.frame = null; }
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();
   v3.scene.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && (o.userData.photoId || o.userData.dispose || o === v3.ground || o === v3.ground2)) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
   v3.renderer.dispose(); v3.renderer.domElement.remove(); if (v3.marks) v3.marks.remove(); v3 = null;
