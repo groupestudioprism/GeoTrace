@@ -766,3 +766,10 @@ body.on-welcome .pop-wrap { display: none; }
 .eg-h { margin: 12px 0 6px; font-size: .8rem; color: var(--muted); font-weight: 600; }
 .eg-label span { color: #0b2342; }
 .eg-rot { width: 120px; vertical-align: middle; }
+.eg-ctl { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+.eg-sl { display: grid; grid-template-columns: 8.5rem 1fr 3rem; align-items: center; gap: 6px; font-size: .84rem; }
+.eg-sl input { width: 100%; }
+.eg-pre { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .84rem; }
+.eg-svg { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.eg-side { width: 100%; height: 130px; display: block; }
+.eg-rd { color: var(--muted); line-height: 1.45; }

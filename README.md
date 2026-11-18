@@ -228,6 +228,15 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.33.0 : pelles articulées
+
+- Les trois pelles (Hitachi ZAXIS 50U, Hitachi ZX225USLC, Volvo EWR 170 sur pneus) existent maintenant en version articulée, construite à partir de leurs cotes : train de roulement (chenilles ou pneus, lame ou stabilisateurs), tourelle avec cabine et contrepoids, flèche, balancier, godet et vérins qui suivent le mouvement.
+- Paramètres propres à GeoTrace, indépendants de Revit : rotation de la tourelle (±180°), flèche, balancier, godet. Quatre poses types : Transport, Creusement, Fouille profonde, Chargement camion. Couleur modifiable par pelle.
+- Un schéma de profil dans l'onglet Engins montre la pelle en direct, avec la portée du godet, la hauteur de la dent, la portée maximale et la profondeur maximale.
+- Sur la carte : trait de la tourelle jusqu'à la dent, cercle de balayage à la portée actuelle et cercle pointillé de portée maximale pour la pelle choisie (zone d'évolution).
+- La case « Pelle articulée » permet de revenir au modèle détaillé figé issu de l'IFC.
+- Les réglages sont enregistrés avec le projet (`eng[].p`, `art`, `col`). Nouveaux modules `assets/rigkin.js` (cinématique) et `assets/rig.js` (modèle 3D).
+
 ## Version 1.32.1 : couleurs des engins
 
 - Fourgons et utilitaires blancs avec pneus noirs, tracteurs peints (John Deere vert, MF8 rouge) avec pneus noirs, ouvriers en tenue haute visibilité avec casque, pantalon et chaussures.
