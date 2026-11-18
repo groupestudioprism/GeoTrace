@@ -167,6 +167,7 @@
         <button type="button" role="tab" data-tab="d" aria-selected="false">Déviations</button>
         <button type="button" role="tab" data-tab="n" aria-selected="false">Réseaux</button>
         <button type="button" role="tab" data-tab="p" aria-selected="false">Phases</button>
+        <button type="button" role="tab" data-tab="e" aria-selected="false" title="Situations de chantier : engins, camions, véhicules, personnel">Engins</button>
       </div>
       <div class="ch-body">
         <div id="chTabZ">
@@ -232,6 +233,13 @@
           <p class="hint ch-empty" id="ntEmpty">Aucun réseau pour l’instant.</p>
           <button type="button" class="link danger" id="ntClear" hidden>Tout supprimer</button>
         </div>
+        <div id="chTabE" hidden>
+          <p class="hint">Situations de chantier : posez des engins, camions, véhicules et personnel à leur taille réelle, puis tournez-les. En 3D, ce sont les vrais modèles. Une phase peut choisir ceux qui sont présents.</p>
+          <div id="egTypes"></div>
+          <h3>Engins posés</h3>
+          <ul id="egList"></ul>
+          <p class="hint ch-empty" id="egEmpty">Choisissez un engin ci-dessus, puis cliquez sur la carte.</p>
+        </div>
         <div id="chTabP" hidden>
           <label class="ch-field">Phase affichée <select id="phCur" aria-label="Phase affichée"></select></label>
           <div id="phPlan" class="ph-plan"></div>
@@ -251,6 +259,7 @@
     <div id="ntDraw" class="ch-draw" hidden><span id="ntDrawTxt"></span><button type="button" class="link" id="ntDrawBack">Retirer le dernier point</button><button type="button" class="link" id="ntDrawOk">Terminer</button><button type="button" class="link" id="ntDrawNo">Annuler</button></div>
     <div id="dvDraw" class="ch-draw" hidden><span id="dvDrawTxt"></span><button type="button" class="link" id="dvDrawBack">Retirer le dernier point</button><button type="button" class="link" id="dvDrawOk">Terminer</button><button type="button" class="link" id="dvDrawNo">Annuler</button></div>
     <div id="chDraw" class="ch-draw" hidden><span id="chDrawTxt"></span><button type="button" class="link" id="chDrawBack">Retirer le dernier point</button><button type="button" class="link" id="chDrawOk">Terminer</button><button type="button" class="link" id="chDrawNo">Annuler</button></div>
+    <div id="egDraw" class="ch-draw" hidden><span id="egDrawTxt"></span><button type="button" class="link" id="egDrawNo">Annuler</button></div>
 
     <section id="maqPanel" hidden aria-label="Maquette 3D">
       <div class="mq-head"><b>Maquette 3D</b><button class="icon-btn" id="maqClose" type="button" aria-label="Fermer" data-ic="close"></button></div>

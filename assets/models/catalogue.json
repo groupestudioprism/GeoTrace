@@ -1,0 +1,155 @@
+{
+ "cats": {
+  "pelle": "Pelles",
+  "engin": "Engins",
+  "camion": "Camions",
+  "vehicule": "Véhicules",
+  "personne": "Personnel"
+ },
+ "models": [
+  {
+   "id": "hitachi-zaxis-50u",
+   "name": "Pelle sur chenilles Hitachi ZAXIS 50U",
+   "cat": "pelle",
+   "w": 2.02,
+   "l": 5.58,
+   "h": 2.91,
+   "off": 180
+  },
+  {
+   "id": "hitachi-zx225uslc-25t2",
+   "name": "Pelle sur chenilles Hitachi ZX225USLC",
+   "cat": "pelle",
+   "w": 3.08,
+   "l": 7.16,
+   "h": 7.33,
+   "off": 180
+  },
+  {
+   "id": "volvo-ewr-170",
+   "name": "Pelle sur pneus Volvo EWR 170",
+   "cat": "pelle",
+   "w": 2.73,
+   "l": 6.04,
+   "h": 4.12,
+   "off": 180
+  },
+  {
+   "id": "megalac-12mxr",
+   "name": "Megalac 12 MXR",
+   "cat": "engin",
+   "w": 2.42,
+   "l": 5.5,
+   "h": 3.85,
+   "off": 180
+  },
+  {
+   "id": "dumper-dv-90-dualviewr",
+   "name": "Dumper DV 90 Dual View",
+   "cat": "engin",
+   "w": 2.5,
+   "l": 4.62,
+   "h": 3.09,
+   "off": 0
+  },
+  {
+   "id": "john-deere-8r",
+   "name": "Tracteur John Deere 8R",
+   "cat": "engin",
+   "w": 2.82,
+   "l": 6.45,
+   "h": 3.71,
+   "off": 180
+  },
+  {
+   "id": "mf8",
+   "name": "Tracteur MF8",
+   "cat": "engin",
+   "w": 2.91,
+   "l": 5.47,
+   "h": 3.78,
+   "off": 180
+  },
+  {
+   "id": "sturno-aspiratrice",
+   "name": "Camion aspiratrice STURNO",
+   "cat": "camion",
+   "w": 2.74,
+   "l": 9.11,
+   "h": 3.65,
+   "off": 180
+  },
+  {
+   "id": "camion-8x4-mantgs26",
+   "name": "Camion benne MAN TGS 26 (8x4)",
+   "cat": "camion",
+   "w": 2.74,
+   "l": 8.6,
+   "h": 3.24,
+   "off": 180
+  },
+  {
+   "id": "camion-6x4-mantgs26-grue",
+   "name": "Camion grue MAN TGS 26 (6x4)",
+   "cat": "camion",
+   "w": 3.04,
+   "l": 8.6,
+   "h": 3.52,
+   "off": 180
+  },
+  {
+   "id": "citroen-utilitaire-berlingo-m",
+   "name": "Citroën Berlingo",
+   "cat": "vehicule",
+   "w": 1.91,
+   "l": 4.26,
+   "h": 1.86,
+   "off": 180
+  },
+  {
+   "id": "03-nissan-nv400",
+   "name": "Nissan NV400",
+   "cat": "vehicule",
+   "w": 2.62,
+   "l": 6.18,
+   "h": 2.66,
+   "off": 180
+  },
+  {
+   "id": "volkswagen-transporter-t6-1-fourgon",
+   "name": "Volkswagen Transporter T6.1",
+   "cat": "vehicule",
+   "w": 2.36,
+   "l": 4.66,
+   "h": 1.99,
+   "off": 180
+  },
+  {
+   "id": "ourier-homme-02",
+   "name": "Ouvrier (homme 1)",
+   "cat": "personne",
+   "w": 0.67,
+   "l": 0.36,
+   "h": 1.74,
+   "off": 180
+  },
+  {
+   "id": "ouvrier-homme-03",
+   "name": "Ouvrier (homme 2)",
+   "cat": "personne",
+   "w": 0.71,
+   "l": 0.39,
+   "h": 1.81,
+   "off": 180
+  },
+  {
+   "id": "ouvrier-femme-01",
+   "name": "Ouvrière",
+   "cat": "personne",
+   "w": 0.57,
+   "l": 0.31,
+   "h": 1.62,
+   "off": 180
+  }
+ ]
+}

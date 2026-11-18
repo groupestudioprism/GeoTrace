@@ -228,6 +228,16 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.32.0 : situations de chantier, engins en 3D
+
+- Nouvel onglet Chantier › Engins (situations de chantier) : 16 modèles (3 pelles, dumper, tracteurs, camions benne, grue et aspiratrice STURNO, 3 véhicules légers, 3 ouvriers), issus de la bibliothèque Revit de Studio Prism.
+- On choisit un modèle, on clique la carte pour le poser ; il apparaît à sa taille réelle (emprise rectangulaire et flèche d'avant), se déplace en glissant, se tourne (curseur ou 90°), se duplique et se supprime.
+- En vue 3D, ce sont les vrais modèles posés au sol, orientés comme sur la carte.
+- Chaque phase peut choisir les engins présents (Phases › Contenu de la phase › Engins et véhicules présents), en carte 2D comme en 3D.
+- Enregistrés avec le projet (`chantier.eng` du fichier de calage) et par projet dans le navigateur.
+- Modèles convertis de l'IFC en GLB allégés (meshopt, environ 4,5 Mo pour les 16) dans `assets/models/`, chargés à la demande seulement ; le catalogue (`catalogue.json`) donne nom, catégorie, dimensions et orientation de chaque modèle. Décodeur meshopt dans `vendor/three/utils/`.
+- Limite : l'IFC ne contient qu'une pose figée par engin (pas de bras articulé).
+
 ## Version 1.31.0 : installations de chantier et déviations en 3D détaillée
 
 - Nouveau module `assets/site3d.js`, aux cotes réelles (fiches fabricants et gammes réglementaires de signalisation temporaire).
