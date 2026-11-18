@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.34.1 : zoom 3D jamais bloqué
+
+- La molette avance vers le point visé par pas proportionnels à la distance : on peut s'approcher d'un élément sans que le zoom ralentisse ni se bloque, et le centre de rotation se place sur ce point.
+
 ## Version 1.34.0 : tous les engins articulés, 3D avec toutes les options
 
 - Camions benne (8x4, 6x4), aspiratrice STURNO, dumper : la benne ou la cuve se lève (curseur d'inclinaison). Tracteurs John Deere 8R et MF8 : roues avant braquables. Megalac 12 MXR : bras articulé. Les pelles gardent leurs articulations.

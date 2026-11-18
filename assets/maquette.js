@@ -513,7 +513,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const Tinv = Tm.clone().invert(), qInv = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sl.theta);
   const world = new THREE.Group(); world.matrixAutoUpdate = false; world.matrix.copy(Tinv); world.matrixWorldNeedsUpdate = true; scene.add(world);
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 30000); camera.up.set(0, 0, 1);
-  const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000; controls.zoomToCursor = true; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * .495; controls.maxDistance = 9000; controls.zoomToCursor = false; controls.minDistance = 0.02; controls.screenSpacePanning = true; controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }; controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   // emprise terrain de la maquette et des photos proches
   const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3()), sz = bb.getSize(new THREE.Vector3());
   const radius = Math.max(60, Math.max(sz.x, sz.y) * 0.9), cE = c.clone().applyMatrix4(Tm);   // cE : le même centre, mais en coordonnées terrain (pour les photos et le sol)
@@ -775,6 +775,19 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     if (e.shiftKey) a.z -= Math.sign(d) * .1; else a.zoom = Math.max(.3, Math.min(4, a.zoom * Math.exp(-d * .0012)));
     applyLock(); persist();
   }, { passive: false });
+  // zoom à la molette : avance vers le point visé par pas proportionnel à la distance (jamais bloqué près d'un élément)
+  const zRay = new THREE.Raycaster(), zP = new THREE.Vector2(), zV = new THREE.Vector3();
+  el.addEventListener('wheel', e => {
+    if (v3.lock || v3.fly) return; e.preventDefault(); e.stopImmediatePropagation();
+    const r = el.getBoundingClientRect(); zP.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); zRay.setFromCamera(zP, camera);
+    const h = zRay.intersectObject(world, true).find(x => x.object.visible !== false && !x.object.isSprite && !x.object.isLine && !x.object.isPoints);
+    const td = camera.position.distanceTo(controls.target), hd = h ? h.distance : td, dir = zRay.ray.direction;
+    const d = Math.max(-1, Math.min(1, (e.deltaY || 0) / 100)), step = Math.max(.15, hd * .14) * Math.abs(d);
+    if (!step) return;
+    if (d < 0) { camera.position.addScaledVector(dir, step); controls.target.copy(h ? h.point : zV.copy(camera.position).addScaledVector(dir, Math.max(.5, hd - step))); }
+    else { const np = zV.copy(camera.position).addScaledVector(dir, -step); if (np.distanceTo(controls.target) > controls.maxDistance) return; camera.position.copy(np); controls.target.addScaledVector(dir, -step); }
+    controls.update();
+  }, { passive: false, capture: true });
   el.addEventListener('dblclick', () => { if (!v3.lock) return; v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; applyLock(); persist(); onNote && onNote(''); });
   el.addEventListener('pointerup', e => {
     if (v3.lock) {
