@@ -228,6 +228,14 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.34.0 : tous les engins articulés, 3D avec toutes les options
+
+- Camions benne (8x4, 6x4), aspiratrice STURNO, dumper : la benne ou la cuve se lève (curseur d'inclinaison). Tracteurs John Deere 8R et MF8 : roues avant braquables. Megalac 12 MXR : bras articulé. Les pelles gardent leurs articulations.
+- Vue 3D en écran partagé : la 3D reste à côté de la carte et le panneau Chantier garde toutes les options de la 2D (zones, déviations, réseaux, phases, engins). Les modifications apparaissent en direct en 3D.
+- En 3D : cliquer pour poser un engin ou dessiner, cliquer un élément pour le sélectionner, glisser l'engin sélectionné pour le déplacer. Bouton « Plein écran » et séparateur déplaçable.
+- Le bouton « Repérage » du menu est retiré (le repérage reste dans Chantier › Réseaux).
+- Limites : le camion grue 6x4 n'a pas de grue dans le modèle IFC (seule la benne bouge) ; fourgons et personnel restent fixes.
+
 ## Version 1.33.0 : pelles articulées
 
 - Les trois pelles (Hitachi ZAXIS 50U, Hitachi ZX225USLC, Volvo EWR 170 sur pneus) existent maintenant en version articulée, construite à partir de leurs cotes : train de roulement (chenilles ou pneus, lame ou stabilisateurs), tourelle avec cabine et contrepoids, flèche, balancier, godet et vérins qui suivent le mouvement.

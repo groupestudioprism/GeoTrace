@@ -170,7 +170,7 @@ function render() {
     layer.addLayer(line);
   });
 }
-function select(id, openPanel) {
+export function select(id, openPanel) {
   sel = id; render(); list();
   if (openPanel) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); tab('n'); const li = document.querySelector(`#ntList li[data-id="${id}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
 }

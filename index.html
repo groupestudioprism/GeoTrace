@@ -78,7 +78,6 @@
     </div>
   </div>
 
-  <button class="btn" id="rpBtn" type="button" title="Repérage de réseaux sur photos et signalisation : l’outil complet"><span data-ic="pin"></span>Repérage</button>
   <button class="btn" id="chBtn" type="button" title="Dessiner les installations de chantier et les déviations" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span>Chantier</button>
   <div class="pop-wrap">
     <button class="btn" id="d3Btn" type="button" title="Maquette, photos en 3D, calage des photos" aria-expanded="false" aria-controls="d3Menu"><span data-ic="cube"></span>3D</button>
@@ -417,11 +416,13 @@
 <div id="plView" hidden role="dialog" aria-modal="true" aria-label="Planning"><div class="pl-box"><div class="pl-head"><b id="plTitle">Planning</b><a id="plOpen" class="link" target="_blank" rel="noopener">Ouvrir dans un onglet</a><button class="icon-btn" id="plClose" type="button" aria-label="Fermer" data-ic="close"></button></div><iframe id="plFrame" title="Planning PDF"></iframe></div></div>
 <div id="piView" hidden role="dialog" aria-modal="true" aria-label="Importer les phases du planning"><div class="pl-box pi-box"><div class="pl-head"><b>Phases du planning</b><button class="icon-btn" id="piClose" type="button" aria-label="Fermer" data-ic="close"></button></div><div class="pi-body"><p id="piMsg" class="hint"></p><div class="pi-bar"><input id="piFind" type="search" placeholder="Filtrer les tâches…" aria-label="Filtrer les tâches"><button type="button" class="link" id="piAll">Tout cocher</button><button type="button" class="link" id="piNone">Tout décocher</button></div><ul id="piList"></ul></div><div class="pi-foot"><button type="button" class="btn primary" id="piGo" disabled>Créer les phases</button></div></div></div>
 <div id="v3d" hidden role="dialog" aria-modal="true" aria-label="Maquette en 3D">
+  <div id="v3Gut" role="separator" aria-orientation="vertical" aria-label="Largeur de la vue 3D" tabindex="0" title="Glisser pour changer la largeur de la vue 3D"></div>
   <div class="v-bar">
     <div class="v-title"><b id="v3Title">Maquette en 3D</b><small id="v3Hint">Glisser : tourner · Clic droit ou Maj + glisser : déplacer · Molette : zoom · Cliquez un repère photo pour entrer dans la photo.</small></div>
     <label class="vb wide chk" id="v3NetsL" hidden><input type="checkbox" id="v3Nets" checked> Réseaux enterrés</label>
     <label class="vb wide chk" id="v3PhaseL" hidden>Phase <select id="v3Phase" aria-label="Phase affichée en 3D"></select></label>
     <button class="vb wide" id="v3Over" type="button">Vue d’ensemble</button>
+    <button class="vb wide" id="v3Full" type="button" aria-pressed="false" title="Agrandir la vue 3D sur tout l’écran, ou la partager avec la carte et le panneau Chantier">Plein écran</button>
     <label class="vb wide chk"><input type="checkbox" id="v3Ground" checked> Photo aérienne</label>
     <button class="vb" id="v3Close" type="button" aria-label="Fermer" data-ic="close"></button>
   </div>

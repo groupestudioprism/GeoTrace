@@ -62,7 +62,7 @@ function render() {
     layer.addLayer(L.marker([(mid[0] + nxt[0]) / 2, (mid[1] + nxt[1]) / 2], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'ch-label', html: `<span style="--c:${t.color}">${esc(d.name)}</span>`, iconSize: null }) }));
   });
 }
-function select(id, openPanel) {
+export function select(id, openPanel) {
   sel = id; render(); list();
   if (openPanel) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); tab('d'); const li = document.querySelector(`#dvList li[data-id="${id}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
 }

@@ -497,8 +497,10 @@ function shareNear(lk, photos) {
 /* Remet toutes les photos sans réglage. */
 function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localStorage.removeItem(sharedKey(p)); localStorage.removeItem(adjKey(p)); }); } catch (e) { /* rien */ } }
 
+function disposeTree(g) { g.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && o.userData.dispose) { if (o.geometry) o.geometry.dispose(); [].concat(o.material || []).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } }); }
+
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote }) {
+export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote, onItem, onGround, onMoveItem }) {
   close3D();
   const m = state.model; if (!m || !state.sol || !state.frame) return null;
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setClearColor(0x000000, 0);
@@ -520,14 +522,31 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const headingOf = p => p.heading != null ? p.heading : Math.atan2(cE.x - p._e, cE.y - p._n) / RAD;
   // photos : repère de l'appareil, plan de l'image à sa place dans le champ, et pyramide de vue
   const markers = new THREE.Group(); world.add(markers);
-  if (zones.length) { try { const z = buildZones(zones, (la, lo) => state.frame.toEN(la, lo), zoneColors); world.add(z.group); markers.add(z.labels); } catch (e) { console.warn('installations', e); } }
-  if (devs.length) { try { const z = buildDevs(devs, (la, lo) => state.frame.toEN(la, lo), devColors); world.add(z.group); markers.add(z.labels); } catch (e) { console.warn('déviations', e); } }
-  if (engins.length) { try { const z = buildEngins(engins, (la, lo) => state.frame.toEN(la, lo), enginsBase); world.add(z); } catch (e) { console.warn('engins', e); } }
-  v3.netsOn = true; v3.hasNets = nets.length > 0;
-  if (nets.length) { try { const z = buildNets(nets, (la, lo) => state.frame.toEN(la, lo), netColors); z.group.name = 'reseaux'; world.add(z.group); v3.netsGroup = z.group; } catch (e) { console.warn('réseaux', e); } }
-  v3.chantierItems = new Map(); [...world.children].forEach(g => { if (g.name === 'chantier' || g.name === 'deviations' || g.name === 'reseaux' || g.name === 'engins') g.children.forEach(r => { if (r.userData.itemId) v3.chantierItems.set(r.userData.itemId, [r]); }); });
-  markers.children.forEach(g => g.children.forEach(sp => { const l = v3.chantierItems.get(sp.userData.itemId); if (l) l.push(sp); }));
-  v3.phases = phases; v3.phaseId = phaseId; applyPhase();
+  /* Installations, déviations, réseaux et engins : construits ici, puis tenus à jour en direct pendant que la carte et le panneau Chantier modifient les données (v3Site, v3Engins). */
+  const toEN = (la, lo) => state.frame.toEN(la, lo);
+  v3.world = world; v3.markers = markers; v3.cfg = { zoneColors, devColors, netColors, enginsBase }; v3.Tm = Tm; v3.labelGroups = []; v3.netsOn = true; v3.hasNets = false;
+  v3.phases = phases; v3.phaseId = phaseId;
+  v3.reindex = () => {
+    v3.chantierItems = new Map(); v3.world.children.forEach(g => { if (g.name === 'chantier' || g.name === 'deviations' || g.name === 'reseaux' || g.name === 'engins') g.children.forEach(r => { if (r.userData.itemId) v3.chantierItems.set(r.userData.itemId, [r]); }); });
+    v3.labelGroups.forEach(g => g.children.forEach(sp => { const l = v3.chantierItems.get(sp.userData.itemId); if (l) l.push(sp); }));
+    applyPhase(); if (v3.syncVis) v3.syncVis();
+  };
+  v3.setSite = ({ zones: zs = [], devs: ds = [], nets: ns = [] }) => {
+    [...v3.world.children].forEach(g => { if (g.name === 'chantier' || g.name === 'deviations' || g.name === 'reseaux') { v3.world.remove(g); disposeTree(g); } });
+    v3.labelGroups.forEach(g => { v3.markers.remove(g); disposeTree(g); }); v3.labelGroups = []; v3.netsGroup = null;
+    const lab = g => { v3.markers.add(g); v3.labelGroups.push(g); };
+    if (zs.length) { try { const z = buildZones(zs, toEN, v3.cfg.zoneColors); v3.world.add(z.group); lab(z.labels); } catch (e) { console.warn('installations', e); } }
+    if (ds.length) { try { const z = buildDevs(ds, toEN, v3.cfg.devColors); v3.world.add(z.group); lab(z.labels); } catch (e) { console.warn('déviations', e); } }
+    v3.hasNets = ns.length > 0;
+    if (ns.length) { try { const z = buildNets(ns, toEN, v3.cfg.netColors); z.group.name = 'reseaux'; v3.world.add(z.group); v3.netsGroup = z.group; } catch (e) { console.warn('réseaux', e); } }
+    v3.reindex();
+  };
+  v3.setEngins = list => {
+    let g = v3.world.children.find(x => x.name === 'engins');
+    if (!g) { g = buildEngins([], toEN, v3.cfg.enginsBase); v3.world.add(g); }
+    g.userData.update(list); if (v3.selId) g.userData.select(v3.selId); v3.reindex();
+  };
+  v3.setSite({ zones, devs, nets }); if (engins.length) v3.setEngins(engins);
   const far = Math.max(radius * 10, 2500);
   const dist = Math.max(3, radius / 12), K = .35;
   const build = (p, aspect) => {
@@ -704,6 +723,44 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     });
   });
   el.addEventListener('pointerleave', () => { if (hov) setHover(null); });
+  /* éléments du chantier : retrouver l'identifiant d'un engin, d'une zone ou d'une déviation touché par le rayon */
+  const idOf = o => { while (o && !(o.userData && o.userData.itemId)) o = o.parent; return o ? o.userData.itemId : null; };
+  const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+  const pickItem = () => ray.intersectObjects(v3.world.children.filter(g => g.visible && (g.name === 'chantier' || g.name === 'deviations' || g.name === 'engins' || g.name === 'reseaux')), true).find(h => shown(h.object) && idOf(h.object));
+  /* point du sol sous le pointeur : plan de la terrain (Z = 0 dans le repère des installations) → [lat, lon] */
+  const groundEN = (cx, cy) => {
+    const r = el.getBoundingClientRect(); ptr.set((cx - r.left) / r.width * 2 - 1, -(cy - r.top) / r.height * 2 + 1); ray.setFromCamera(ptr, camera);
+    const o = ray.ray.origin.clone().applyMatrix4(v3.Tm), d = ray.ray.direction.clone().transformDirection(v3.Tm);
+    if (Math.abs(d.z) < 1e-6) return null; const t = -o.z / d.z; if (t < 0) return null;
+    return [o.x + d.x * t, o.y + d.y * t];
+  };
+  v3.groundAt = (cx, cy) => { const g = groundEN(cx, cy); return g ? state.frame.toLL(g[0], g[1]) : null; };
+  // pointeur promené sur le sol pendant un dessin : aperçu du tracé sur la carte
+  let gmRaf = 0;
+  el.addEventListener('pointermove', e => {
+    if (!onGround || v3.lock || v3.fly || e.buttons || gmRaf) return;
+    const cx = e.clientX, cy = e.clientY;
+    gmRaf = requestAnimationFrame(() => { gmRaf = 0; if (!v3 || v3.dead || v3.lock) return; const gp = v3.groundAt(cx, cy); const on = !!(gp && onGround(gp, 'move')); el.style.cursor = on ? 'crosshair' : (hov ? 'pointer' : ''); });
+  });
+  el.addEventListener('dblclick', e => { if (v3.lock || !onGround) return; const gp = v3.groundAt(e.clientX, e.clientY); if (gp) onGround(gp, 'dblclick', e); });
+  /* glisser l'engin sélectionné pour le déplacer (le premier clic le sélectionne, le glisser suivant le déplace) */
+  el.addEventListener('pointerdown', e => {
+    if (v3.lock || e.button !== 0 || e.shiftKey || !v3.selId || !onMoveItem) return;
+    if (onGround) { const gp = v3.groundAt(e.clientX, e.clientY); if (gp && onGround(gp, 'probe')) return; } // un outil de dessin a la priorité
+    const g = v3.world.children.find(x => x.name === 'engins'); if (!g) return;
+    const r = el.getBoundingClientRect(); ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ptr, camera);
+    const h = ray.intersectObject(g, true).find(x => shown(x.object) && idOf(x.object)); if (!h || idOf(h.object) !== v3.selId) return;
+    const root = g.children.find(c => c.userData.itemId === v3.selId), g0 = groundEN(e.clientX, e.clientY); if (!root || !g0) return;
+    e.stopImmediatePropagation(); controls.enabled = false;
+    const dx = root.position.x - g0[0], dy = root.position.y - g0[1], x0 = e.clientX, y0 = e.clientY; let moved = false;
+    const mv = ev => { if (!moved && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return; moved = true; const q = groundEN(ev.clientX, ev.clientY); if (q) root.position.set(q[0] + dx, q[1] + dy, 0); el.style.cursor = 'grabbing'; };
+    const up = () => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+      controls.enabled = !v3 || !v3.lock; el.style.cursor = '';
+      if (moved && v3 && !v3.dead) { const ll = state.frame.toLL(root.position.x, root.position.y); onMoveItem(v3.selId, ll[0], ll[1]); }
+    };
+    addEventListener('pointermove', mv); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+  }, true);
   el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; if (v3.lock) { drag = [e.clientX, e.clientY]; try { el.setPointerCapture(e.pointerId); } catch (er) { /* sans capture */ } } });
   el.addEventListener('pointermove', e => {
     if (!drag || !v3.lock) return; const lk = v3.lock, a = lk.adj, dx = e.clientX - drag[0], dy = e.clientY - drag[1]; drag = [e.clientX, e.clientY];
@@ -729,7 +786,10 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     const r = el.getBoundingClientRect(); ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ptr, camera);
     const hitP = ray.intersectObjects(v3.photoMeshes, false)[0];
     if (hitP && onPhoto) { onPhoto(hitP.object.userData.photoId); return; }
-    const hit = ray.intersectObject(holder, true)[0];
+    // un outil de dessin est actif sur la carte : le clic sur le sol est un point du dessin
+    if (onGround) { const gp = v3.groundAt(e.clientX, e.clientY); if (gp && onGround(gp, 'click', e)) return; }
+    const hit = ray.intersectObject(holder, true)[0], hi = pickItem();
+    if (hi && (!hit || hi.distance <= hit.distance + .01)) { if (onItem) onItem(idOf(hi.object)); return; }
     if (hit && onElement) { const info = describe(hit.object.userData.expressID); onElement(info, hit.point); } else if (onElement) onElement(null);
   });
   const loop = () => {
@@ -749,6 +809,10 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   buildGround(state.frame, [cE.x - far, cE.y - far, cE.x + far, cE.y + far], { maxTiles: 64, zMin: 13, zOff: -0.3 }).then(g => { if (!v3 || v3.dead) return; g.mesh.renderOrder = -1; v3.ground2 = g.mesh; world.add(g.mesh); v3.syncVis(); }).catch(e => { console.log('fond large', e && e.message); });
   return v3;
 }
+/* Mise à jour en direct : zones, déviations et réseaux sont reconstruits ; les engins sont seulement déplacés, tournés et remis en pose. */
+export function v3Site(data) { if (v3 && !v3.dead) v3.setSite(data); }
+export function v3Engins(list) { if (v3 && !v3.dead) v3.setEngins(list); }
+export function v3Select(id) { if (!v3 || v3.dead) return; v3.selId = id || null; const g = v3.world.children.find(x => x.name === 'engins'); if (g) g.userData.select(v3.selId); }
 export function v3Nets(on) { if (!v3) return; v3.netsOn = on; v3.syncVis(); }
 export function v3Ground(on) { if (!v3) return; v3.groundOn = on; v3.syncVis(); }
 export function v3Cancel() { return v3 ? v3.cancel() : false; }
@@ -763,7 +827,7 @@ export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }
-export function v3Camera() { return v3 ? { controls: v3.controls, camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
+export function v3Camera() { return v3 ? { world: v3.world, controls: v3.controls, camera: v3.camera, lock: v3.lock, holder: v3.holder, poseCam: v3.poseCam, applyLock: v3.applyLock, center: v3.center, ground: v3.ground, ground2: v3.ground2, meshes: v3.photoMeshes } : null; }
 export function close3D() {
   if (!v3) return;
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();

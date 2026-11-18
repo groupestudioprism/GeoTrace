@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.33.0';
+const VERSION = '1.34.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -999,11 +999,9 @@ function refreshIcons() { markers.forEach((m, id) => { const p = photos.find(x =
 
 function setTheme(t) {
   document.documentElement.dataset.theme = t; prefs.theme = t; savePrefs();
-  try { const f = document.querySelector('#rpView iframe'); if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'gt-theme', theme: t }, location.origin); } catch (e) { /* ignoré */ }
   const b = $('themeBtn'); b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon');
   const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = t === 'dark' ? '#0d1b2e' : '#04264b';
 }
-$('rpBtn').addEventListener('click', () => import('./repereview.js').then(m => m.open({ photos: () => visible() })).catch(e => status('Repérage indisponible : ' + e.message)));
 $('themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 /* ================= Panneau ================= */
@@ -1328,7 +1326,50 @@ map.on('click', e => {
 /* Vue 3D */
 let Chantier = null, pendingPlan = null;
 const setPlan = (blob, name) => { pendingPlan = { blob, name }; if (Chantier) Chantier.setPlanning(blob, name); };
-import('./chantier.js').then(m => { Chantier = m; m.init({ map, status, stopOthers: () => measureOn(false), categories: () => Maq ? Maq.modelCategories() : [], setPhase3d: (list, cur) => { if (Maq) { Maq.setPhasesData(list); Maq.setPhase(cur); } fillPhase3d(); } }); m.onPhase(() => fillPhase3d()); if (pendingPlan) m.setPlanning(pendingPlan.blob, pendingPlan.name); if (Maq) m.setProject(Maq.getProjChantier(), Maq.state.model ? Maq.state.model.name : ''); }).catch(e => console.warn('chantier', e));
+import('./chantier.js').then(m => { Chantier = m; m.onSelectEngin(id => { if (Maq && Maq.v3Has()) Maq.v3Select(id); }); m.init({ map, status, onChange: () => sync3d(), stopOthers: () => measureOn(false), categories: () => Maq ? Maq.modelCategories() : [], setPhase3d: (list, cur) => { if (Maq) { Maq.setPhasesData(list); Maq.setPhase(cur); } fillPhase3d(); } }); m.onPhase(() => fillPhase3d()); if (pendingPlan) m.setPlanning(pendingPlan.blob, pendingPlan.name); if (Maq) m.setProject(Maq.getProjChantier(), Maq.state.model ? Maq.state.model.name : ''); }).catch(e => console.warn('chantier', e));
+/* Vue 3D partagée : la 3D à gauche, la carte et le panneau Chantier à droite. Tout ce qui se modifie sur la carte ou dans le panneau apparaît aussitôt en 3D ; un clic sur le sol 3D agit comme un clic sur la carte quand un outil de dessin est actif. */
+let split3d = true, lastSite = '', s3Timer = 0;
+try { split3d = localStorage.getItem('geotrace:v3full') !== '1'; } catch (e) { /* mode partagé par défaut */ }
+const SW_KEY = 'geotrace:v3sw';
+function setSplit(on) {
+  split3d = on; document.body.classList.toggle('split3d', on && !$('v3d').hidden);
+  const b = $('v3Full'); b.setAttribute('aria-pressed', String(!on)); b.textContent = on ? 'Plein écran' : 'Avec la carte et le panneau';
+  $('v3d').setAttribute('aria-modal', String(!on));
+  try { const w = +localStorage.getItem(SW_KEY); if (w > 0.25 && w < 0.85) document.documentElement.style.setProperty('--sw', Math.round(w * 100) + 'vw'); } catch (e) { /* largeur par défaut */ }
+  if (on) { setMaqPanel(false); $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); }
+  setTimeout(() => map.invalidateSize(), 60);
+}
+$('v3Full').addEventListener('click', () => { try { localStorage.setItem('geotrace:v3full', split3d ? '1' : '0'); } catch (e) { /* ignoré */ } setSplit(!split3d); });
+(() => { // glisser la séparation : largeur de la 3D (ou hauteur sur petit écran)
+  const g = $('v3Gut'), vert = () => matchMedia('(max-width: 760px)').matches, root = document.documentElement.style;
+  const apply = f => { f = Math.min(.8, Math.max(.28, f)); if (vert()) root.setProperty('--sh', Math.round(f * 100) + 'vh'); else { root.setProperty('--sw', Math.round(f * 100) + 'vw'); try { localStorage.setItem(SW_KEY, String(f)); } catch (e) { /* ignoré */ } } map.invalidateSize(); return f; };
+  g.addEventListener('pointerdown', e => {
+    e.preventDefault(); g.classList.add('drag'); try { g.setPointerCapture(e.pointerId); } catch (er) { /* sans capture */ }
+    const mv = ev => apply(vert() ? (ev.clientY - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h'))) / innerHeight : ev.clientX / innerWidth);
+    const up = () => { g.classList.remove('drag'); g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); };
+    g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+  });
+  g.addEventListener('keydown', e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return; e.preventDefault(); const cur = parseFloat(getComputedStyle($('v3d')).width) / innerWidth; apply(cur + (e.key === 'ArrowRight' || e.key === 'ArrowDown' ? .03 : -.03)); });
+})();
+const siteNow = () => ({ zones: Chantier ? Chantier.getZones() : [], devs: Chantier ? Chantier.getDevs() : [], nets: Chantier ? Chantier.getNets() : [] });
+/* Les données du chantier ont changé : on met la vue 3D à jour sans la rouvrir. Les engins sont seulement déplacés et remis en pose ; le reste n'est reconstruit que s'il a vraiment changé. */
+function sync3d() {
+  clearTimeout(s3Timer);
+  s3Timer = setTimeout(() => {
+    if (!Maq || !Chantier || $('v3d').hidden || !Maq.v3Has()) return;
+    const site = siteNow(), sig = JSON.stringify(site);
+    if (sig !== lastSite) { lastSite = sig; Maq.v3Site(site); $('v3NetsL').hidden = !site.nets.length; }
+    Maq.v3Engins(Chantier.getEngins3d());
+  }, 40);
+}
+/* Clic, double-clic ou déplacement du pointeur sur le sol 3D : relayé à la carte quand un outil de dessin ou de pose y est actif. Renvoie vrai si un outil est actif. */
+function groundTool(ll, kind, ev) {
+  if (!Chantier || !Chantier.toolActive()) return false;
+  if (kind === 'probe') return true;
+  const latlng = L.latLng(ll[0], ll[1]), cp = map.latLngToContainerPoint(latlng);
+  map.fire(kind === 'move' ? 'mousemove' : kind, { latlng, containerPoint: cp, layerPoint: map.latLngToLayerPoint(latlng), originalEvent: ev || { shiftKey: false } });
+  return true;
+}
 async function open3d(focusId) {
   const M = await maq();
   if (!M.isPlaced()) { setMaqPanel(true); maqError(M.state.model ? 'Placez d’abord la maquette avec au moins 2 points de calage.' : 'Importez d’abord une maquette (fichier IFC exporté de Revit).'); return; }
@@ -1337,20 +1378,22 @@ async function open3d(focusId) {
   const ph = placedOf(visible());
   await Promise.all(ph.slice(0, 80).map(p => ensureThumb(p).catch(() => {})));
   const list = ph.map(p => ({ id: p.id, name: p.name, key: p.key, lat: p.lat, lon: p.lon, heading: p.heading, pitch: p.pitch, f35: p.f35, dev: p.dev, rel: p.rel, t: p.date ? +p.date / 1000 : null, tex: p.kind === 'local' ? p.thumb : null }));
-  $('v3d').hidden = false; document.body.style.overflow = 'hidden';
+  $('v3d').hidden = false; document.body.style.overflow = 'hidden'; setSplit(split3d);
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote }); }
+  try { await M.open3D($('v3Host'), { photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote, onGround: groundTool, onItem: id => { if (Chantier) Chantier.selectItem(id); }, onMoveItem: (id, la, lo) => { if (Chantier) Chantier.moveEngin(id, la, lo); } }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; }
   $('v3Title').textContent = 'Maquette en 3D';
+  lastSite = JSON.stringify(siteNow()); { const id = Chantier && Chantier.selectedEngin ? Chantier.selectedEngin() : null; if (id) Maq.v3Select(id); }
+  if (split3d) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); }
   buildStrip();
   $('v3Ground').checked = true;
   if (focusId) alignPhoto(focusId);
   $('v3Close').focus();
 }
-function close3d() { if (Maq) Maq.close3D(); $('v3d').hidden = true; document.body.style.overflow = ''; }
+function close3d() { if (Maq) Maq.close3D(); $('v3d').hidden = true; document.body.style.overflow = ''; document.body.classList.remove('split3d'); setTimeout(() => map.invalidateSize(), 60); }
 function showNote(t) { const el = $('v3Elem'); el.hidden = !t; el.textContent = t || ''; }
 function showElem(info) {
   const el = $('v3Elem'); el.hidden = !info;
@@ -1443,7 +1486,7 @@ $('v3Blend').addEventListener('click', e => {
 });
 $('v3Alpha').addEventListener('input', e => $('v3d').style.setProperty('--m', e.target.value / 100));
 document.addEventListener('keydown', e => {
-  if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') || e.target.id === 'v3Find') return;
+  if ($('v3d').hidden || !Maq || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName)) return;
   const id = Maq.v3Step(e.key === 'ArrowRight' ? 1 : -1); if (id) { e.preventDefault(); alignPhoto(id); }
 });
 
@@ -1601,6 +1644,7 @@ $('helpBtn').addEventListener('click', () => { $('ver').textContent = `GeoTrace 
 addEventListener('keydown', e => {
   if (!$('v3d').hidden) {
     if (e.key !== 'Escape') return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.id !== 'v3Find') { e.target.blur(); return; } // dans le panneau Chantier : Échap quitte seulement le champ
     const f = $('v3Find'); if (e.target === f) { if (f.value) { f.value = ''; filterStrip(); } else f.blur(); return; }
     if (Maq && Maq.v3Cancel()) return;
     if ($('v3d').classList.contains('locked')) back3d(); else close3d();

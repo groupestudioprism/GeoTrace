@@ -31,6 +31,16 @@ export const getZones = () => zones.filter(clean);
 export const exportData = () => { const dv = Dev.exportData(), ph = Ph.exportData(), nt = Net.exportData(), rx = Rsx.exportData(), eg = Eg.exportData(); return zones.length || dv || ph || nt || rx || eg ? { v: 1, zones: getZones(), devs: dv || [], nets: nt || [], phases: ph, rsx: rx || undefined, eng: eg || undefined } : null; };
 export const getEngins = Eg.getEngins, getEngins3d = Eg.getEngins3d, MODELS_BASE = Eg.MODELS_BASE;
 export const getNets = Net.getNets;
+/* Vue 3D : un outil de dessin est actif sur la carte (le curseur en croix l'indique) ; un clic sur un élément du plan choisit le même élément dans le panneau. */
+export const toolActive = () => !!map && map.getContainer().style.cursor === 'crosshair';
+export const moveEngin = Eg.moveTo, onSelectEngin = Eg.onSelect, selectedEngin = Eg.selected;
+export function selectItem(id) {
+  if (!id) return;
+  if (id[0] === 'e') Eg.select(id, true);
+  else if (id[0] === 'n') Net.select(id, true);
+  else if (id[0] === 'z') { Dev.tab('z'); select(id, true); }
+  else Dev.select(id, true);
+}
 export const netsFromPhoto = Net.replaceFromPhoto;
 export const NET_COLORS = Net.COLORS;
 export const getPhases = Ph.getPhases, getPhase = Ph.getCurrent, setPhase = Ph.setCurrent, onPhase = Ph.onCurrent, addToPhase = Ph.addElement, setPlanning = Ph.setPlanning, refreshPhases = Ph.refresh;
