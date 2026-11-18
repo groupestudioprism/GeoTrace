@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.32.1 : couleurs des engins
+
+- Fourgons et utilitaires blancs avec pneus noirs, tracteurs peints (John Deere vert, MF8 rouge) avec pneus noirs, ouvriers en tenue haute visibilité avec casque, pantalon et chaussures.
+- Vitrages plus lisibles (transparence minimale de 30 %). Les pelles, camions et la dumper gardaient déjà leurs matières d'origine.
+- Limite : sur les modèles d'un seul bloc (fourgons, tracteurs, personnages), les couleurs sont déduites de la forme et peuvent déborder légèrement ; un export Revit par pièces les rendra exactes.
+
 ## Version 1.32.0 : situations de chantier, engins en 3D
 
 - Nouvel onglet Chantier › Engins (situations de chantier) : 16 modèles (3 pelles, dumper, tracteurs, camions benne, grue et aspiratrice STURNO, 3 véhicules légers, 3 ouvriers), issus de la bibliothèque Revit de Studio Prism.
