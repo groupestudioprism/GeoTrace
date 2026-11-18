@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.34.2 : zoom 3D rapide stable
+
+- Les crans de molette reçus entre deux images sont cumulés puis appliqués d'un coup : plus de saccades, de sauts ni de traversée d'objets quand on zoome vite. La caméra ne descend plus sous le sol.
+
 ## Version 1.34.1 : zoom 3D jamais bloqué
 
 - La molette avance vers le point visé par pas proportionnels à la distance : on peut s'approcher d'un élément sans que le zoom ralentisse ni se bloque, et le centre de rotation se place sur ce point.

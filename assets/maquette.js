@@ -775,18 +775,32 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     if (e.shiftKey) a.z -= Math.sign(d) * .1; else a.zoom = Math.max(.3, Math.min(4, a.zoom * Math.exp(-d * .0012)));
     applyLock(); persist();
   }, { passive: false });
-  // zoom à la molette : avance vers le point visé par pas proportionnel à la distance (jamais bloqué près d'un élément)
-  const zRay = new THREE.Raycaster(), zP = new THREE.Vector2(), zV = new THREE.Vector3();
+  // zoom à la molette : avance vers le point visé par pas proportionnel à la distance (jamais bloqué près d'un élément).
+  // Les crans reçus entre deux images sont cumulés puis appliqués une seule fois (pas de saccades ni de traversée d'objets en zoom rapide).
+  const zRay = new THREE.Raycaster(), zP = new THREE.Vector2(), zV = new THREE.Vector3(); let zAcc = 0, zRaf = 0, zXY = [0, 0];
+  const zoomStep = () => {
+    zRaf = 0; if (!v3 || v3.dead || v3.lock) { zAcc = 0; return; }
+    const n = Math.max(-4, Math.min(4, zAcc)); zAcc = 0; if (!n) return;
+    const r = el.getBoundingClientRect(); zP.set((zXY[0] - r.left) / r.width * 2 - 1, -(zXY[1] - r.top) / r.height * 2 + 1); zRay.setFromCamera(zP, camera);
+    const h = zRay.intersectObject(world, true).find(x => x.object.visible !== false && !x.object.isSprite && !x.object.isLine && !x.object.isPoints);
+    const dir = zRay.ray.direction, td = camera.position.distanceTo(controls.target), hd = h ? h.distance : td;
+    if (n < 0) {
+      let step = Math.max(.15, hd * (1 - Math.pow(.86, -n)));
+      if (h) step = Math.min(step, Math.max(.05, hd * .85));
+      camera.position.addScaledVector(dir, step);
+      if (camera.position.z < .3 && dir.z < 0) camera.position.addScaledVector(dir, (.3 - camera.position.z) / dir.z);
+      controls.target.copy(h ? h.point : zV.copy(camera.position).addScaledVector(dir, Math.max(.5, hd - step)));
+    } else {
+      const step = Math.max(.3, hd * (Math.pow(1 / .86, n) - 1)), np = zV.copy(camera.position).addScaledVector(dir, -step);
+      if (np.distanceTo(controls.target) > controls.maxDistance) return;
+      camera.position.copy(np); controls.target.addScaledVector(dir, -step);
+    }
+    controls.update();
+  };
   el.addEventListener('wheel', e => {
     if (v3.lock || v3.fly) return; e.preventDefault(); e.stopImmediatePropagation();
-    const r = el.getBoundingClientRect(); zP.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); zRay.setFromCamera(zP, camera);
-    const h = zRay.intersectObject(world, true).find(x => x.object.visible !== false && !x.object.isSprite && !x.object.isLine && !x.object.isPoints);
-    const td = camera.position.distanceTo(controls.target), hd = h ? h.distance : td, dir = zRay.ray.direction;
-    const d = Math.max(-1, Math.min(1, (e.deltaY || 0) / 100)), step = Math.max(.15, hd * .14) * Math.abs(d);
-    if (!step) return;
-    if (d < 0) { camera.position.addScaledVector(dir, step); controls.target.copy(h ? h.point : zV.copy(camera.position).addScaledVector(dir, Math.max(.5, hd - step))); }
-    else { const np = zV.copy(camera.position).addScaledVector(dir, -step); if (np.distanceTo(controls.target) > controls.maxDistance) return; camera.position.copy(np); controls.target.addScaledVector(dir, -step); }
-    controls.update();
+    const k = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1; zAcc += (e.deltaY || 0) * k / 100; zXY = [e.clientX, e.clientY];
+    if (!zRaf) zRaf = requestAnimationFrame(zoomStep);
   }, { passive: false, capture: true });
   el.addEventListener('dblclick', () => { if (!v3.lock) return; v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; applyLock(); persist(); onNote && onNote(''); });
   el.addEventListener('pointerup', e => {
