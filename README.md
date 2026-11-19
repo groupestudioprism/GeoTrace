@@ -228,6 +228,14 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.4.0 : calage automatique des photos sur les routes
+
+- À la première superposition d'une photo, GeoTrace cherche la chaussée dans l'image (zones grises, ni végétation ni ciel), projette les routes de l'IGN (BD TOPO : axe et largeur) depuis la position de la prise de vue, puis trouve le glissement, la rotation et le changement d'échelle de la photo qui les superposent le mieux. Rien n'est affiché pendant le calcul, qui dure moins d'une seconde.
+- Le calage n'est gardé que si la correspondance est nette. Sinon la photo reste telle quelle et un message invite à la caler avec des points. Bouton « Caler sur les routes » pour relancer.
+- Les points cliqués s'ajoutent par-dessus le calage automatique ; à partir de 4 points, ils décident seuls. Double-clic : retirer les points, puis le calage automatique.
+- Nouveau repère au sol « Routes » : les deux bords de chaque chaussée en traits fins, affiché par défaut avec les parcelles. Le plan IGN complet et la photo aérienne restent disponibles.
+- Limites : il faut une route goudronnée visible et connue de l'IGN ; une route droite seule ne fixe pas la position le long de la route ; ombres, chemins de terre et toitures grises peuvent tromper la détection.
+
 ## Version 2.3.1 : zoom et grand angle pris en compte, parcelles en traits fins
 
 - Correction : la focale de la photo (zoom, téléobjectif, grand angle) n'était pas lue ; toutes les photos étaient ouvertes avec un champ standard (24 mm pour un drone, 26 mm pour un téléphone). La focale équivalente 35 mm est maintenant lue dans la photo, recalculée d'après la focale réelle et la taille du capteur si elle manque, et le zoom numérique des drones est appliqué. La vue 3D et la superposition ont donc le bon champ dès l'ouverture.

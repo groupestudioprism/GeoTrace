@@ -401,8 +401,31 @@ const WMTS_ANY = (layer, style, fmt) => (z, x, y) => `https://data.geopf.fr/wmts
 const REF = {
   ortho: { url: WMTS_ORTHO, op: .6, z: .02 },
   plan: { url: WMTS_ANY('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'normal', 'image/png'), op: .38, z: .03 },
-  parc: { vec: true, z: .05 }
+  parc: { vec: 'parc', z: .05 },
+  route: { vec: 'route', z: .045 }
 };
+/* Routes de la BD TOPO de l'IGN : axe et largeur de chaussée, en mètres autour de l'origine. */
+async function fetchRoads(frame, bounds) {
+  const a = frame.toLL(bounds[0], bounds[1]), b = frame.toLL(bounds[2], bounds[3]);
+  const u = 'https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=1500&BBOX=' + [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])].map(v => v.toFixed(7)).join(',') + ',urn:ogc:def:crs:EPSG::4326';
+  let r = await fetch(u).catch(() => null); if (!r || !r.ok) { await new Promise(t => setTimeout(t, 900)); r = await fetch(u); } // le service de l'IGN répond parfois à la deuxième demande
+  if (!r.ok) throw new Error('routes ' + r.status); const j = await r.json(), out = [];
+  (j.features || []).forEach(f => {
+    const g = f.geometry, pr = f.properties || {}, nat = String(pr.nature || ''); if (!g || /sentier|escalier|bac|piste cyclable/i.test(nat)) return;
+    let w = +pr.largeur_de_chaussee; if (!(w > 0)) w = /chemin/i.test(nat) ? 3 : 5;
+    (g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : []).forEach(l => { if (l.length > 1) out.push({ w, pts: l.map(c => frame.toEN(c[1], c[0])) }); });
+  });
+  return out;
+}
+function roadsGroup(roads, zOff) { // les deux bords de chaque chaussée, en traits fins
+  const seg = [];
+  roads.forEach(r => { for (let i = 1; i < r.pts.length; i++) { const A = r.pts[i - 1], B = r.pts[i], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < .01) continue; const nx = -(B[1] - A[1]) / L * r.w / 2, ny = (B[0] - A[0]) / L * r.w / 2; [1, -1].forEach(k => seg.push(A[0] + k * nx, A[1] + k * ny, zOff, B[0] + k * nx, B[1] + k * ny, zOff)); } });
+  const grp = new THREE.Group(); if (!seg.length) return grp;
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+  const halo = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x06121f, transparent: true, opacity: .6, depthTest: false, toneMapped: false, fog: false })); halo.position.z = -.01; halo.scale.setScalar(1.0005); halo.renderOrder = 4;
+  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x5fd0ff, depthTest: false, toneMapped: false, fog: false })); lines.renderOrder = 5;
+  grp.add(halo, lines); return grp;
+}
 /* Parcelles du cadastre en traits fins (données vectorielles de l'IGN) : limites nettes à toutes les distances et angles de parcelle sur lesquels le clic s'accroche. */
 async function buildParcels(frame, bounds, zOff) {
   const a = frame.toLL(bounds[0], bounds[1]), b = frame.toLL(bounds[2], bounds[3]);
@@ -511,7 +534,7 @@ export const savePhotoAdj = (p, a) => saveAdj(p, a);
 /* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
 function shareAdj(lk, photos) {
   try {
-    const a = lk.adj, c = Object.assign({}, a); delete c.warp; localStorage.setItem(sharedKey(lk.p), JSON.stringify(c)); let n = 0;
+    const a = lk.adj, c = Object.assign({}, a); delete c.warp; delete c.warpA; localStorage.setItem(sharedKey(lk.p), JSON.stringify(c)); let n = 0;
     photos.forEach(p => { if (p === lk.p || (p.dev || 'phone') !== (lk.p.dev || 'phone')) return; if (localStorage.getItem(adjKey(p)) != null) localStorage.removeItem(adjKey(p)); n++; });
     saveAdj(lk.p, a); return n;
   } catch (e) { return 0; }
@@ -520,7 +543,7 @@ function shareAdj(lk, photos) {
 function shareNear(lk, photos) {
   const t0 = lk.p.t; if (t0 == null) return 0;
   let n = 0;
-  photos.forEach(p => { if (p === lk.p || p.t == null || (p.dev || 'phone') !== (lk.p.dev || 'phone') || Math.abs(p.t - t0) > 120) return; const c = Object.assign({}, lk.adj); delete c.warp; saveAdj(p, c); n++; });
+  photos.forEach(p => { if (p === lk.p || p.t == null || (p.dev || 'phone') !== (lk.p.dev || 'phone') || Math.abs(p.t - t0) > 120) return; const c = Object.assign({}, lk.adj); delete c.warp; delete c.warpA; saveAdj(p, c); n++; });
   saveAdj(lk.p, lk.adj); return n;
 }
 /* Remet toutes les photos sans réglage. */
@@ -675,9 +698,11 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
   };
   const ndcOf = (cam, P) => new THREE.Vector3(P.x, P.y, P.z).project(cam);
   const computeWarp = lk => {
-    lk.H = lk.Hi = null; const a = lk.aspect, S = [], D = [];
-    lk.pairs.forEach(q => { const n = ndcOf(camera, q.P); if (n.z > 1 || n.z < -1) return; S.push([q.t[0] * a, q.t[1]]); D.push([n.x * a, n.y]); });
-    const w = warpOf(S, D, a); lk.warpFull = !w || w.full; if (!w) return; const M = w.M;
+    lk.H = lk.Hi = null; lk.warpFull = true; const a = lk.aspect, sd = list => { const S = [], D = []; list.forEach(q => { const n = ndcOf(camera, q.P); if (n.z > 1 || n.z < -1) return; S.push([q.t[0] * a, q.t[1]]); D.push([n.x * a, n.y]); }); return [S, D]; };
+    // base : le calage automatique sur les routes, s'il existe ; les points cliqués corrigent par-dessus (4 points ou plus décident seuls)
+    let B = [1, 0, 0, 0, 1, 0, 0, 0, 1]; if (lk.auto && lk.auto.length) { const [S, D] = sd(lk.auto), w = warpOf(S, D, a); if (w) B = w.M; }
+    let M = B; if (lk.pairs.length) { const [S, D] = sd(lk.pairs), w = warpOf(S.map(q => map3(B, q[0], q[1]).slice(0, 2)), D, a); lk.warpFull = !w || w.full; if (w) M = mul3(w.M, B); }
+    if (M === B && !(lk.auto && lk.auto.length)) return;
     const H = mul3([1 / a, 0, 0, 0, 1, 0, 0, 0, 1], mul3(M, [a, 0, 0, 0, 1, 0, 0, 0, 1])), Hi = inv3(H); if (!Hi) return;
     lk.H = H; lk.Hi = Hi;
   };
@@ -698,6 +723,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     const dist = d.z < -0.05 ? Math.min(260, -o.z / d.z * hl) : 150, hx = hl > 1e-3 ? d.x / hl : 0, hy = hl > 1e-3 ? d.y / hl : 0, cx = o.x + hx * dist * .6, cy = o.y + hy * dist * .6, half = Math.max(90, Math.min(300, dist * .8 + 70));
     return [cx - half, cy - half, cx + half, cy + half];
   };
+  const roadsFor = lk => { const b = refBounds(lk), key = b.map(v => Math.round(v / 25)).join(','); if (!v3.roadCache || v3.roadCache.key !== key) { const pr = fetchRoads(state.frame, b); v3.roadCache = { key, p: pr }; pr.catch(() => { if (v3 && v3.roadCache && v3.roadCache.p === pr) v3.roadCache = null; }); } return v3.roadCache.p; };
   const binObj = o => o.traverse(q => { if (q.geometry) q.geometry.dispose(); if (q.material) { if (q.material.map) q.material.map.dispose(); q.material.dispose(); } });
   const dropRef = kind => { const c = v3.refs[kind]; if (!c) return; world.remove(c.mesh); binObj(c.mesh); delete v3.refs[kind]; };
   v3.dropRefs = () => Object.keys(v3.refs).forEach(dropRef);
@@ -711,7 +737,8 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
       dropRef(kind); const tok = v3.refTok[kind] = (v3.refTok[kind] || 0) + 1, R = REF[kind];
       const live = () => v3 && !v3.dead && v3.refTok[kind] === tok, fail = () => { if (live() && onNote) onNote('Ce repère au sol n’a pas pu être chargé (connexion ou zone non couverte).'); };
       const put = (m, extra) => { world.add(m); v3.refs[kind] = Object.assign({ mesh: m, key }, extra); m.visible = !!(v3.lock && v3.refOn[kind]); v3.wakeC = performance.now() + 700; };
-      if (R.vec) buildParcels(state.frame, b, R.z).then(g => { if (!live()) { binObj(g.grp); return; } if (!g.n) { fail(); return; } put(g.grp, { corners: g.corners.map(c => new THREE.Vector3(c[0], c[1], 0).applyMatrix4(Tinv)) }); }).catch(fail);
+      if (R.vec === 'route') roadsFor(lk).then(rs => { if (!live()) return; if (!rs.length) { fail(); return; } put(roadsGroup(rs, R.z)); }).catch(fail);
+      else if (R.vec) buildParcels(state.frame, b, R.z).then(g => { if (!live()) { binObj(g.grp); return; } if (!g.n) { fail(); return; } put(g.grp, { corners: g.corners.map(c => new THREE.Vector3(c[0], c[1], 0).applyMatrix4(Tinv)) }); }).catch(fail);
       else buildGround(state.frame, b, { maxTiles: 64, zMin: 15, zOff: R.z, url: R.url }).then(g => {
         const m = g.mesh; if (!live() || !g.tiles) { binObj(m); if (!g.tiles) fail(); return; }
         m.material.transparent = true; m.material.opacity = R.op; m.material.depthWrite = false; m.material.toneMapped = false; m.renderOrder = 3; m.userData.dispose = true; put(m);
@@ -727,13 +754,66 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     return best && best.clone();
   };
   v3.syncRef = syncRef;
+  /* Calage automatique sur les routes, sans rien afficher : la chaussée est repérée dans la photo (zones grises, ni végétation ni ciel), les routes de l'IGN sont projetées
+     depuis la position de la prise de vue, puis on cherche le glissement, la rotation et le changement d'échelle de la photo qui les superposent le mieux.
+     Le résultat n'est gardé que si la correspondance est nette ; il sert de base, que des points cliqués peuvent ensuite corriger. */
+  v3.autoRoads = async ({ quiet = false } = {}) => {
+    const lk = v3.lock, say = t => { if (!quiet && onNote) onNote(t); }; if (!lk || !photoEl || !photoEl.naturalWidth) return { ok: false, why: 'photo' };
+    say('Recherche des routes dans la photo…');
+    let roads; try { roads = await roadsFor(lk); } catch (e) { say('Les routes de l’IGN n’ont pas pu être chargées (connexion).'); return { ok: false, why: 'net' }; }
+    if (!v3 || v3.dead || v3.lock !== lk) return { ok: false, why: 'changed' };
+    const a = lk.aspect, GW = 96, GH = Math.max(24, Math.round(GW / a)), n = GW * GH, q = new THREE.Vector3();
+    // 1. où les routes devraient se trouver dans le cadre
+    const cv = document.createElement('canvas'); cv.width = GW; cv.height = GH; const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#000'; cx.fillRect(0, 0, GW, GH); cx.fillStyle = '#fff';
+    const proj = (E, N) => { q.set(E, N, 0).applyMatrix4(Tinv).project(camera); return (q.z > 1 || q.z < -1) ? null : [(q.x + 1) / 2 * GW, (1 - q.y) / 2 * GH]; };
+    roads.forEach(r => { if (r.w < 2.2) return; for (let i = 1; i < r.pts.length; i++) {
+      const A = r.pts[i - 1], B = r.pts[i], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < .01) continue; const m = Math.max(1, Math.ceil(L / 4)), nx = -(B[1] - A[1]) / L * r.w / 2, ny = (B[0] - A[0]) / L * r.w / 2;
+      for (let k = 0; k < m; k++) {
+        const x0 = A[0] + (B[0] - A[0]) * k / m, y0 = A[1] + (B[1] - A[1]) * k / m, x1 = A[0] + (B[0] - A[0]) * (k + 1) / m, y1 = A[1] + (B[1] - A[1]) * (k + 1) / m;
+        const c = [proj(x0 + nx, y0 + ny), proj(x1 + nx, y1 + ny), proj(x1 - nx, y1 - ny), proj(x0 - nx, y0 - ny)]; if (c.some(v => !v) || c.every(v => v[0] < -GW || v[0] > 2 * GW || v[1] < -GH || v[1] > 2 * GH)) continue;
+        cx.beginPath(); cx.moveTo(c[0][0], c[0][1]); cx.lineTo(c[1][0], c[1][1]); cx.lineTo(c[2][0], c[2][1]); cx.lineTo(c[3][0], c[3][1]); cx.closePath(); cx.fill();
+      } } });
+    const md = cx.getImageData(0, 0, GW, GH).data, M = new Float32Array(n); let sM = 0; for (let i = 0; i < n; i++) { M[i] = md[i * 4] / 255; sM += M[i]; }
+    if (sM / n < .012 || sM / n > .6) { say('Pas de route de l’IGN dans le champ de cette photo : calez-la avec des points.'); return { ok: false, why: 'noroad' }; }
+    // 2. où la photo ressemble à de la chaussée
+    const PW = GW * 2, PH = GH * 2, pc = document.createElement('canvas'); pc.width = PW; pc.height = PH; let pd;
+    try { const px = pc.getContext('2d', { willReadFrequently: true }); px.drawImage(photoEl, 0, 0, PW, PH); pd = px.getImageData(0, 0, PW, PH).data; } catch (e) { say('Cette photo ne peut pas être analysée (image distante protégée).'); return { ok: false, why: 'pixels' }; }
+    const R0 = new Float32Array(PW * PH), R = new Float32Array(PW * PH);
+    for (let i = 0; i < PW * PH; i++) { const r = pd[i * 4] / 255, g = pd[i * 4 + 1] / 255, b = pd[i * 4 + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = (mx - mn) / (mx + .001); R0[i] = (g > r * 1.04 && g > b * 1.04) || (b > r * 1.18) || sat > .2 || mx < .2 || mx > .9 ? 0 : 1 - sat / .2; }
+    for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { let t = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const u = x + dx, v = y + dy; if (u >= 0 && u < PW && v >= 0 && v < PH) { t += R0[v * PW + u]; c++; } } R[y * PW + x] = t / c; }
+    // 3. recherche : pour chaque point du cadre, où aller le chercher dans la photo
+    const X = Float32Array.from({ length: GW }, (_, i) => ((i + .5) / GW * 2 - 1) * a), Y = Float32Array.from({ length: GH }, (_, j) => 1 - (j + .5) / GH * 2);
+    const ncc = (tx, ty, th, ls, st) => {
+      const sc = Math.exp(ls), c = Math.cos(th) * sc, sn = Math.sin(th) * sc; let sR = 0, sRR = 0, sMR = 0, sm = 0, smm = 0, cnt = 0;
+      for (let j = 0; j < GH; j += st) for (let i = 0; i < GW; i += st) { const x = X[i], y = Y[j], px = c * x - sn * y + tx, py = sn * x + c * y + ty, u = Math.floor((px / a + 1) / 2 * PW), v = Math.floor((1 - py) / 2 * PH), r = u >= 0 && u < PW && v >= 0 && v < PH ? R[v * PW + u] : 0, m = M[j * GW + i]; sR += r; sRR += r * r; sMR += m * r; sm += m; smm += m * m; cnt++; }
+      return (sMR - sm * sR / cnt) / Math.sqrt((smm - sm * sm / cnt) * (sRR - sR * sR / cnt) + 1e-9);
+    };
+    const prior = (tx, ty, th, ls) => .02 * (tx * tx + ty * ty) / .01 + .02 * (th / .07) ** 2 + .02 * (ls / .08) ** 2, sc = (p, st) => ncc(p[0], p[1], p[2], p[3], st) - prior(p[0], p[1], p[2], p[3]);
+    let best = [0, 0, 0, 0], bs = sc(best, 2);
+    for (let th = -9; th <= 9; th += 3) for (let ls = -.12; ls <= .121; ls += .06) for (let tx = -.3; tx <= .301; tx += .05) for (let ty = -.3; ty <= .301; ty += .05) { const p = [tx, ty, th * RAD, ls], v = sc(p, 2); if (v > bs) { bs = v; best = p; } }
+    bs = sc(best, 1); let steps = [.025, .025, 1.5 * RAD, .03];
+    for (let it = 0; it < 5; it++) { for (let k = 0; k < 4; k++) for (const d of [-1, 1]) { const p = best.slice(); p[k] += d * steps[k]; const v = sc(p, 1); if (v > bs) { bs = v; best = p; } } steps = steps.map(v => v / 2); }
+    const raw = ncc(best[0], best[1], best[2], best[3], 1), raw0 = ncc(0, 0, 0, 0, 1), moved = Math.hypot(best[0], best[1]) > .012 || Math.abs(best[2]) > .008 || Math.abs(best[3]) > .012;
+    if (!(raw >= .2) || (moved && raw - raw0 < .03)) { say('La route n’est pas assez nette dans cette photo pour un calage automatique fiable : calez-la avec des points.'); return { ok: false, why: 'faible', score: raw }; }
+    if (!moved) { say('La photo tombe déjà sur les routes : rien à corriger.'); return { ok: true, moved: false, score: raw }; }
+    // 4. quatre points d'appui au sol, bien écartés, qui portent ce redressement (il suit ensuite la vue si on la réoriente)
+    const cand = []; for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) { const nx = -.85 + 1.7 * i / 16, ny = -.85 + 1.7 * j / 16; ptr.set(nx, ny); ray.setFromCamera(ptr, camera); const o = ray.ray.origin.clone().applyMatrix4(v3.Tm), d = ray.ray.direction.clone().transformDirection(v3.Tm); if (d.z > -1e-4) continue; const t = -o.z / d.z; if (t <= 0 || t * Math.hypot(d.x, d.y) > 800) continue; cand.push({ nx, ny, P: new THREE.Vector3(o.x + d.x * t, o.y + d.y * t, 0).applyMatrix4(Tinv) }); }
+    const ext = f => cand.reduce((b, c) => (!b || f(c) > f(b) ? c : b), null), four = [...new Set([ext(c => c.nx + c.ny), ext(c => -c.nx - c.ny), ext(c => c.nx - c.ny), ext(c => c.ny - c.nx)])];
+    if (four.length < 4 || four.some(c => !c)) { say('Le sol n’est pas assez visible dans cette photo pour un calage automatique.'); return { ok: false, why: 'sol' }; }
+    const esc = Math.exp(best[3]), co = Math.cos(best[2]) * esc, si = Math.sin(best[2]) * esc;
+    lk.auto = four.map(c => { const x = c.nx * a, y = c.ny; return { P: c.P, t: [(co * x - si * y + best[0]) / a, si * x + co * y + best[1]] }; });
+    keepWarp(lk); applyLock(); persist();
+    say(`Photo calée automatiquement sur les routes (correspondance ${raw >= .4 ? 'nette' : 'moyenne'}). Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.`);
+    return { ok: true, moved: true, score: raw };
+  };
   const anyRef = () => Object.keys(REF).some(k => v3.refOn[k]);
   const groundP = (px, py) => { // point du sol sous le clic, dans le repère de la scène
     const r = boxOf(), g = groundEN(r.left + px, r.top + py); if (!g) return null;
     const o = camera.position.clone().applyMatrix4(v3.Tm); if (Math.hypot(g[0] - o.x, g[1] - o.y) > 1500) return null;
     return new THREE.Vector3(g[0], g[1], 0).applyMatrix4(Tinv);
   };
-  const keepWarp = lk => { if (lk.pairs.length) lk.adj.warp = lk.pairs.map(q => [q.P.x, q.P.y, q.P.z, q.t[0], q.t[1]].map(v => +v.toFixed(4))); else delete lk.adj.warp; };
+  const packW = list => list.map(q => [q.P.x, q.P.y, q.P.z, q.t[0], q.t[1]].map(v => +v.toFixed(4)));
+  const keepWarp = lk => { if (lk.pairs.length) lk.adj.warp = packW(lk.pairs); else delete lk.adj.warp; if (lk.auto && lk.auto.length) lk.adj.warpA = packW(lk.auto); else delete lk.adj.warpA; };
   const boxOf = () => renderer.domElement.getBoundingClientRect();
   const worldVerts = () => {
     if (v3.verts) return v3.verts; holder.updateMatrixWorld(true); const out = [], v = new THREE.Vector3();
@@ -779,7 +859,8 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     p._asp = aspect || p._asp || 4 / 3; if (p._bb) build(p, p._asp);
     if (v3.fly) v3.fly.cancel();
     const lk = { p, aspect: p._asp, adj: loadAdj(p), pairs: [], pending: null };
-    lk.pairs = (Array.isArray(lk.adj.warp) ? lk.adj.warp : []).filter(w => Array.isArray(w) && w.length === 5 && w.every(Number.isFinite)).map(w => ({ P: new THREE.Vector3(w[0], w[1], w[2]), t: [w[3], w[4]] }));
+    const unpack = l => (Array.isArray(l) ? l : []).filter(w => Array.isArray(w) && w.length === 5 && w.every(Number.isFinite)).map(w => ({ P: new THREE.Vector3(w[0], w[1], w[2]), t: [w[3], w[4]] }));
+    lk.pairs = unpack(lk.adj.warp); lk.auto = unpack(lk.adj.warpA);
     const done = () => { const was = !!v3.lock; v3.fly = null; v3.lock = lk; controls.enabled = false; if (was || matchMedia('(prefers-reduced-motion: reduce)').matches) { v3.xf = null; setXf(1); } else { v3.xf = { t0: performance.now(), dur: 750 }; setXf(0); } syncRef(); onNote && onNote(''); resolve(true); };
     if (v3.lock) return done();
     const tgt = poseCam(lk, lk.adj); controls.enabled = false;
@@ -905,7 +986,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     const k = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1; zAcc += (e.deltaY || 0) * k / 100; zXY = [e.clientX, e.clientY];
     if (!zRaf) zRaf = requestAnimationFrame(zoomStep);
   }, { passive: false, capture: true });
-  el.addEventListener('dblclick', () => { const lk = v3.lock; if (!lk) return; if (lk.pairs.length) { lk.pairs = []; delete lk.adj.warp; onNote && onNote('Points retirés : la photo reprend sa forme d’origine.'); } else { lk.adj = ADJ0(); onNote && onNote(''); } lk.pending = null; applyLock(); persist(); });
+  el.addEventListener('dblclick', () => { const lk = v3.lock; if (!lk) return; if (lk.pairs.length) { lk.pairs = []; delete lk.adj.warp; onNote && onNote(lk.auto.length ? 'Points retirés. Il reste le calage automatique sur les routes : double-clic pour le retirer aussi.' : 'Points retirés : la photo reprend sa forme d’origine.'); } else if (lk.auto.length) { lk.auto = []; delete lk.adj.warpA; onNote && onNote('Calage automatique retiré : la photo reprend sa forme d’origine.'); } else { lk.adj = ADJ0(); onNote && onNote(''); } lk.pending = null; applyLock(); persist(); });
   el.addEventListener('pointerup', e => {
     if (v3.lock) {
       const was = down; drag = null; down = null;
@@ -951,6 +1032,8 @@ const poke = () => { if (v3) v3.wakeC = performance.now() + 700; };
 export function v3Site(data) { if (v3 && !v3.dead) { v3.setSite(data); poke(); } }
 export function v3Engins(list) { if (v3 && !v3.dead) { v3.setEngins(list); poke(); } }
 export function v3Select(id) { if (!v3 || v3.dead) return; poke(); v3.selId = id || null; const g = v3.world.children.find(x => x.name === 'engins'); if (g) g.userData.select(v3.selId); }
+export function v3AutoRoads(o) { return v3 && !v3.dead && v3.lock ? v3.autoRoads(o) : Promise.resolve({ ok: false }); }
+export function v3HasWarp() { const lk = v3 && v3.lock; return !!(lk && (lk.pairs.length || (lk.auto && lk.auto.length))); }
 export function v3Ref(on) { if (!v3 || v3.dead) return; v3.refOn = on || {}; v3.syncRef(); }
 export function v3Nets(on) { if (!v3) return; poke(); v3.netsOn = on; v3.syncVis(); }
 export function v3Ground(on) { if (!v3) return; poke(); v3.groundOn = on; v3.syncVis(); }
@@ -962,7 +1045,7 @@ export function v3Zoom(f) { if (v3) v3.zoom(f); }
 export function v3Top() { if (v3) v3.top(); }
 export function v3ShareNear() { return v3 && v3.lock ? shareNear(v3.lock, v3.photos) : 0; }
 export function v3Share() { return v3 && v3.lock ? shareAdj(v3.lock, v3.photos) : 0; }
-export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock) { v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; v3.applyLock(); } }
+export function v3ClearAll() { if (!v3) return; clearAdj(v3.photos); if (v3.lock) { v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.auto = []; v3.lock.pending = null; v3.applyLock(); } }
 export function v3Release() { if (v3) v3.release(); }
 export function v3Step(d) { return v3 ? v3.step(d) : null; }
 export function v3Has() { return !!v3; }

@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.3.1';
+const VERSION = '2.4.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1396,7 +1396,7 @@ function markStrip(id) {
 }
 const HINT_FREE = $('v3Hint').textContent;
 /* Repères au sol affichés en superposition (plan IGN, parcelles, photo aérienne) : choix mémorisé */
-const REF_KEY = 'geotrace:v3ref'; const refOn = { plan: true, parc: true, ortho: false };
+const REF_KEY = 'geotrace:v3ref2'; const refOn = { route: true, parc: true, plan: false, ortho: false };
 try { Object.assign(refOn, JSON.parse(localStorage.getItem(REF_KEY) || '{}')); } catch (e) { /* choix par défaut */ }
 function applyRef() { document.querySelectorAll('#v3Refs button').forEach(b => b.setAttribute('aria-pressed', String(!!refOn[b.dataset.ref]))); if (Maq) Maq.v3Ref(Object.assign({}, refOn)); }
 $('v3Refs').addEventListener('click', e => { const b = e.target.closest('button[data-ref]'); if (!b) return; refOn[b.dataset.ref] = !refOn[b.dataset.ref]; try { localStorage.setItem(REF_KEY, JSON.stringify(refOn)); } catch (er) { /* non mémorisé */ } applyRef(); });
@@ -1404,7 +1404,7 @@ const HINT_LOCK = 'Superposition : la vue 3D reste à la position de la photo, c
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
   $('v3Refs').hidden = !on; if (on) applyRef();
-  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Near').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
+  $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Auto').hidden = !on; $('v3Share').hidden = $('v3Near').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
   const x = $('v3Close'); x.title = x.ariaLabel = on ? 'Revenir à la vue 3D' : 'Fermer';
 }
 /* Sortir de la superposition sans quitter la 3D. */
@@ -1424,9 +1424,18 @@ async function showPip(id) {
 async function alignPhoto(id) {
   const asp = await showPip(id); if (!Maq || $('v3d').hidden || $('v3Pip').dataset.pid !== id) return;
   markStrip(id);
-  if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) setBlend(true);
+  if (await Maq.v3FromPhoto(id, asp) && $('v3Pip').dataset.pid === id) { setBlend(true); autoRoadsOnce(id); }
+}
+/* À la première superposition d'une photo qui n'a encore aucun calage : essai discret de calage sur les routes */
+const autoTried = new Set();
+async function autoRoadsOnce(id) {
+  if (autoTried.has(id) || !Maq || Maq.v3HasWarp()) return; autoTried.add(id);
+  const img = $('v3PipImg'); if (!img.complete || !img.naturalWidth) { try { await img.decode(); } catch (e) { return; } }
+  if ($('v3Pip').dataset.pid !== id || !$('v3d').classList.contains('locked')) return;
+  const r = await Maq.v3AutoRoads({ quiet: true }); if (r && r.ok && r.moved && $('v3Pip').dataset.pid === id) showNote('Photo calée automatiquement sur les routes. Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.');
 }
 $('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
+$('v3Auto').addEventListener('click', () => { if (Maq) Maq.v3AutoRoads({}); });
 $('v3Near').addEventListener('click', () => { const n = Maq ? Maq.v3ShareNear() : 0; showNote(n ? `Réglage appliqué aux ${n} photos prises dans les 2 minutes autour.` : 'Aucune autre photo prise dans les 2 minutes autour.'); setTimeout(() => showNote(''), 3500); });
 $('v3Share').addEventListener('click', () => { const n = Maq ? Maq.v3Share() : 0; showNote(n ? `Réglage appliqué aux ${n} autres photos du même type d’appareil.` : 'Rien à appliquer.'); setTimeout(() => showNote(''), 3500); });
 $('v3Clear').addEventListener('click', () => { if (Maq) Maq.v3ClearAll(); showNote('Réglages de toutes les photos annulés.'); setTimeout(() => showNote(''), 3500); });
