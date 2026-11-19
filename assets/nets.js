@@ -359,7 +359,7 @@ export function init(ctx) {
   $('ntFetch').addEventListener('click', fetchOpen);
   $('ntZone').addEventListener('click', startZone); $('ntZoneOff').addEventListener('click', clearZone); zoneUi();
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && zdraw) zoneStop(); });
-  $('ntPdf').addEventListener('change', e => { const f = e.target.files[0]; if (f) openDT(f, { map, status, TYPES, addItems }).catch(() => status('Import du PDF impossible.', { ms: 6000 })); e.target.value = ''; });
+  $('ntPdf').addEventListener('change', e => { const f = e.target.files[0]; if (f) openDT(f, { map, status, TYPES, addItems, toLL }).catch(() => status('Import du PDF impossible.', { ms: 6000 })); e.target.value = ''; });
   $('ntPdfOff').addEventListener('click', clearOverlay); document.addEventListener('dt-overlay', e => { $('ntPdfOff').hidden = !e.detail; });
   $('ntFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
   $('ntClear').addEventListener('click', e => { if (e.target.dataset.sure) { nets = []; stopEdit(); save(); sel = null; render(); list(); delete e.target.dataset.sure; e.target.textContent = 'Tout supprimer'; } else { e.target.dataset.sure = '1'; e.target.textContent = 'Confirmer ?'; setTimeout(() => { if (e.target.isConnected) { delete e.target.dataset.sure; e.target.textContent = 'Tout supprimer'; } }, 3000); } });

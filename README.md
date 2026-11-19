@@ -572,3 +572,7 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Nouvelles sources dans « Importer depuis les banques publiques » : **Agence ORE** (réseaux de distribution de gaz et d'électricité, jeux repérés dans le catalogue au moment de l'import) et **France Chaleur Urbaine** (tracés des réseaux de chaleur et de froid, fichier data.gouv lu une fois puis filtré sur la zone). Nouveau type de réseau « Chaleur, froid ».
 - Ces tracés sont **indicatifs** (ils ne remplacent pas la réponse de DT-DICT). Eau potable et assainissement : pas de base nationale ouverte, seules certaines collectivités publient leurs données (à importer en GeoJSON / KML) ; sinon plan de DT en PDF.
 - Les adresses de ces services n'ont pas pu être testées depuis l'environnement de développement (test avec réponses simulées) : le message final indique, par source, les requêtes restées sans réponse.
+
+## Version 2.8.1 : calage automatique du PDF de DT
+
+- À l'ouverture d'un PDF de DT, GeoTrace cherche les repères de quadrillage Lambert-93 écrits sur le plan (nombres à 6 chiffres pour X, 7 chiffres pour Y). S'il en trouve au moins 2 de chaque et qu'ils sont cohérents (même échelle en X et en Y, alignés), le plan est **calé tout seul** et l'aperçu s'affiche. Sinon : calage à 2 points comme avant. Dans les deux cas, vérifier l'aperçu avant d'importer.

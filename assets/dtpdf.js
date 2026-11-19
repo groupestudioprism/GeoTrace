@@ -98,6 +98,30 @@ export function similarity(p1, p2, w1, w2) {
 }
 export const toWorld = (T, x, y) => ({ x: T.ar * x + T.ai * y + T.bx, y: T.ai * x - T.ar * y + T.by });
 
+
+/* Calage automatique : repère les repères de quadrillage Lambert-93 écrits sur le plan (X 6 chiffres, Y 7 chiffres) */
+export function gridFromText(items, vp) {
+  const E = [], N = [];
+  items.forEach(it => {
+    const str = (it.str || '').replace(/[\s\u00a0]/g, '').replace(',', '.'); if (!str) return;
+    const m = str.match(/(?:^|[^\d.])(\d{6,7})(?:\.\d+)?(?!\d)/); if (!m) return;
+    const v = +m[1], p = vp.convertToViewportPoint(it.transform[4] + (it.width || 0) / 2, it.transform[5] + (it.height || 0) / 2);
+    if (v >= 100000 && v <= 1300000 && m[1].length === 6) E.push({ v, x: p[0], y: p[1] });
+    else if (v >= 6000000 && v <= 7200000 && m[1].length === 7) N.push({ v, x: p[0], y: p[1] });
+  });
+  const uniq = a => { const m = new Map(); a.forEach(o => { const k = o.v; if (!m.has(k)) m.set(k, []); m.get(k).push(o); }); return [...m.values()].map(g => ({ v: g[0].v, x: g.reduce((s, o) => s + o.x, 0) / g.length, y: g.reduce((s, o) => s + o.y, 0) / g.length })); };
+  const e = uniq(E), n = uniq(N); if (e.length < 2 || n.length < 2) return null;
+  const fit = (pts, key) => { /* moindres carrés pos = a*v + b */
+    const k = pts.length, sx = pts.reduce((s, o) => s + o.v, 0), sy = pts.reduce((s, o) => s + o[key], 0), sxx = pts.reduce((s, o) => s + o.v * o.v, 0), sxy = pts.reduce((s, o) => s + o.v * o[key], 0), d = k * sxx - sx * sx;
+    if (Math.abs(d) < 1e-9) return null; const a = (k * sxy - sx * sy) / d, b = (sy - a * sx) / k, res = Math.sqrt(pts.reduce((s, o) => s + (a * o.v + b - o[key]) ** 2, 0) / k); return { a, b, res };
+  };
+  const fe = fit(e, 'x'), fn = fit(n, 'y'); if (!fe || !fn) return null;
+  const sc = Math.abs(fe.a) / Math.abs(fn.a); if (!(fe.a > 0 && fn.a < 0) || sc < .93 || sc > 1.07 || fe.res > 25 || fn.res > 25) return null;
+  const px = v => (v - fe.b) / fe.a; // non utilisé
+  const E0 = e[0].v, E1 = e[e.length - 1].v, N0 = n[0].v, N1 = n[n.length - 1].v;
+  return { A: { px: [fe.a * E0 + fe.b, fn.a * N0 + fn.b], en: [E0, N0] }, B: { px: [fe.a * E1 + fe.b, fn.a * N1 + fn.b], en: [E1, N1] }, nE: e.length, nN: n.length };
+}
+
 /* ---------- interface ---------- */
 export async function openDT(file, ctx) {
   const { map, status, TYPES, addItems } = ctx;
@@ -127,7 +151,7 @@ export async function openDT(file, ctx) {
   const setZoom = z => { st.zoom = Math.max(.25, Math.min(4, z)); cv.style.width = (cv.width * st.zoom / (window.devicePixelRatio > 1 ? 1 : 1)) + 'px'; stage.style.width = cv.style.width; stage.style.setProperty('--z', st.zoom); dots(); };
   const geoText = () => {
     const n = st.pts.length;
-    $q('.dt-geo').textContent = n === 0 ? 'Point A : cliquez-le sur le plan.' : n === 1 ? 'Point B : cliquez un second point éloigné du premier.' : st.T ? 'Plan calé. Vérifiez l’aperçu sur la carte.' : 'Points A et B placés. Cliquez « Placer sur la carte » pour les situer sur la carte.';
+    $q('.dt-geo').textContent = n === 0 ? 'Point A : cliquez-le sur le plan.' : n === 1 ? 'Point B : cliquez un second point éloigné du premier.' : st.T ? (st.auto ? 'Plan calé automatiquement d’après les coordonnées Lambert-93 lues sur le plan. Vérifiez l’aperçu sur la carte ; sinon cliquez « Recommencer ».' : 'Plan calé. Vérifiez l’aperçu sur la carte.') : 'Points A et B placés. Cliquez « Placer sur la carte » pour les situer sur la carte.';
     $q('[data-a=geo]').disabled = n < 2;
   };
   async function render(pn) {
@@ -135,15 +159,23 @@ export async function openDT(file, ctx) {
     st.vp = page.getViewport({ scale: s }); cv.width = Math.round(st.vp.width); cv.height = Math.round(st.vp.height);
     const c = cv.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
     await page.render({ canvasContext: c, viewport: st.vp }).promise;
-    st.pts = []; st.T = null; cleanup(false); geoText();
+    st.pts = []; st.T = null; st.auto = false; cleanup(false);
     let cols = []; try { cols = await readVectors(page, st.vp); } catch (e) { cols = []; }
+    try {
+      const tc = await page.getTextContent(), g = ctx.toLL ? gridFromText(tc.items, st.vp) : null;
+      if (g) {
+        const ll1 = ctx.toLL(g.A.en[0], g.A.en[1]), ll2 = ctx.toLL(g.B.en[0], g.B.en[1]);
+        const T = similarity(g.A.px, g.B.px, CRS.project(L.latLng(ll1[0], ll1[1])), CRS.project(L.latLng(ll2[0], ll2[1])));
+        if (T) { st.pts = [g.A.px, g.B.px]; st.T = T; st.auto = true; }
+      }
+    } catch (e) { /* pas de coordonnées lisibles */ }
     st.cols = cols.map(g => { const ty = typeOfColor(g.col); return { g, type: ty && ty !== 'fond' ? ty : 'autre', on: !!ty && ty !== 'fond' }; }).sort((a, b) => b.g.len - a.g.len).slice(0, 16);
     $q('.dt-cols').innerHTML = st.cols.length ? st.cols.map((c, i) => `<div class="dt-col"><label><input type="checkbox" data-i="${i}" ${c.on ? 'checked' : ''}><i class="ch-sw" style="background:rgb(${c.g.col})"></i>${c.g.lines.length} tracé(s)</label><select class="ch-ty" data-i="${i}" aria-label="Type du réseau">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === c.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select></div>`).join('')
       : '<p class="hint">Aucun trait vectoriel : ce PDF est une image (scan). Calez-le, posez-le en fond sur la carte puis tracez les réseaux par-dessus (onglet Réseaux).</p>';
     $q('.dt-bg').hidden = false; $q('.dt-op').hidden = false;
     $q('.dt-pg').textContent = doc.numPages > 1 ? `Page ${pn} / ${doc.numPages}` : '';
     // première page utile : si pas de vecteurs et plusieurs pages, on laisse l'utilisateur changer de page
-    setZoom(Math.min(1, 640 / cv.width)); updateGo();
+    setZoom(Math.min(1, 640 / cv.width)); geoText(); if (st.T) { preview(); overlay($q('[data-a=bg]').checked); try { map.fitBounds(L.latLngBounds([llOf(0, 0), llOf(cv.width, cv.height)]).pad(.1), { maxZoom: 20 }); } catch (e) { /* vue inchangée */ } } updateGo();
   }
   const updateGo = () => {
     const n = st.cols.filter(c => c.on).reduce((a, c) => a + c.g.lines.length, 0);
