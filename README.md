@@ -560,4 +560,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 
 ## Version 2.7.1 : zone à récupérer pour les banques publiques
 
-- Bouton « Dessiner la zone » (Chantier › Réseaux) : on clique les coins d'un polygone, double-clic ou « Terminer la zone » pour finir. L'import public ne demande alors que cette emprise (4 km maximum en diagonale) et ne garde que les tronçons qui entrent dans la zone. Sans zone, c'est toute la vue de la carte, comme avant.
+- Bouton « Dessiner la zone » (Chantier › Réseaux) : on clique les coins d'un polygone, double-clic ou « Terminer la zone » pour finir. L'import public ne demande alors que cette emprise et ne garde que les tronçons qui entrent dans la zone. Sans zone, c'est toute la vue de la carte, comme avant.
+
+## Version 2.7.2 : grandes zones et tracé à main levée
+
+- La zone se dessine **à main levée** (maintenir appuyé et contourner, souris ou doigt) ou en cliquant les coins.
+- Plus de limite de 4 km : la zone est découpée en carreaux d'environ 1 km, interrogés 2 par 2, avec progression sur le bouton ; seuls les carreaux qui touchent la zone sont demandés (150 carreaux maximum, soit de l'ordre de 150 km²). Le message final indique, par source, le nombre de tronçons et les requêtes restées sans réponse.

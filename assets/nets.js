@@ -131,16 +131,27 @@ const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 
 const inZone = p => inPoly([p[0], p[1]], zone.poly);
 function zoneUi() {
   const on = !!zone, d = !!zdraw;
-  $('ntZone').textContent = d ? (zdraw.pts.length >= 3 ? 'Terminer la zone' : 'Cliquez les coins de la zone…') : on ? 'Redessiner la zone' : 'Dessiner la zone';
+  $('ntZone').textContent = d ? (zdraw.pts.length >= 3 ? 'Terminer la zone' : 'Dessinez la zone…') : on ? 'Redessiner la zone' : 'Dessiner la zone';
   $('ntZoneOff').hidden = !on || d;
-  $('ntZoneTxt').textContent = d ? 'Cliquez les coins de la zone. Double-clic ou « Terminer la zone » pour finir, Échap pour annuler.' : on ? 'Zone active : seuls les réseaux de cette zone seront importés.' : 'Sans zone, l’import porte sur toute la vue de la carte.';
+  $('ntZoneTxt').textContent = d ? 'Dessinez la zone à main levée (maintenez appuyé et contournez), ou cliquez ses coins puis double-clic. Échap annule.' : on ? 'Zone active : seuls les réseaux de cette zone seront importés.' : 'Sans zone, l’import porte sur toute la vue de la carte.';
 }
+/* tracé à main levée : on garde le doigt / la souris appuyé et on contourne la zone */
+const zc = () => map.getContainer();
+function zDown(e) { if (!zdraw || e.button > 0 || e.target.closest('.leaflet-control')) return; zdraw.down = { x: e.clientX, y: e.clientY, pts: [] }; }
+function zMov(e) {
+  const d = zdraw && zdraw.down; if (!d) return;
+  if (!d.free && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) return;
+  if (!d.free) { d.free = true; zdraw.pts = []; zc().setPointerCapture && zc().setPointerCapture(e.pointerId); }
+  const ll = map.mouseEventToLatLng(e), p = [ll.lat, ll.lng], l = zdraw.pts[zdraw.pts.length - 1];
+  if (!l || map.latLngToContainerPoint(L.latLng(l)).distanceTo(map.latLngToContainerPoint(ll)) > 6) { zdraw.pts.push(p); zdraw.line.setLatLngs(zdraw.pts); }
+}
+function zUp() { const d = zdraw && zdraw.down; if (!d) return; zdraw.down = null; if (d.free) { zdraw.freed = true; setTimeout(() => { if (zdraw) zdraw.freed = false; }, 50); if (zdraw.pts.length >= 3) zoneEnd(); else { zdraw.pts = []; zdraw.line.setLatLngs([]); zoneUi(); } } }
 function zoneStop(keep) {
-  if (!zdraw) return; map.off('click', zoneClick); map.off('mousemove', zoneMove); map.off('dblclick', zoneDbl); map.doubleClickZoom.enable(); map.getContainer().style.cursor = '';
+  if (!zdraw) return; zc().removeEventListener('pointerdown', zDown); zc().removeEventListener('pointermove', zMov); zc().removeEventListener('pointerup', zUp); map.dragging.enable(); zc().style.touchAction = ''; map.off('click', zoneClick); map.off('mousemove', zoneMove); map.off('dblclick', zoneDbl); map.doubleClickZoom.enable(); map.getContainer().style.cursor = '';
   map.removeLayer(zdraw.line); zdraw = null; if (!keep) zoneUi();
 }
-function zoneClick(e) { zdraw.pts.push([e.latlng.lat, e.latlng.lng]); zdraw.line.setLatLngs(zdraw.pts); zoneUi(); }
-function zoneMove(e) { if (zdraw && zdraw.pts.length) zdraw.line.setLatLngs([...zdraw.pts, [e.latlng.lat, e.latlng.lng]]); }
+function zoneClick(e) { if (zdraw.freed) return; zdraw.pts.push([e.latlng.lat, e.latlng.lng]); zdraw.line.setLatLngs(zdraw.pts); zoneUi(); }
+function zoneMove(e) { if (zdraw && !zdraw.down && zdraw.pts.length) zdraw.line.setLatLngs([...zdraw.pts, [e.latlng.lat, e.latlng.lng]]); }
 function zoneDbl(e) { L.DomEvent.stop(e); zoneEnd(); }
 function zoneEnd() {
   if (!zdraw) return; if (zdraw.pts.length < 3) { status('Il faut au moins 3 coins.', { ms: 3000 }); return; }
@@ -155,19 +166,19 @@ function startZone() {
   if (zdraw) { zoneEnd(); return; }
   cancelDraw(); stopEdit(); stopOthers();
   zdraw = { pts: [], line: L.polyline([], { color: '#ffc61a', weight: 3, dashArray: '6 5', interactive: false }).addTo(map) };
-  map.doubleClickZoom.disable(); map.getContainer().style.cursor = 'crosshair';
+  map.doubleClickZoom.disable(); map.dragging.disable(); zc().style.touchAction = 'none'; map.getContainer().style.cursor = 'crosshair';
+  zc().addEventListener('pointerdown', zDown); zc().addEventListener('pointermove', zMov); zc().addEventListener('pointerup', zUp);
   map.on('click', zoneClick); map.on('mousemove', zoneMove); map.on('dblclick', zoneDbl); zoneUi();
 }
 function clearZone() { zoneStop(); if (zone) { map.removeLayer(zone.layer); zone = null; } zoneUi(); }
 
 async function fetchOpen() {
   const b = zone ? zone.bounds : map.getBounds();
-  if (zone && b.getNorthEast().distanceTo(b.getSouthWest()) > 4000) { status('Zone trop grande (4 km maximum en diagonale). Dessinez-en une plus petite.', { ms: 5000 }); return; }
   if (!zone && map.getZoom() < 15) { status('Zoomez sur le chantier ou dessinez la zone à récupérer (bouton « Dessiner la zone »).', { ms: 5000 }); return; }
   const btn = $('ntFetch'); btn.disabled = true; btn.textContent = 'Recherche en cours…';
-  const rep = []; let total = 0; const addZ = (items, src) => add(zone ? items.filter(it => it.pts.some(inZone)) : items, src);
-  const run = async (nom, fn) => { try { const n = await fn(); total += n; rep.push(`${nom} : ${n}`); } catch (e) { rep.push(`${nom} : indisponible`); } };
-  await Promise.all([
+  const rep = {}; let total = 0; const addZ = (items, src) => add(zone ? items.filter(it => it.pts.some(inZone)) : items, src);
+  const run = async (nom, fn) => { const r = rep[nom] || (rep[nom] = { n: 0, ko: 0 }); try { const n = await fn(); total += n; r.n += n; } catch (e) { r.ko++; } };
+  const doBox = async b => { await Promise.all([
     run('IGN canalisations', async () => { const j = await getJSON(wfs('canalisation', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => { const nat = f.properties.nature || '', under = String(f.properties.position_par_rapport_au_sol) === '-1'; const type = guessType(nat); return { sid: f.id + ':' + c.length, type, name: ('Canalisation ' + nat).slice(0, 40), depth: under ? TYPES[type].depth : 0, diam: TYPES[type].diam, pts: c.map(q => [q[1], q[0]]) }; })), 'ign'); }),
     run('IGN lignes électriques', async () => { const j = await getJSON(wfs('ligne_electrique', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => ({ sid: f.id + ':' + c.length, type: 'elec', name: 'Ligne électrique', depth: -9, diam: 40, pts: c.map(q => [q[1], q[0]]) }))), 'ign'); }),
     run('OpenStreetMap', async () => {
@@ -180,9 +191,20 @@ async function fetchOpen() {
         return { sid: 'w' + w.id, type, name: (t.name || TYPES[type].label).slice(0, 40), depth: t.power && !under ? -8 : TYPES[type].depth, diam: +t.diameter || TYPES[type].diam, pts: w.geometry.map(p => [p.lat, p.lon]) };
       }), 'osm');
     }),
-  ]);
+  ]); };
+  /* grande zone : découpage en carreaux d'environ 1 km, seuls ceux qui touchent la zone sont interrogés */
+  const tiles = []; const STEP = 0.009, S = b.getSouth(), W = b.getWest(), N = b.getNorth(), E = b.getEast(), kx = STEP / Math.cos(((S + N) / 2) * Math.PI / 180);
+  for (let la = S; la < N; la += STEP) for (let lo = W; lo < E; lo += kx) {
+    const t = L.latLngBounds([la, lo], [Math.min(la + STEP, N), Math.min(lo + kx, E)]);
+    if (!zone || zone.layer.getBounds().intersects(t) && (inZone([t.getCenter().lat, t.getCenter().lng]) || [t.getSouthWest(), t.getNorthEast(), t.getNorthWest(), t.getSouthEast()].some(c => inZone([c.lat, c.lng])) || zone.poly.some(v => t.contains(v)))) tiles.push(t);
+  }
+  if (tiles.length > 150) { btn.disabled = false; btn.textContent = 'Importer depuis les banques publiques'; status(`Zone trop grande (${tiles.length} carreaux de 1 km, 150 maximum). Découpez-la en plusieurs zones.`, { ms: 6000 }); return; }
+  let done = 0; const q = tiles.slice();
+  await Promise.all([0, 1].map(async () => { for (let t; (t = q.shift());) { await doBox(t); done++; btn.textContent = `Recherche… ${done}/${tiles.length}`; } }));
   btn.disabled = false; btn.textContent = 'Importer depuis les banques publiques';
-  status(total ? `${total} tronçon(s) ajouté(s). ${rep.join(' · ')}` : `Aucun nouveau réseau dans cette vue. ${rep.join(' · ')}`, { ms: 7000 });
+  const txt = Object.entries(rep).map(([k, r]) => `${k} : ${r.n}${r.ko ? ` (${r.ko} requête(s) sans réponse)` : ''}`).join(' · ');
+  status(total ? `${total} tronçon(s) ajouté(s). ${txt}` : `Aucun nouveau réseau. ${txt}`, { ms: 9000 });
+  if (total) { const all = getNets(); if (all.length) map.fitBounds(L.latLngBounds(all.flatMap(d => d.pts)).pad(.1), { maxZoom: 19 }); }
 }
 async function importFile(f) {
   const fixed = $('ntImpType').value || null;
