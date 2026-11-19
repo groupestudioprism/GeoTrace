@@ -5,7 +5,7 @@
    - clôture mobile de chantier 3,50 × 2,00 m sur plots béton, colliers d'assemblage ;
    - signalisation temporaire gamme normale : triangles AK 1000 mm, disques B 850 mm, KC1 800 × 600, KM 900 × 250, KD22 1300 × 300,
      barrage K2 1750 × 250, cône K5a 750 mm à deux bandes rétroréfléchissantes, feux de chantier KR11 sur chariot. */
-import * as THREE from 'three';
+import * as THREE from '../vendor/three/three.module.js';
 import { B, nmat as mat, V } from './net3d.js';
 
 const Z = V(0, 0, 1), X = V(1, 0, 0), Yv = V(0, 1, 0);
@@ -167,7 +167,7 @@ function signTex(kind, txt) {
   const c = mk(), x = c.getContext('2d'), back = mk(), y = back.getContext('2d');
   const tri = g => { g.beginPath(); g.moveTo(w / 2, 8); g.lineTo(w - 6, h - 22); g.lineTo(6, h - 22); g.closePath(); };
   const rr = (g, a, bb, ww, hh, r) => { g.beginPath(); g.roundRect(a, bb, ww, hh, r); };
-  const text = (t, px, cy, col = '#111', maxw = w - 30) => { x.fillStyle = col; x.font = `800 ${px}px "Public Sans", Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, w / 2, cy, maxw); };
+  const text = (t, px, cy, col = '#111', maxw = w - 30) => { x.fillStyle = col; x.font = `800 ${px}px "Barlow", Arial, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, w / 2, cy, maxw); };
   const arrow = (cx, cy, len, dir, col = '#111') => { x.strokeStyle = col; x.fillStyle = col; x.lineWidth = 14; x.beginPath(); x.moveTo(cx - dir * len / 2, cy); x.lineTo(cx + dir * len / 4, cy); x.stroke(); x.beginPath(); x.moveTo(cx + dir * len / 2, cy); x.lineTo(cx + dir * len / 6, cy - 22); x.lineTo(cx + dir * len / 6, cy + 22); x.closePath(); x.fill(); };
   if (shape === 'tri') {
     tri(x); x.fillStyle = '#ffd21f'; x.fill(); x.lineWidth = 22; x.lineJoin = 'round'; x.strokeStyle = '#d6202b'; x.stroke(); tri(y); y.fillStyle = '#aab0b6'; y.lineWidth = 22; y.lineJoin = 'round'; y.strokeStyle = '#aab0b6'; y.fill(); y.stroke();
@@ -185,7 +185,7 @@ function signTex(kind, txt) {
     x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.fillStyle = '#d6202b'; for (let i = 0; i < 3; i++) { const a = 20 + i * 84; x.beginPath(); x.moveTo(a, 10); x.lineTo(a + 44, 10); x.lineTo(a + 94, 128); x.lineTo(a + 44, 246); x.lineTo(a, 246); x.lineTo(a + 50, 128); x.closePath(); x.fill(); } y.fillStyle = '#aab0b6'; y.fillRect(0, 0, w, h);
   } else if (shape === 'kd') {
     const pth = g => { g.beginPath(); g.moveTo(4, 4); g.lineTo(w - 60, 4); g.lineTo(w - 4, h / 2); g.lineTo(w - 60, h - 4); g.lineTo(4, h - 4); g.closePath(); };
-    pth(x); x.fillStyle = '#ffd21f'; x.fill(); x.lineWidth = 6; x.strokeStyle = '#111'; x.stroke(); pth(y); y.fillStyle = '#aab0b6'; y.fill(); x.fillStyle = '#111'; x.font = '800 54px "Public Sans", Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt || 'Déviation', w / 2 - 24, h / 2 + 3, w - 110);
+    pth(x); x.fillStyle = '#ffd21f'; x.fill(); x.lineWidth = 6; x.strokeStyle = '#111'; x.stroke(); pth(y); y.fillStyle = '#aab0b6'; y.fill(); x.fillStyle = '#111'; x.font = '800 54px "Barlow", Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt || 'Déviation', w / 2 - 24, h / 2 + 3, w - 110);
   } else if (shape === 'big') {
     rr(x, 3, 3, w - 6, h - 6, 10); x.fillStyle = '#fff'; x.fill(); x.lineWidth = 8; x.strokeStyle = '#d6202b'; x.stroke(); text('CHANTIER', 58, 54, '#d6202b'); text('INTERDIT AU PUBLIC', 34, 108, '#111'); text('Port du casque et des EPI obligatoire', 19, 150, '#111');
     [[110, 'casque'], [192, 'gilet'], [274, 'chaussures']].forEach(([cx]) => { x.beginPath(); x.arc(cx, 204, 32, 0, 7); x.fillStyle = '#1b5fb4'; x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(cx, 208, 15, Math.PI, 0); x.fill(); x.fillRect(cx - 19, 207, 38, 5); }); y.fillStyle = '#aab0b6'; y.fillRect(0, 0, w, h);

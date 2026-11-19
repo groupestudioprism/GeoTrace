@@ -139,7 +139,7 @@ function ctlArt(e, a) {
 function list() {
   const ul = $('egList'); if (!ul) return;
   const es = getEngins(); $('egEmpty').hidden = es.length > 0;
-  ul.innerHTML = es.map(e => { const m = model(e.m), r = rigOf(e.m); return `<li data-id="${e.id}" class="${e.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:#f2b705"></i><input class="ch-name" value="${esc(e.name)}" aria-label="Nom" maxlength="40"><small>${m ? m.l.toString().replace('.', ',') + ' m' : ''}</small></div>
+  ul.innerHTML = es.map(e => { const m = model(e.m), r = rigOf(e.m); return `<li data-id="${esc(e.id)}" class="${e.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:#f2b705"></i><input class="ch-name" value="${esc(e.name)}" aria-label="Nom" maxlength="40"><small>${m ? m.l.toString().replace('.', ',') + ' m' : ''}</small></div>
     <div class="ch-acts"><label class="dv-w">Orientation <input type="range" class="eg-rot" min="0" max="359" value="${e.rot}" aria-label="Orientation en degrés depuis le nord"> <output>${e.rot}°</output></label></div>
     ${e.id === sel ? (r ? ctl(e, r) : artOf(e.m) ? ctlArt(e, artOf(e.m)) : '') : ''}
     <div class="ch-acts"><button type="button" class="link" data-a="go">Voir</button><button type="button" class="link" data-a="turn">Tourner de 90°</button><button type="button" class="link" data-a="dup">Dupliquer</button><button type="button" class="link danger" data-a="del">Supprimer</button></div></li>`; }).join('');

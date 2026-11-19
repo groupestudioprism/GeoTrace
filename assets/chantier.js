@@ -173,7 +173,7 @@ function stopEdit() { if (handles) { map.removeLayer(handles); handles = null; }
 function list() {
   const ul = $('chList'); if (!ul) return;
   const zs = getZones(); $('chEmpty').hidden = zs.length > 0;
-  ul.innerHTML = zs.map(z => `<li data-id="${z.id}" class="${z.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[z.type].color}"></i><input class="ch-name" value="${esc(z.name)}" aria-label="Nom de la zone" maxlength="40"><small>${fmtArea(area(z.pts))}</small></div>
+  ul.innerHTML = zs.map(z => `<li data-id="${esc(z.id)}" class="${z.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[z.type].color}"></i><input class="ch-name" value="${esc(z.name)}" aria-label="Nom de la zone" maxlength="40"><small>${fmtArea(area(z.pts))}</small></div>
     <div class="ch-acts"><select class="ch-ty" aria-label="Type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === z.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select>
     <button type="button" class="link" data-a="go">Voir</button><button type="button" class="link" data-a="edit">${edit === z.id ? 'Terminer' : 'Modifier'}</button><button type="button" class="link danger" data-a="del">Supprimer</button></div></li>`).join('');
 }

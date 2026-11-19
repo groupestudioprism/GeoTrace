@@ -1,6 +1,6 @@
 /* GeoTrace – installations de chantier en 3D : cabines de base vie, conteneurs, bennes, piles de tuyaux, véhicules, clôtures.
    Les objets sont de vrais volumes, répartis dans le contour dessiné sur la carte. */
-import * as THREE from 'three';
+import * as THREE from '../vendor/three/three.module.js';
 import * as S from './site3d.js';
 const { cabin, pallet, pipes, car, cone } = S;
 
@@ -115,7 +115,7 @@ let labelCache = new Map();
 function labelTex(text, color) {
   const k = text + color; if (labelCache.has(k)) return labelCache.get(k);
   const c = document.createElement('canvas'); c.width = 384; c.height = 80; const x = c.getContext('2d');
-  x.font = '600 34px "Public Sans", system-ui, sans-serif'; const w = Math.min(360, x.measureText(text).width + 64);
+  x.font = '600 34px "Barlow", system-ui, sans-serif'; const w = Math.min(360, x.measureText(text).width + 64);
   x.shadowColor = 'rgba(0,0,0,.4)'; x.shadowBlur = 8; x.shadowOffsetY = 2; x.fillStyle = '#fff'; x.beginPath(); x.roundRect((384 - w) / 2, 10, w, 56, 28); x.fill(); x.shadowColor = 'transparent';
   x.fillStyle = color; x.beginPath(); x.arc((384 - w) / 2 + 30, 38, 12, 0, 7); x.fill();
   x.fillStyle = '#0b2342'; x.textBaseline = 'middle'; x.fillText(text, (384 - w) / 2 + 50, 40, w - 66);

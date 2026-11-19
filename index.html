@@ -2,6 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self'; connect-src 'self' https: data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoTrace – Carte des photos de chantier</title>
 <meta name="description" content="GeoTrace place sur la carte les photos de chantier géolocalisées, avec la direction de prise de vue. Tout est traité dans le navigateur.">
@@ -9,19 +11,12 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="vendor/fonts/public-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/" } }</script>
+<link rel="preload" href="vendor/fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="vendor/fonts/barlow-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
 <link rel="stylesheet" href="assets/app.css">
-<script>
-  /* Thème appliqué avant le rendu pour éviter un flash clair. */
-  try {
-    var t = JSON.parse(localStorage.getItem('geotrace:prefs') || '{}').theme;
-    if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    document.documentElement.dataset.theme = t;
-  } catch (e) { document.documentElement.dataset.theme = 'light'; }
-</script>
+<script src="assets/boot.js"></script>
 </head>
 <body class="on-welcome">
 <div id="splash" aria-hidden="true">
@@ -36,7 +31,6 @@
 <filter id="sp-blur" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="5"/></filter>
 </defs><g class="sp-b"><path d="M90,592 L300,514 L510,592 L300,670 Z" fill="url(#sp-lb)" stroke="#0c3a6b" stroke-opacity=".6" stroke-width="2.5" stroke-linejoin="round"/></g><g class="sp-m"><path d="M70,536 L300,451 L530,536 L300,621 Z" fill="url(#sp-lm)" stroke="#0c3a6b" stroke-opacity=".6" stroke-width="2.5" stroke-linejoin="round"/></g><g class="sp-t"><path d="M50,480 L300,388 L550,480 L300,572 Z" fill="url(#sp-lt)" stroke="#0c3a6b" stroke-opacity=".6" stroke-width="2.5" stroke-linejoin="round"/><path d="M70,536 L300,451 L530,536" fill="none" stroke="#0c3a6b" stroke-opacity=".4" stroke-width="2" stroke-linejoin="round"/><g clip-path="url(#sp-top)" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" opacity=".92"><path class="sp-road" d="M118,470 L270,414" pathLength="1"/><path class="sp-road" d="M128,455 L450,574" pathLength="1"/><path class="sp-road" d="M110,545 L420,430" pathLength="1"/><path class="sp-road" d="M95,500 C230,494 400,496 520,462" pathLength="1"/></g></g><ellipse class="sp-sh" cx="300" cy="572" rx="50" ry="13" fill="#0a2e57" opacity=".3" filter="url(#sp-blur)"/><ellipse class="sp-r" cx="300" cy="572" rx="64" ry="20" fill="none" stroke="#12b5f0" stroke-width="4"/><g class="sp-drop"><g class="sp-p"><path d="M300,572 C272,520 160,368 160,218 C160,130 222,70 300,70 C378,70 440,130 440,218 C440,368 328,520 300,572 Z" fill="url(#sp-pin)" stroke="#fff" stroke-width="5" paint-order="stroke"/><path d="M300,572 C272,520 160,368 160,218 C160,130 222,70 300,70 C378,70 440,130 440,218 C440,368 328,520 300,572 Z" fill="none" stroke="#0c3a6b" stroke-opacity=".55" stroke-width="2.5" stroke-linejoin="round"/><path d="M300,80 C240,80 176,130 176,218 C176,300 214,380 262,470 C222,390 196,310 196,226 C196,150 236,100 300,80 Z" fill="url(#sp-hi)"/></g><g class="sp-badge"><circle cx="300" cy="212" r="84" fill="#fff" stroke="#0c3a6b" stroke-opacity=".7" stroke-width="3"/><rect class=sp-bar0 x="244" y="204" width="34" height="66" rx="2.5" fill="#0f3a70"/><rect class=sp-bar1 x="283" y="150" width="34" height="120" rx="2.5" fill="#0f3a70"/><rect class=sp-bar2 x="322" y="190" width="34" height="80" rx="2.5" fill="#0f3a70"/><g class="sp-win" fill="#fff" opacity=".92"><rect x="291" y="160" width="5" height="6" rx="1"/><rect x="291" y="174" width="5" height="6" rx="1"/><rect x="291" y="188" width="5" height="6" rx="1"/><rect x="291" y="202" width="5" height="6" rx="1"/><rect x="291" y="216" width="5" height="6" rx="1"/><rect x="291" y="230" width="5" height="6" rx="1"/><rect x="291" y="244" width="5" height="6" rx="1"/><rect x="291" y="258" width="5" height="6" rx="1"/><rect x="304" y="160" width="5" height="6" rx="1"/><rect x="304" y="174" width="5" height="6" rx="1"/><rect x="304" y="188" width="5" height="6" rx="1"/><rect x="304" y="202" width="5" height="6" rx="1"/><rect x="304" y="216" width="5" height="6" rx="1"/><rect x="304" y="230" width="5" height="6" rx="1"/><rect x="304" y="244" width="5" height="6" rx="1"/><rect x="304" y="258" width="5" height="6" rx="1"/></g></g></g><g fill="url(#sp-wm)"><path class="sp-l" d="M101.0 719.2C121.2 719.2 135.2 706.3 135.2 687.1V676.8H102.2V690.2H117.3C117.2 698.0 111.1 703.3 101.5 703.3C89.6 703.3 82.8 694.7 82.8 680.2C82.8 665.6 89.5 657.1 101.3 657.1C109.5 657.1 114.7 661.3 116.0 668.0H134.6C133.0 651.9 118.5 641.1 100.7 641.1C80.1 641.1 64.4 655.5 64.4 680.2C64.4 703.8 79.0 719.2 101.0 719.2Z"/><path class="sp-l" d="M167.8 719.2C181.3 719.2 192.1 711.7 194.1 700.8H178.4C177.1 704.4 173.5 706.6 168.4 706.6C161.5 706.6 157.4 702.3 157.2 695.5H194.5V690.8C194.5 674.5 183.4 663.2 167.3 663.2C151.4 663.2 140.1 674.8 140.1 691.2C140.1 707.5 151.3 719.2 167.8 719.2ZM157.3 685.0C158.1 679.4 161.9 676.1 167.8 676.1C173.6 676.1 177.5 679.4 178.2 685.0Z"/><path class="sp-l" d="M226.8 719.2C243.6 719.2 255.0 708.2 255.0 691.2C255.0 674.3 243.6 663.2 226.8 663.2C210.0 663.2 198.6 674.3 198.6 691.2C198.6 708.2 210.0 719.2 226.8 719.2ZM226.8 705.3C220.7 705.3 216.3 700.3 216.3 691.2C216.3 682.1 220.7 677.1 226.8 677.1C232.9 677.1 237.3 682.1 237.3 691.2C237.3 700.3 232.9 705.3 226.8 705.3Z"/><path class="sp-l" d="M258.8 657.9H281.1V718.0H299.4V657.9H321.6V642.3H258.8Z"/><path class="sp-l" d="M327.6 718.0H345.1V690.5C345.1 682.9 349.4 678.5 355.6 678.5C358.2 678.5 361.3 678.6 362.5 678.7V664.3C361.1 664.2 359.7 664.2 357.8 664.2C350.6 664.2 346.6 667.0 344.7 673.8H344.5V664.4H327.6Z"/><path class="sp-l" d="M383.9 718.9C391.5 718.9 396.3 716.3 399.5 710.5H399.7V718.0H416.8V681.9C416.8 670.1 408.2 663.2 392.6 663.2C377.1 663.2 368.3 670.1 367.5 681.7H383.8C384.1 678.1 387.1 675.8 392.0 675.8C396.6 675.8 399.5 677.9 399.5 681.1V681.4C399.5 684.6 396.0 685.3 386.4 686.2C375.0 687.1 365.6 691.0 365.6 703.0C365.6 713.7 373.2 718.9 383.9 718.9ZM389.3 707.5C385.0 707.5 382.1 705.5 382.1 702.2C382.1 698.7 385.5 696.8 390.1 696.1C394.5 695.4 397.8 694.7 399.6 693.8V698.7C399.6 704.0 395.1 707.5 389.3 707.5Z"/><path class="sp-l" d="M451.0 719.2C466.2 719.2 477.0 709.9 477.3 696.8H460.4C459.8 702.0 456.6 705.4 451.4 705.4C444.9 705.4 441.0 700.0 441.0 691.2C441.0 682.4 444.8 677.0 451.4 677.0C456.6 677.0 459.9 680.3 460.5 685.4H477.3C476.6 672.3 466.0 663.2 451.0 663.2C434.4 663.2 423.3 674.5 423.3 691.2C423.3 707.9 434.4 719.2 451.0 719.2Z"/><path class="sp-l" d="M509.0 719.2C522.6 719.2 533.4 711.7 535.4 700.8H519.7C518.4 704.4 514.8 706.6 509.7 706.6C502.7 706.6 498.7 702.3 498.5 695.5H535.8V690.8C535.8 674.5 524.7 663.2 508.6 663.2C492.7 663.2 481.4 674.8 481.4 691.2C481.4 707.5 492.6 719.2 509.0 719.2ZM498.6 685.0C499.3 679.4 503.2 676.1 509.0 676.1C514.9 676.1 518.7 679.4 519.5 685.0Z"/></g></svg></div>
 </div>
-<script>(function () { var s = document.getElementById('splash'); function go() { if (s) s.classList.add('go'); } if (document.readyState === 'complete') go(); else addEventListener('load', go); setTimeout(go, 1500); })();</script>
 <noscript><p style="padding:24px">GeoTrace a besoin de JavaScript pour fonctionner.</p></noscript>
 
 <header id="top">
@@ -328,19 +322,19 @@
 
   <!-- Accueil -->
   <div id="welcome">
-    <svg class="contours" id="contours" aria-hidden="true" preserveAspectRatio="xMidYMid slice"></svg>
+    <div class="w-grid">
     <div class="w-in">
       <img class="w-logo" src="assets/logo-geotrace.png" alt="GeoTrace" width="170" height="228">
-      <h1>Vos photos de chantier, replacées sur la carte.</h1>
-      <p class="lead">GeoTrace lit la position et la direction de chaque photo, puis la dessine là où elle a été prise. Aucun compte, aucune installation.</p>
+      <h1>Le chantier,<br>sur la carte et en 3D.</h1>
+      <p class="lead">GeoTrace replace chaque photo là où elle a été prise. Vous dessinez ensuite les installations, les réseaux et les engins, puis vous voyez le tout en relief.</p>
       <ol class="steps" aria-label="Comment ça marche">
         <li><b>1</b>Ouvrez vos photos</li>
-        <li><b>2</b>Repérez-les sur la carte</li>
-        <li><b>3</b>Cliquez pour les voir en grand</li>
+        <li><b>2</b>Préparez le chantier sur la carte</li>
+        <li><b>3</b>Vérifiez-le en 3D</li>
       </ol>
 
       <div class="drop" id="dropzone">
-        <div class="drop-title">Déposez ici un dossier, des photos ou un ZIP</div>
+        <div class="drop-title">Déposez un dossier, des photos ou un ZIP</div>
         <div class="drop-acts">
           <button class="btn primary" type="button" id="pickFolder"><span data-ic="folder"></span>Choisir un dossier</button>
           <button class="btn" type="button" id="pickFiles"><span data-ic="image"></span>Choisir des photos</button>
@@ -348,6 +342,8 @@
         </div>
         <div class="drop-note">Un dossier de votre ordinateur (y compris synchronisé avec Nextcloud) ou un ZIP. Les sous-dossiers sont lus. Seules les photos qui contiennent une position GPS apparaissent sur la carte.</div>
       </div>
+
+      <div class="w-try"><span>Pas de photos sous la main ?</span><button class="btn small" type="button" id="demoBtn">Ouvrir le chantier d’exemple</button></div>
 
       <details class="nc">
         <summary>J’ai un lien de partage Nextcloud</summary>
@@ -362,15 +358,64 @@
 
       <div class="owner">
         <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="34" height="34">
-        <span>Application GeoTrace de <b>STURNO</b>, pour le suivi des chantiers de réseaux.</span>
-      </div>
-
-      <div class="w-foot">
-        <button class="link" type="button" id="demoBtn">Essayer avec des photos d’exemple</button>
-        <span>Vos photos ne sont pas envoyées : elles restent sur votre ordinateur.</span>
+        <span>Application de <b>STURNO</b> pour le suivi des chantiers de réseaux. Vos photos ne sont pas envoyées : elles restent sur votre ordinateur.</span>
       </div>
       <span class="err" id="welErr" hidden></span>
       <button class="btn small" id="welClose" type="button" hidden>Revenir à la carte</button>
+    </div>
+    <figure class="w-plan">
+      <svg viewBox="0 0 560 660" role="img" aria-label="Exemple de plan de chantier : photos, zone de travaux, réseaux et engin">
+        <defs>
+          <pattern id="wp-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#dfe5ec" stroke-width="1"/></pattern>
+          <pattern id="wp-hatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" fill="#ffc61a" fill-opacity=".28"/><path d="M0 0V9" stroke="#b98900" stroke-width="2"/></pattern>
+          <clipPath id="wp-clip"><rect x="0" y="0" width="560" height="660" rx="10"/></clipPath>
+        </defs>
+        <g clip-path="url(#wp-clip)">
+          <rect width="560" height="660" fill="#fbfcfd"/><rect width="560" height="660" fill="url(#wp-grid)"/>
+          <g fill="#eef1f5" stroke="#bcc6d3" stroke-width="1.5" stroke-linejoin="round">
+            <path d="M34 40h120v96H34z"/><path d="M182 52h86v70h-86z"/><path d="M28 180h96v74H86v40H28z"/>
+            <path d="M408 44h118v82H470v38h-62z"/><path d="M430 330h100v110H430z"/><path d="M36 452h110v88H36z"/>
+            <path d="M176 470h78v62h-78z"/><path d="M420 478h108v64H420z"/>
+          </g>
+          <g fill="none" stroke-linecap="round">
+            <path d="M-20 392C120 372 250 330 580 250" stroke="#e2e7ee" stroke-width="58"/>
+            <path d="M330 -20C324 140 326 250 318 680" stroke="#e2e7ee" stroke-width="44"/>
+            <path d="M-20 392C120 372 250 330 580 250" stroke="#fff" stroke-width="2" stroke-dasharray="14 12"/>
+          </g>
+          <path class="wp-zone" d="M96 344 L300 300 L306 330 L102 376Z" fill="url(#wp-hatch)" stroke="#231c00" stroke-width="2" stroke-dasharray="8 5" stroke-linejoin="round"/>
+          <g fill="none" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+            <path class="wp-net" d="M-10 372C120 354 250 312 570 232" stroke="#0679bd"/>
+            <path class="wp-net" d="M-10 408C130 388 262 346 570 268" stroke="#8a5a2b" stroke-dasharray="12 7"/>
+            <path class="wp-net" d="M240 319L226 258" stroke="#0679bd" stroke-width="2.5"/>
+          </g>
+          <g stroke="#fff" stroke-width="2"><circle cx="150" cy="350" r="7" fill="#0679bd"/><circle cx="240" cy="319" r="7" fill="#0679bd"/><circle cx="420" cy="309" r="8" fill="#8a5a2b"/><rect x="92" y="390" width="14" height="14" rx="2" fill="#8a5a2b" transform="rotate(-9 99 397)"/></g>
+          <g class="wp-zone"><rect x="356" y="350" width="62" height="92" rx="3" fill="#0679bd" fill-opacity=".14" stroke="#0679bd" stroke-width="2"/><rect x="364" y="358" width="46" height="22" fill="#fff" stroke="#0679bd" stroke-width="1.5"/><rect x="364" y="386" width="46" height="22" fill="#fff" stroke="#0679bd" stroke-width="1.5"/></g>
+          <g class="wp-eng" transform="translate(204 352) rotate(-13)"><circle r="56" fill="none" stroke="#231c00" stroke-width="1.5" stroke-dasharray="5 6" opacity=".55"/><rect x="-21" y="-17" width="42" height="34" rx="4" fill="#231c00"/><rect x="-15" y="-13" width="30" height="26" rx="3" fill="#ffc61a" stroke="#231c00" stroke-width="2"/><path d="M8 0H50" stroke="#231c00" stroke-width="7" stroke-linecap="round"/><path d="M8 0H50" stroke="#ffc61a" stroke-width="3.5" stroke-linecap="round"/><path d="M48 -7h9v14h-9z" fill="#231c00"/></g>
+          <g class="wp-pins">
+            <g transform="translate(128 300)"><path d="M0 0L36 -44A56 56 0 0 1 56 -8Z" fill="#f26b1d" fill-opacity=".22"/><circle r="11" fill="#f26b1d" stroke="#fff" stroke-width="3"/></g>
+            <g transform="translate(286 268)"><path d="M0 0L-10 58A58 58 0 0 1 -50 30Z" fill="#0fa37f" fill-opacity=".22"/><circle r="11" fill="#0fa37f" stroke="#fff" stroke-width="3"/></g>
+            <g transform="translate(372 300)"><path d="M0 0L52 20A56 56 0 0 1 24 50Z" fill="#f26b1d" fill-opacity=".22"/><circle r="11" fill="#f26b1d" stroke="#fff" stroke-width="3"/></g>
+            <g transform="translate(250 190)"><path d="M0 0L-36 76A84 84 0 0 0 40 74Z" fill="#7b4fd6" fill-opacity=".16"/><circle r="11" fill="#7b4fd6" stroke="#fff" stroke-width="3"/></g>
+          </g>
+          <g font-family="Barlow Semi Condensed, Barlow, sans-serif" font-weight="600" font-size="13" fill="#0b1f36">
+            <g class="wp-lab"><rect x="110" y="386" width="118" height="22" rx="4" fill="#fff" stroke="#231c00" stroke-width="1.5"/><text x="169" y="401.5" text-anchor="middle">Emprise travaux</text></g>
+            <g class="wp-lab"><rect x="352" y="448" width="70" height="22" rx="4" fill="#fff" stroke="#0679bd" stroke-width="1.5"/><text x="387" y="463.5" text-anchor="middle">Base vie</text></g>
+            <text x="462" y="240" fill="#0679bd" transform="rotate(-14 462 240)">AEP Ø110</text>
+            <text x="466" y="318" fill="#8a5a2b" transform="rotate(-14 466 318)">EU Ø200</text>
+          </g>
+          <g transform="translate(506 196)" fill="none" stroke="#0b1f36" stroke-width="1.5"><circle r="17" fill="#fff"/><path d="M0 -12L6 9L0 4L-6 9Z" fill="#0b1f36"/></g>
+          <g transform="translate(0 580)">
+            <rect width="560" height="80" fill="#04264b"/>
+            <g font-family="Barlow Semi Condensed, Barlow, sans-serif" fill="#fff">
+              <text x="22" y="34" font-size="20" font-weight="700">Rue fictive, installation de chantier</text>
+              <text x="22" y="58" font-size="14" fill="#b9cbe0">42 photos, 2 réseaux, 1 engin, phase 1</text>
+              <g transform="translate(410 26)"><path d="M0 12V18H120V12M60 14V18" fill="none" stroke="#fff" stroke-width="1.5"/><text x="0" y="6" font-size="12" fill="#b9cbe0">0</text><text x="120" y="6" font-size="12" fill="#b9cbe0" text-anchor="end">20 m</text><rect x="0" y="22" width="60" height="5" fill="#ffc61a"/></g>
+            </g>
+          </g>
+        </g>
+        <rect x=".75" y=".75" width="558.5" height="658.5" rx="10" fill="none" stroke="#04264b" stroke-width="1.5"/>
+      </svg>
+    </figure>
     </div>
   </div>
 </main>
@@ -483,7 +528,6 @@
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/leaflet/leaflet.markercluster.js"></script>
 <script src="vendor/exifr.js"></script>
-<script src="vendor/jszip.min.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

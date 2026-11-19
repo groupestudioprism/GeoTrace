@@ -9,8 +9,8 @@
    - tampon fonte PAM Pamrex 600 D400 (cadre Ø850, ouverture 610, h 100) ; bouche à clé PAM/EJ (embase Ø240, h 200, tube Ø90) ;
    - poteau d'incendie Bayard DN100 (h hors sol ≈ 760, 1 × 100 + 2 × 65, carré de 30) ; bouche d'incendie (coffre 424 × 305) ;
    - compteur DN20 longueur 190, regard de comptage Ø330-400. */
-import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import * as THREE from '../vendor/three/three.module.js';
+import { mergeGeometries } from '../vendor/three/utils/BufferGeometryUtils.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const Y = V(0, 1, 0), Z = V(0, 0, 1), X = V(1, 0, 0);

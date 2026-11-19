@@ -83,7 +83,7 @@ function render() {
   const zones = ctx.getZones ? ctx.getZones() : [], devs = ctx.getDevs ? ctx.getDevs() : [], nets = ctx.getNets ? ctx.getNets() : [], engs = ctx.getEngins ? ctx.getEngins() : [];
   ul.innerHTML = sorted().map(p => {
     const open = p.id === openId, cats = open && ctx.categories ? ctx.categories() : [];
-    return `<li data-id="${p.id}" class="${p.id === cur ? 'on' : ''}"><div class="ch-row"><input type="color" class="ph-col" value="${p.color}" aria-label="Couleur de la phase"><input class="ch-name" value="${esc(p.name)}" aria-label="Nom de la phase" maxlength="40"></div>
+    return `<li data-id="${esc(p.id)}" class="${p.id === cur ? 'on' : ''}"><div class="ch-row"><input type="color" class="ph-col" value="${esc(p.color)}" aria-label="Couleur de la phase"><input class="ch-name" value="${esc(p.name)}" aria-label="Nom de la phase" maxlength="40"></div>
       <div class="ch-acts"><label class="dv-w">Du <input type="date" class="ph-d" data-k="start" value="${p.start}"></label><label class="dv-w">au <input type="date" class="ph-d" data-k="end" value="${p.end}"></label></div>
       <div class="ch-acts"><label class="dv-w">Page du planning <input type="number" class="dv-width ph-page" min="0" max="999" value="${p.page || ''}" placeholder="–"></label>${planning ? '<button type="button" class="link" data-a="plan">Voir au planning</button>' : ''}</div>
       <div class="ch-acts"><button type="button" class="link" data-a="cur">${p.id === cur ? 'Afficher toutes' : 'Afficher cette phase'}</button><button type="button" class="link" data-a="open">${open ? 'Replier' : 'Contenu de la phase'}</button><button type="button" class="link danger" data-a="del">Supprimer</button></div>

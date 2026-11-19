@@ -228,6 +228,32 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.0.0 : refonte du site
+
+**Design**
+- Nouvelle identité « plan de chantier » : en-tête marine, jaune de signalisation pour l'action principale et l'outil actif, bleu du logo pour les liens et la sélection. Police Barlow (dessinée d'après les panneaux routiers) pour tout le site, fournie avec l'application.
+- Nouvel accueil : titre, dépôt des photos, bouton « Ouvrir le chantier d'exemple » et un plan de chantier dessiné (photos, emprise, réseaux, engin). L'accueil suit maintenant le thème sombre.
+- Boutons, champs, menus, onglets, panneaux et outils de carte redessinés avec les mêmes rayons, ombres et états. En-tête mobile en icônes.
+- L'animation de lancement ne joue qu'une fois par session, et plus vite.
+
+**Vue 3D réaliste**
+- Ciel dégradé, soleil avec ombres portées (recentrées sur ce que l'on regarde), reflets d'environnement et rendu physique des couleurs.
+- Matériaux physiques pour tous les modèles : peinture vernie, pneus et chenilles mats, acier, vitrages, tissus. La maquette Revit, les installations, les réseaux et les engins en profitent sans rien changer aux fichiers.
+- Pelles articulées entièrement remodelées : chenilles à patins, barbotin et galets (ou pneus sculptés, lame, stabilisateurs), tourelle carénée, capot grillagé, échappement, contrepoids, cabine vitrée avec siège, phares, gyrophare, flèche en caisson, flexibles, vérins chromés, godet creux à dents.
+- Photo aérienne plus nette autour du chantier.
+
+**Correction**
+- « Repérer » depuis une photo en grand ouvrait l'éditeur derrière la photo : il passe maintenant devant, avec sa barre d'outils lisible.
+
+**Optimisation**
+- La vue 3D n'est redessinée que lorsqu'elle bouge ou que le chantier change (environ 2 images par seconde au repos au lieu de 60) : moins de chauffe et de batterie. Les ombres ne sont recalculées que si le contenu change, et se coupent seules sur un ordinateur trop lent (`?ombres=1` pour les garder).
+- JSZip n'est chargé qu'au premier ZIP ouvert ou exporté.
+
+**Sécurité**
+- Politique de sécurité du contenu : plus aucun script dans la page, seuls les scripts de l'application peuvent s'exécuter ; un nom de fichier, un KML ou un fichier de calage piégé ne peut pas injecter de code.
+- Aucune adresse de page transmise aux serveurs de fonds de carte (`no-referrer`).
+- Identifiants et couleurs des fichiers importés échappés avant affichage.
+
 ## Version 1.36.1 : un nouveau projet ne garde plus l'ancienne maquette
 
 - Ouvrir un nouveau dossier, ZIP, lien ou l'exemple retire la maquette du projet précédent (et son souvenir dans le navigateur) : la 3D s'ouvre sans maquette, ou avec celle du nouveau dossier s'il en contient une. Une maquette fixée par la configuration reste pour tous les projets.

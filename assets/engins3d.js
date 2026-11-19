@@ -4,8 +4,8 @@
    Trois façons de poser un engin : pelle articulée construite à partir de cotes (rig), modèle à pièces mobiles (benne, cuve, roues directrices : un fichier fixe + un fichier par pièce, tournés autour d'un pivot),
    ou modèle figé. Les modèles sont en Y vers le haut ; le monde de la vue 3D est en Z vers le haut.
    Le groupe renvoyé garde ses engins à jour sans tout reconstruire : group.userData.update(liste) déplace, tourne et remet en pose ceux qui existent déjà. */
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as THREE from '../vendor/three/three.module.js';
+import { GLTFLoader } from '../vendor/three/loaders/GLTFLoader.js';
 import { buildRig } from './rig.js';
 import { MeshoptDecoder } from '../vendor/three/utils/meshopt_decoder.mjs';
 const D = Math.PI / 180;

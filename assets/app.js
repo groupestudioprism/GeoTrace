@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.36.1';
+const VERSION = '2.0.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -181,7 +181,7 @@ function compassSvg(h) {
   if (h == null) return '';
   return `<svg class="compass" width="44" height="44" viewBox="-22 -22 44 44" role="img" aria-label="Cap ${Math.round(h)} degrés">
     <circle r="20" fill="#f1f5fa" stroke="#d6dfeb"/>
-    <text y="-11" text-anchor="middle" font-size="8" font-weight="700" fill="#04264b" font-family="Public Sans, sans-serif">N</text>
+    <text y="-11" text-anchor="middle" font-size="8" font-weight="700" fill="#04264b" font-family="Barlow, sans-serif">N</text>
     <g transform="rotate(${h.toFixed(1)})"><path d="M0 -16 L4 -2 L0 -5 L-4 -2 Z" fill="#f26b1d"/><line x1="0" y1="-4" x2="0" y2="10" stroke="#04264b" stroke-width="1.5"/></g>
     <circle r="2" fill="#04264b"/></svg>`;
 }
@@ -285,7 +285,7 @@ async function loadFileList(fileList, label, append) {
 async function loadZip(file, extra) {
   status('Ouverture du ZIP…');
   let zip;
-  try { zip = await JSZip.loadAsync(file); } catch (e) { status('Ce ZIP est illisible. Essayez de le télécharger à nouveau.', { ms: 6000 }); return 0; }
+  try { await needZip(); zip = await JSZip.loadAsync(file); } catch (e) { status('Ce ZIP est illisible. Essayez de le télécharger à nouveau.', { ms: 6000 }); return 0; }
   const ok = f => !f.dir && !/(^|\/)(__MACOSX|\.)/.test(f.name);
   const files = Object.values(zip.files).filter(f => ok(f) && IMG_RE.test(f.name));
   if (extra) for (const f of Object.values(zip.files)) {
@@ -410,9 +410,9 @@ function demoImage(text, dev) {
   g.fillStyle = col; g.globalAlpha = .9; g.fillRect(0, 380, 640, 100); g.globalAlpha = 1;
   g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2;
   for (let i = 0; i < 7; i++) { g.beginPath(); g.ellipse(320, 190, 40 + i * 42, 20 + i * 22, 0, 0, Math.PI * 2); g.stroke(); }
-  g.fillStyle = '#fff'; g.font = '700 38px "Public Sans", sans-serif'; g.textAlign = 'center';
+  g.fillStyle = '#fff'; g.font = '700 38px "Barlow", sans-serif'; g.textAlign = 'center';
   g.fillText(text, 320, 200);
-  g.font = '600 22px "Public Sans", sans-serif'; g.fillText('Photo d’exemple GeoTrace', 320, 436);
+  g.font = '600 22px "Barlow", sans-serif'; g.fillText('Photo d’exemple GeoTrace', 320, 436);
   return new Promise(res => c.toBlob(b => res(b), 'image/jpeg', .82));
 }
 
@@ -552,6 +552,15 @@ function fullUrl(p) {
   return p._url;
 }
 let heicLoader;
+/* JSZip n'est chargé qu'au premier ZIP ouvert ou exporté */
+let zipLoader = null;
+function needZip() {
+  if (window.JSZip) return Promise.resolve();
+  return zipLoader || (zipLoader = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = 'vendor/jszip.min.js'; s.onload = res; s.onerror = () => { zipLoader = null; rej(new Error('zip')); };
+    document.head.appendChild(s);
+  }));
+}
 function loadHeic() {
   if (window.heic2any) return Promise.resolve();
   return heicLoader || (heicLoader = new Promise((res, rej) => {
@@ -1040,6 +1049,7 @@ document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('clic
   else if (kind === 'zip') {
     const local = list.filter(p => p.kind === 'local' && !p.demo);
     if (!local.length) return status('Le ZIP contient les photos du PC. Chargez des photos locales pour l’utiliser.', { ms: 5000 });
+    try { await needZip(); } catch (e) { return status('L’export ZIP n’a pas pu se charger. Vérifiez la connexion.', { ms: 5000 }); }
     const zip = new JSZip(), seen = new Set();
     zip.file('geotrace.geojson', toGeoJSON(list)); zip.file('geotrace.csv', toCSV(list));
     local.forEach(p => { let n = p.name, i = 1; while (seen.has(n)) n = p.name.replace(/(\.[^.]+)$/, `-${++i}$1`); seen.add(n); zip.file('photos/' + n, p.blob); });
@@ -1088,28 +1098,6 @@ addEventListener('drop', async e => {
   loadFileList(files, append ? $('srcName').textContent : label, append);
 });
 
-/* ---------- Fond de l'accueil : courbes de niveau ---------- */
-let contoursDone = false;
-function drawContours() {
-  const svg = $('contours');
-  if (contoursDone) return; contoursDone = true;
-  const W = 1600, H = 1000; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  let out = '';
-  const cx = W * .78, cy = H * .38, N = 16;
-  for (let k = 1; k <= N; k++) {
-    const pts = [];
-    for (let a = 0; a <= 360; a += 6) {
-      const t = a * Math.PI / 180;
-      const wob = 1 + .16 * Math.sin(3 * t + k * .35) + .09 * Math.sin(5 * t - k * .2) + .05 * Math.cos(7 * t + k);
-      const r = k * 62 * wob;
-      pts.push([cx + Math.cos(t) * r * 1.35, cy + Math.sin(t) * r * .95]);
-    }
-    out += `<path style="--i:${k}" d="M${pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L')} Z"/>`;
-  }
-  svg.innerHTML = out;
-  svg.querySelectorAll('path').forEach(p => { try { p.style.setProperty('--len', Math.ceil(p.getTotalLength())); } catch (e) { p.style.setProperty('--len', 4000); } });
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(() => svg.classList.add('draw'));
-}
 
 
 /* ================= Maquette 3D (Revit) ================= */
@@ -1507,7 +1495,7 @@ async function restoreModel() {
   if (rec && rec.buffer && !modelTouched) await openModel(rec.buffer, rec.name, null, { quiet: true, noSave: true });
 }
 
-{ const sp = $('splash'); if (sp) { const end = () => { sp.remove(); removeEventListener('keydown', end); }; if (/[?&]nosplash\b/.test(location.search)) end(); else { sp.addEventListener('animationend', e => { if (e.animationName === 'sp-out') end(); }); sp.addEventListener('click', end); addEventListener('keydown', end); setTimeout(end, 9000); } } }
+{ const sp = $('splash'); if (sp) { const end = () => { sp.remove(); removeEventListener('keydown', end); }; if (document.documentElement.classList.contains('no-splash')) end(); else { sp.addEventListener('animationend', e => { if (e.animationName === 'sp-out') end(); }); sp.addEventListener('click', end); addEventListener('keydown', end); setTimeout(end, 9000); } } }
 window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour les tests et la console
 
 
@@ -1629,7 +1617,6 @@ setBase(prefs.base);
 if (prefs.cadastre) cadastre.addTo(map);
 applyPanel();
 makeGroup();
-drawContours();
 addEventListener('resize', debounce(() => { map.invalidateSize(); renderTimeline(); }, 150));
 
 const qp = new URLSearchParams(location.search);

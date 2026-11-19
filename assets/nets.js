@@ -239,7 +239,7 @@ function stopEdit() { if (handles) { map.removeLayer(handles); handles = null; }
 function list() {
   const ul = $('ntList'); if (!ul) return;
   const ds = getNets().filter(d => d.ph !== 'rsx'); $('ntEmpty').hidden = ds.length > 0; $('ntClear').hidden = !ds.length;
-  ul.innerHTML = ds.map(d => `<li data-id="${d.id}" class="${d.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[d.type].color}"></i><input class="ch-name" value="${esc(d.name)}" aria-label="Nom du réseau" maxlength="40"><small>${fmtLen(length(d.pts))}</small></div>
+  ul.innerHTML = ds.map(d => `<li data-id="${esc(d.id)}" class="${d.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[d.type].color}"></i><input class="ch-name" value="${esc(d.name)}" aria-label="Nom du réseau" maxlength="40"><small>${fmtLen(length(d.pts))}</small></div>
     <div class="ch-acts"><select class="ch-ty" aria-label="Type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === d.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select>
     <label class="dv-w">Prof. <input type="number" class="dv-width nt-depth" min="-30" max="15" step=".1" value="${d.depth}" aria-label="Profondeur en mètres, négative si aérien"> m</label>
     <label class="dv-w">Ø <input type="number" class="dv-width nt-diam" min="10" max="3000" step="10" value="${d.diam}" aria-label="Diamètre en millimètres"> mm</label></div>

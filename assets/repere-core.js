@@ -525,7 +525,7 @@ function setDash(c, style, w) {
   else if (style === 'dotted') { c.lineCap = 'round'; c.setLineDash([0.01, w * 2.3]); }
   else { c.lineCap = 'round'; c.setLineDash([]); }
 }
-const font = (fs, bold) => (bold ? '700 ' : '600 ') + fs + 'px "Public Sans","Segoe UI",system-ui,sans-serif';
+const font = (fs, bold) => (bold ? '700 ' : '600 ') + fs + 'px "Barlow","Segoe UI",system-ui,sans-serif';
 
 // Texte avec un contour blanc, lisible sur toutes les photos
 function haloText(c, text, x, y, fs, color, align) {
