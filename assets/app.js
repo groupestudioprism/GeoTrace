@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.36.0';
+const VERSION = '1.36.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -213,9 +213,15 @@ async function pool(items, n, fn, label) {
 }
 
 /* ================= Sources ================= */
+function dropModel() {
+  if (!Maq || !Maq.state.model || CFG.maquetteLien) return; // maquette imposée par la configuration : elle reste pour tous les projets
+  idbDel(); closeCal(); Maq.unloadModel(); Maq.refreshOverlay(); maqUi(); maqError('');
+  if (Chantier) Chantier.setProject(Maq.getProjChantier(), '');
+}
 function reset(label) {
   objectUrls.forEach(u => URL.revokeObjectURL(u)); objectUrls = [];
   photos = []; selectedId = null;
+  dropModel(); // un nouveau projet ne garde pas la maquette du précédent
   $('srcName').textContent = label; $('srcName').title = label;
   filters.from = filters.to = null; $('dFrom').value = ''; $('dTo').value = '';
 }

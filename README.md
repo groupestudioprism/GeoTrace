@@ -228,6 +228,10 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.36.1 : un nouveau projet ne garde plus l'ancienne maquette
+
+- Ouvrir un nouveau dossier, ZIP, lien ou l'exemple retire la maquette du projet précédent (et son souvenir dans le navigateur) : la 3D s'ouvre sans maquette, ou avec celle du nouveau dossier s'il en contient une. Une maquette fixée par la configuration reste pour tous les projets.
+
 ## Version 1.36.0 : fin du calage automatique du projet
 
 - Le calage de tout le projet (recherche de points communs entre toutes les photos) est retiré : il était long et faisait chauffer le PC à chaque ouverture, surtout avec plusieurs centaines de photos de drone.
