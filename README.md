@@ -228,6 +228,13 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.6.0 : banque de points de repère géoréférencés
+
+- Dès qu'une photo est calée (automatiquement, ou avec au moins 4 points), GeoTrace relève ses contours nets au sol (hors végétation) et les enregistre avec leur position réelle (latitude, longitude) : c'est la banque de repères du chantier, jusqu'à 260 points par photo.
+- Au calage d'une autre photo, les repères de la banque situés dans son champ s'ajoutent aux routes et aux parcelles de l'IGN : ils doivent tomber sur des contours visibles de la photo. Une photo ne s'appuie jamais sur ses propres repères, et aucun réglage n'est copié d'une photo à l'autre.
+- Quand deux calages réellement différents conviennent presque aussi bien, la photo n'est pas modifiée à l'ouverture et un message le dit. « Caler automatiquement » applique alors le plus plausible en prévenant qu'il est incertain. Deux calages qui placent les routes au même endroit de l'image ne comptent plus comme rivaux.
+- « Tout annuler » vide aussi la banque. La correction de la courbure de l'objectif n'est pas encore faite.
+
 ## Version 2.5.1 : un calage par photo, indépendant des autres
 
 - Chaque photo est calée pour elle-même : plus de réglage commun par type d'appareil, plus de réglage hérité d'une photo voisine, plus d'ancien calage global repris au passage. Le calage automatique part des seules données de la photo (GPS, cap, inclinaison, focale).

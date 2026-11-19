@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.5.1';
+const VERSION = '2.6.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1432,7 +1432,8 @@ async function autoRoadsOnce(id) {
   if (autoTried.has(id) || !Maq || Maq.v3HasWarp()) return; autoTried.add(id);
   const img = $('v3PipImg'); if (!img.complete || !img.naturalWidth) { try { await img.decode(); } catch (e) { return; } }
   if ($('v3Pip').dataset.pid !== id || !$('v3d').classList.contains('locked')) return;
-  const r = await Maq.v3AutoRoads({ quiet: true }); if (r && r.ok && r.moved && $('v3Pip').dataset.pid === id) showNote('Photo calée automatiquement sur les routes et les parcelles. Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.');
+  const r = await Maq.v3AutoRoads({ quiet: true }); if (r && !r.ok && r.why === 'ambigu' && $('v3Pip').dataset.pid === id) showNote('Calage automatique incertain pour cette photo : rien n’a été modifié. « Caler automatiquement » l’applique quand même, ou calez avec des points.');
+  if (r && r.ok && r.moved && $('v3Pip').dataset.pid === id) showNote('Photo calée automatiquement sur les routes et les parcelles. Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.');
 }
 $('v3Close').addEventListener('click', () => { if ($('v3d').classList.contains('locked')) back3d(); else close3d(); });
 $('v3Auto').addEventListener('click', () => { if (Maq) Maq.v3AutoRoads({}); });
