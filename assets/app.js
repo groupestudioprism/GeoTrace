@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1384,9 +1384,15 @@ function markStrip(id) {
   const b = st.querySelector(`[data-id="${id}"]`); if (b) { b.classList.add('on'); if (!b.hidden) b.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }
 const HINT_FREE = $('v3Hint').textContent;
-const HINT_LOCK = 'Superposition : la vue 3D reste à la position de la photo, c’est la photo qui est redressée. Cliquez un point de la maquette puis le même sur la photo · Double-clic : retirer les points · Glisser : orienter la vue · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
+/* Repères au sol affichés en superposition (plan IGN, parcelles, photo aérienne) : choix mémorisé */
+const REF_KEY = 'geotrace:v3ref'; const refOn = { plan: true, parc: true, ortho: false };
+try { Object.assign(refOn, JSON.parse(localStorage.getItem(REF_KEY) || '{}')); } catch (e) { /* choix par défaut */ }
+function applyRef() { document.querySelectorAll('#v3Refs button').forEach(b => b.setAttribute('aria-pressed', String(!!refOn[b.dataset.ref]))); if (Maq) Maq.v3Ref(Object.assign({}, refOn)); }
+$('v3Refs').addEventListener('click', e => { const b = e.target.closest('button[data-ref]'); if (!b) return; refOn[b.dataset.ref] = !refOn[b.dataset.ref]; try { localStorage.setItem(REF_KEY, JSON.stringify(refOn)); } catch (er) { /* non mémorisé */ } applyRef(); });
+const HINT_LOCK = 'Superposition : la vue 3D reste à la position de la photo, c’est la photo qui est redressée. Cliquez un repère (angle de parcelle, bord de route, élément de la maquette) puis le même point sur la photo · Double-clic : retirer les points · Glisser : orienter la vue · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
+  $('v3Refs').hidden = !on; if (on) applyRef();
   $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Near').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
   const x = $('v3Close'); x.title = x.ariaLabel = on ? 'Revenir à la vue 3D' : 'Fermer';
 }

@@ -844,3 +844,5 @@ body.split3d #v3Full { background: rgba(255,255,255,.14); }
   body.split3d #v3d { left: var(--rail-w); }
   body.split3d .mapwrap #timeline, body.split3d .mapwrap #coords { right: 10px; } body.split3d .mapwrap .leaflet-right { margin-right: 0; }
 }
+
+.pip-ref { align-items: center; } .pip-ref b { flex: 1 1 100%; font-size: .8rem; font-weight: 600; opacity: .85; }

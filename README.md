@@ -228,6 +228,13 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.3.0 : caler la photo sur le plan IGN et les parcelles
+
+- En superposition, des repères au sol s'affichent par-dessus la photo, vus depuis la position de la prise de vue : plan IGN (routes, bâtiments) en transparence, limites de parcelles du cadastre, et photo aérienne en option. Trois boutons « Repères au sol » les affichent ou les masquent ; le choix est mémorisé.
+- On clique un repère au sol (angle de parcelle, bord de route), puis le même point sur la photo : la photo est redressée pour tomber dessus. Les points de la maquette restent utilisables.
+- Fonctionne sans maquette Revit.
+- Le calage reste manuel : la reconnaissance automatique d'une photo de chantier sur un plan n'est pas assez fiable pour être proposée.
+
 ## Version 2.2.0 : superposition par redressement de la photo
 
 - En superposition, la vue 3D reste à la position exacte de la photo. Les points cliqués (un point de la maquette, puis le même sur la photo) ne déplacent plus la caméra : c'est la photo qui est redressée pour tomber dessus.

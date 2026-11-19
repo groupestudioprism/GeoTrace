@@ -396,7 +396,14 @@ const lat2y = (lat, z) => (1 - Math.log(Math.tan(lat * RAD) + 1 / Math.cos(lat *
 const x2lon = (x, z) => x / 2 ** z * 360 - 180;
 const y2lat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) / RAD;
 
-async function buildGround(frame, bounds, { maxTiles = 36, zMin = 15, zOff = 0 } = {}) {
+const WMTS_ANY = (layer, style, fmt) => (z, x, y) => `https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=${style}&TILEMATRIXSET=PM&TILEMATRIX=${z}&TILEROW=${y}&TILECOL=${x}&FORMAT=${fmt}`;
+/* Repères au sol proposés en superposition : plan IGN (routes, bâtiments), parcelles du cadastre, photo aérienne. */
+const REF = {
+  ortho: { url: WMTS_ORTHO, op: .6, z: .02 },
+  plan: { url: WMTS_ANY('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'normal', 'image/png'), op: .5, z: .03 },
+  parc: { url: WMTS_ANY('CADASTRALPARCELS.PARCELLAIRE_EXPRESS', 'PCI%20vecteur', 'image/png'), op: 1, z: .04, clear: true }
+};
+async function buildGround(frame, bounds, { maxTiles = 36, zMin = 15, zOff = 0, url = WMTS_ORTHO, clear = false } = {}) {
   // bounds : [minE, minN, maxE, maxN] en mètres autour de l'origine ; choisit le niveau de zoom qui garde ≤ 36 tuiles
   const corners = [[bounds[0], bounds[1]], [bounds[2], bounds[3]]].map(p => frame.toLL(p[0], p[1]));
   let z = 19, x0, x1, y0, y1;
@@ -406,12 +413,12 @@ async function buildGround(frame, bounds, { maxTiles = 36, zMin = 15, zOff = 0 }
     if ((x1 - x0 + 1) * (y1 - y0 + 1) <= maxTiles) break;
   }
   const nx = x1 - x0 + 1, ny = y1 - y0 + 1, canvas = document.createElement('canvas'); canvas.width = nx * 256; canvas.height = ny * 256;
-  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#9aa7b5'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext('2d'); if (!clear) { ctx.fillStyle = '#9aa7b5'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
   let ok = 0;
   await Promise.all(Array.from({ length: nx * ny }, (_, k) => new Promise(res => {
     const tx = x0 + (k % nx), ty = y0 + Math.floor(k / nx), img = new Image(); img.crossOrigin = 'anonymous';
     const to = setTimeout(res, 12000); img.onload = () => { clearTimeout(to); ctx.drawImage(img, (tx - x0) * 256, (ty - y0) * 256); ok++; res(); }; img.onerror = () => { clearTimeout(to); res(); };
-    img.src = WMTS_ORTHO(z, tx, ty);
+    img.src = url(z, tx, ty);
   })));
   const ll = (tx, ty) => frame.toEN(y2lat(ty, z), x2lon(tx, z));
   const q = [ll(x0, y1 + 1), ll(x1 + 1, y1 + 1), ll(x1 + 1, y0), ll(x0, y0)]; // SO, SE, NE, NO
@@ -663,6 +670,38 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     el.style.transformOrigin = '0 0'; el.style.transform = `matrix3d(${M[0]},${M[3]},0,${M[6]},${M[1]},${M[4]},0,${M[7]},0,0,1,0,${M[2]},${M[5]},0,1)`;
   };
   v3.applyWarp = applyWarp;
+  /* Repères au sol : affichés seulement en superposition, autour de ce que la photo regarde. Ils servent de points de référence quand la maquette ne suffit pas (ou qu'il n'y en a pas). */
+  v3.refOn = {}; v3.refs = {}; v3.refTok = {};
+  const refBounds = lk => {
+    const cam = poseCam(lk, lk.adj), o = cam.position.clone().applyMatrix4(v3.Tm), d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).transformDirection(v3.Tm), hl = Math.hypot(d.x, d.y);
+    const dist = d.z < -0.05 ? Math.min(260, -o.z / d.z * hl) : 150, hx = hl > 1e-3 ? d.x / hl : 0, hy = hl > 1e-3 ? d.y / hl : 0, cx = o.x + hx * dist * .6, cy = o.y + hy * dist * .6, half = Math.max(90, Math.min(300, dist * .8 + 70));
+    return [cx - half, cy - half, cx + half, cy + half];
+  };
+  const dropRef = kind => { const c = v3.refs[kind]; if (!c) return; world.remove(c.mesh); c.mesh.geometry.dispose(); if (c.mesh.material.map) c.mesh.material.map.dispose(); c.mesh.material.dispose(); delete v3.refs[kind]; };
+  const syncRef = () => {
+    const lk = v3.lock;
+    Object.keys(REF).forEach(kind => {
+      const cur = v3.refs[kind], want = !!(lk && v3.refOn[kind]);
+      if (!want) { if (cur) cur.mesh.visible = false; v3.refTok[kind] = (v3.refTok[kind] || 0) + 1; return; }
+      const b = refBounds(lk), key = b.map(v => Math.round(v / 25)).join(',');
+      if (cur && cur.key === key) { cur.mesh.visible = true; return; }
+      dropRef(kind); const tok = v3.refTok[kind] = (v3.refTok[kind] || 0) + 1, R = REF[kind];
+      buildGround(state.frame, b, { maxTiles: 64, zMin: 15, zOff: R.z, url: R.url, clear: !!R.clear }).then(g => {
+        const m = g.mesh, bin = () => { m.geometry.dispose(); if (m.material.map) m.material.map.dispose(); m.material.dispose(); };
+        if (!v3 || v3.dead || v3.refTok[kind] !== tok || !g.tiles) { bin(); if (v3 && !v3.dead && v3.refTok[kind] === tok && !g.tiles && onNote) onNote('Ce repère au sol n’a pas pu être chargé (connexion ou zone non couverte).'); return; }
+        m.material.transparent = true; m.material.opacity = R.op; m.material.depthWrite = false; m.material.toneMapped = false; m.renderOrder = 3; m.userData.dispose = true;
+        world.add(m); v3.refs[kind] = { mesh: m, key }; m.visible = !!(v3.lock && v3.refOn[kind]); v3.wakeC = performance.now() + 700;
+      }).catch(() => { /* repère indisponible */ });
+    });
+    v3.wakeC = performance.now() + 700;
+  };
+  v3.syncRef = syncRef;
+  const anyRef = () => Object.keys(REF).some(k => v3.refOn[k]);
+  const groundP = (px, py) => { // point du sol sous le clic, dans le repère de la scène
+    const r = boxOf(), g = groundEN(r.left + px, r.top + py); if (!g) return null;
+    const o = camera.position.clone().applyMatrix4(v3.Tm); if (Math.hypot(g[0] - o.x, g[1] - o.y) > 1500) return null;
+    return new THREE.Vector3(g[0], g[1], 0).applyMatrix4(Tinv);
+  };
   const keepWarp = lk => { if (lk.pairs.length) lk.adj.warp = lk.pairs.map(q => [q.P.x, q.P.y, q.P.z, q.t[0], q.t[1]].map(v => +v.toFixed(4))); else delete lk.adj.warp; };
   const boxOf = () => renderer.domElement.getBoundingClientRect();
   const worldVerts = () => {
@@ -690,9 +729,10 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
   v3.pick = (px, py) => { // clic sans déplacement en superposition
     const lk = v3.lock; if (!lk) return;
     if (!lk.pending) {
-      const P = snap(px, py);
-      if (!P) { onNote && onNote('Aucun élément de la maquette à cet endroit. Cliquez sur une canalisation ou un ouvrage visible.'); return; }
-      lk.pending = P; drawMarks(); onNote && onNote('Point de la maquette choisi (rond jaune). Cliquez maintenant le même point sur la photo : elle sera redressée pour qu’il tombe dessus. Échap pour annuler.');
+      // avec des repères au sol affichés, le clic vise le sol (angle de parcelle, bord de route) ; sinon un élément de la maquette, et à défaut le sol
+      const P = anyRef() ? (groundP(px, py) || snap(px, py)) : (snap(px, py) || groundP(px, py));
+      if (!P) { onNote && onNote('Rien à cet endroit : visez le sol, sous l’horizon, ou un élément de la maquette.'); return; }
+      lk.pending = P; drawMarks(); onNote && onNote('Repère choisi (rond jaune). Cliquez maintenant le même point sur la photo : elle sera redressée pour qu’il tombe dessus. Échap pour annuler.');
     } else {
       const r = boxOf(); let t = [px / r.width * 2 - 1, -(py / r.height * 2 - 1)];
       if (lk.Hi) { const q = map3(lk.Hi, t[0], t[1]); if (q[2] > 0) t = [q[0], q[1]]; } // le clic vise la photo telle qu'elle est affichée, déjà redressée
@@ -709,13 +749,13 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     if (v3.fly) v3.fly.cancel();
     const lk = { p, aspect: p._asp, adj: loadAdj(p), pairs: [], pending: null };
     lk.pairs = (Array.isArray(lk.adj.warp) ? lk.adj.warp : []).filter(w => Array.isArray(w) && w.length === 5 && w.every(Number.isFinite)).map(w => ({ P: new THREE.Vector3(w[0], w[1], w[2]), t: [w[3], w[4]] }));
-    const done = () => { const was = !!v3.lock; v3.fly = null; v3.lock = lk; controls.enabled = false; if (was || matchMedia('(prefers-reduced-motion: reduce)').matches) { v3.xf = null; setXf(1); } else { v3.xf = { t0: performance.now(), dur: 750 }; setXf(0); } onNote && onNote(''); resolve(true); };
+    const done = () => { const was = !!v3.lock; v3.fly = null; v3.lock = lk; controls.enabled = false; if (was || matchMedia('(prefers-reduced-motion: reduce)').matches) { v3.xf = null; setXf(1); } else { v3.xf = { t0: performance.now(), dur: 750 }; setXf(0); } syncRef(); onNote && onNote(''); resolve(true); };
     if (v3.lock) return done();
     const tgt = poseCam(lk, lk.adj); controls.enabled = false;
     v3.fly = { t0: performance.now(), dur: 750, from: { pos: camera.position.clone(), q: camera.quaternion.clone(), fov: camera.fov }, tgt, done, cancel: () => { v3.fly = null; if (!v3.lock) controls.enabled = true; resolve(false); } };
   });
   v3.release = () => {
-    if (!v3.lock) return; v3.lock = null; v3.xf = null; v3.k = 1; applyWarp();
+    if (!v3.lock) return; v3.lock = null; v3.xf = null; v3.k = 1; applyWarp(); syncRef();
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     camera.up.set(0, 0, 1); camera.fov = 60; controls.target.copy(camera.position).addScaledVector(dir, 12); controls.enabled = true; syncVis(); marks.textContent = ''; onNote && onNote(''); fitSize(); controls.update();
   };
@@ -880,6 +920,7 @@ const poke = () => { if (v3) v3.wakeC = performance.now() + 700; };
 export function v3Site(data) { if (v3 && !v3.dead) { v3.setSite(data); poke(); } }
 export function v3Engins(list) { if (v3 && !v3.dead) { v3.setEngins(list); poke(); } }
 export function v3Select(id) { if (!v3 || v3.dead) return; poke(); v3.selId = id || null; const g = v3.world.children.find(x => x.name === 'engins'); if (g) g.userData.select(v3.selId); }
+export function v3Ref(on) { if (!v3 || v3.dead) return; v3.refOn = on || {}; v3.syncRef(); }
 export function v3Nets(on) { if (!v3) return; poke(); v3.netsOn = on; v3.syncVis(); }
 export function v3Ground(on) { if (!v3) return; poke(); v3.groundOn = on; v3.syncVis(); }
 export function v3Cancel() { return v3 ? v3.cancel() : false; }
