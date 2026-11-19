@@ -557,3 +557,7 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Le PDF est lu sur l'appareil (pdf.js), rien n'est envoyé. Les traits colorés sont regroupés par couleur ; chaque couleur reçoit un type de réseau (deviné d'après le code couleur, modifiable) ; le fond gris/noir est décoché.
 - Calage : 2 points repérables sur le plan puis les mêmes 2 points sur la carte (similitude : échelle, rotation, position). Aperçu sur la carte, puis import. Le plan peut être posé en fond (opacité réglable) pour vérifier ou tracer par-dessus, notamment pour un PDF scanné (sans traits).
 - Limites : profondeur et diamètre sont des valeurs par défaut (la légende du plan n'est pas lue) ; un plan scanné ne se vectorise pas tout seul ; un plan d'ensemble sans échelle fiable exige 2 points éloignés.
+
+## Version 2.7.1 : zone à récupérer pour les banques publiques
+
+- Bouton « Dessiner la zone » (Chantier › Réseaux) : on clique les coins d'un polygone, double-clic ou « Terminer la zone » pour finir. L'import public ne demande alors que cette emprise (4 km maximum en diagonale) et ne garde que les tronçons qui entrent dans la zone. Sans zone, c'est toute la vue de la carte, comme avant.

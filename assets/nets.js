@@ -125,20 +125,56 @@ export const addItems = (items, src) => add(items, src);
 /* ---------- données ouvertes de la vue ---------- */
 const wfs = (layer, b) => `https://data.geopf.fr/wfs/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=BDTOPO_V3:${layer}&outputFormat=application/json&srsName=EPSG:4326&count=800&bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()},EPSG:4326`;
 async function getJSON(url, opt) { const r = await fetch(url, opt); if (!r.ok) throw new Error('http ' + r.status); return r.json(); }
+/* ---------- zone à récupérer (polygone dessiné) ---------- */
+let zone = null, zdraw = null;
+const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[0] > pt[0]) !== (b[0] > pt[0]) && pt[1] < (b[1] - a[1]) * (pt[0] - a[0]) / (b[0] - a[0]) + a[1]) c = !c; } return c; };
+const inZone = p => inPoly([p[0], p[1]], zone.poly);
+function zoneUi() {
+  const on = !!zone, d = !!zdraw;
+  $('ntZone').textContent = d ? (zdraw.pts.length >= 3 ? 'Terminer la zone' : 'Cliquez les coins de la zone…') : on ? 'Redessiner la zone' : 'Dessiner la zone';
+  $('ntZoneOff').hidden = !on || d;
+  $('ntZoneTxt').textContent = d ? 'Cliquez les coins de la zone. Double-clic ou « Terminer la zone » pour finir, Échap pour annuler.' : on ? 'Zone active : seuls les réseaux de cette zone seront importés.' : 'Sans zone, l’import porte sur toute la vue de la carte.';
+}
+function zoneStop(keep) {
+  if (!zdraw) return; map.off('click', zoneClick); map.off('mousemove', zoneMove); map.off('dblclick', zoneDbl); map.doubleClickZoom.enable(); map.getContainer().style.cursor = '';
+  map.removeLayer(zdraw.line); zdraw = null; if (!keep) zoneUi();
+}
+function zoneClick(e) { zdraw.pts.push([e.latlng.lat, e.latlng.lng]); zdraw.line.setLatLngs(zdraw.pts); zoneUi(); }
+function zoneMove(e) { if (zdraw && zdraw.pts.length) zdraw.line.setLatLngs([...zdraw.pts, [e.latlng.lat, e.latlng.lng]]); }
+function zoneDbl(e) { L.DomEvent.stop(e); zoneEnd(); }
+function zoneEnd() {
+  if (!zdraw) return; if (zdraw.pts.length < 3) { status('Il faut au moins 3 coins.', { ms: 3000 }); return; }
+  const poly = zdraw.pts.slice(); zoneStop(true); setZone(poly);
+}
+function setZone(poly) {
+  if (zone && zone.layer) map.removeLayer(zone.layer);
+  const layer = L.polygon(poly, { color: '#ffc61a', weight: 3, dashArray: '8 6', fillOpacity: .08, interactive: false }).addTo(map);
+  zone = { poly, layer, bounds: layer.getBounds() }; zoneUi();
+}
+function startZone() {
+  if (zdraw) { zoneEnd(); return; }
+  cancelDraw(); stopEdit(); stopOthers();
+  zdraw = { pts: [], line: L.polyline([], { color: '#ffc61a', weight: 3, dashArray: '6 5', interactive: false }).addTo(map) };
+  map.doubleClickZoom.disable(); map.getContainer().style.cursor = 'crosshair';
+  map.on('click', zoneClick); map.on('mousemove', zoneMove); map.on('dblclick', zoneDbl); zoneUi();
+}
+function clearZone() { zoneStop(); if (zone) { map.removeLayer(zone.layer); zone = null; } zoneUi(); }
+
 async function fetchOpen() {
-  const b = map.getBounds();
-  if (map.getZoom() < 15) { status('Zoomez davantage sur le chantier (échelle 100 m ou moins) pour récupérer les réseaux.', { ms: 5000 }); return; }
+  const b = zone ? zone.bounds : map.getBounds();
+  if (zone && b.getNorthEast().distanceTo(b.getSouthWest()) > 4000) { status('Zone trop grande (4 km maximum en diagonale). Dessinez-en une plus petite.', { ms: 5000 }); return; }
+  if (!zone && map.getZoom() < 15) { status('Zoomez sur le chantier ou dessinez la zone à récupérer (bouton « Dessiner la zone »).', { ms: 5000 }); return; }
   const btn = $('ntFetch'); btn.disabled = true; btn.textContent = 'Recherche en cours…';
-  const rep = []; let total = 0;
+  const rep = []; let total = 0; const addZ = (items, src) => add(zone ? items.filter(it => it.pts.some(inZone)) : items, src);
   const run = async (nom, fn) => { try { const n = await fn(); total += n; rep.push(`${nom} : ${n}`); } catch (e) { rep.push(`${nom} : indisponible`); } };
   await Promise.all([
-    run('IGN canalisations', async () => { const j = await getJSON(wfs('canalisation', b)); return add(j.features.flatMap(f => lines(f.geometry).map(c => { const nat = f.properties.nature || '', under = String(f.properties.position_par_rapport_au_sol) === '-1'; const type = guessType(nat); return { sid: f.id + ':' + c.length, type, name: ('Canalisation ' + nat).slice(0, 40), depth: under ? TYPES[type].depth : 0, diam: TYPES[type].diam, pts: c.map(q => [q[1], q[0]]) }; })), 'ign'); }),
-    run('IGN lignes électriques', async () => { const j = await getJSON(wfs('ligne_electrique', b)); return add(j.features.flatMap(f => lines(f.geometry).map(c => ({ sid: f.id + ':' + c.length, type: 'elec', name: 'Ligne électrique', depth: -9, diam: 40, pts: c.map(q => [q[1], q[0]]) }))), 'ign'); }),
+    run('IGN canalisations', async () => { const j = await getJSON(wfs('canalisation', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => { const nat = f.properties.nature || '', under = String(f.properties.position_par_rapport_au_sol) === '-1'; const type = guessType(nat); return { sid: f.id + ':' + c.length, type, name: ('Canalisation ' + nat).slice(0, 40), depth: under ? TYPES[type].depth : 0, diam: TYPES[type].diam, pts: c.map(q => [q[1], q[0]]) }; })), 'ign'); }),
+    run('IGN lignes électriques', async () => { const j = await getJSON(wfs('ligne_electrique', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => ({ sid: f.id + ':' + c.length, type: 'elec', name: 'Ligne électrique', depth: -9, diam: 40, pts: c.map(q => [q[1], q[0]]) }))), 'ign'); }),
     run('OpenStreetMap', async () => {
       const bb = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
       const q = `[out:json][timeout:20];(way["man_made"="pipeline"](${bb});way["power"~"^(cable|minor_line)$"](${bb});way["communication"~"line|cable"](${bb});way["telecom"~"line|cable"](${bb}););out geom 800;`;
       const j = await getJSON('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-      return add(j.elements.filter(w => w.geometry && w.geometry.length > 1).map(w => {
+      return addZ(j.elements.filter(w => w.geometry && w.geometry.length > 1).map(w => {
         const t = w.tags || {}, txt = [t.substance, t.man_made, t.power, t.communication, t.telecom, t.name].filter(Boolean).join(' '), type = t.power ? 'elec' : (t.communication || t.telecom) ? 'telecom' : guessType(txt);
         const under = t.location === 'underground' || t.tunnel === 'yes' || t.man_made === 'pipeline' && !/above/.test(t.location || '');
         return { sid: 'w' + w.id, type, name: (t.name || TYPES[type].label).slice(0, 40), depth: t.power && !under ? -8 : TYPES[type].depth, diam: +t.diameter || TYPES[type].diam, pts: w.geometry.map(p => [p.lat, p.lon]) };
@@ -257,6 +293,8 @@ export function init(ctx) {
   $('ntImpType').innerHTML = '<option value="">Type selon le fichier</option>' + Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   $('ntTypes').addEventListener('click', e => { const b = e.target.closest('.nt-type'); if (b) startDraw(b.dataset.type); });
   $('ntFetch').addEventListener('click', fetchOpen);
+  $('ntZone').addEventListener('click', startZone); $('ntZoneOff').addEventListener('click', clearZone); zoneUi();
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && zdraw) zoneStop(); });
   $('ntPdf').addEventListener('change', e => { const f = e.target.files[0]; if (f) openDT(f, { map, status, TYPES, addItems }).catch(() => status('Import du PDF impossible.', { ms: 6000 })); e.target.value = ''; });
   $('ntPdfOff').addEventListener('click', clearOverlay); document.addEventListener('dt-overlay', e => { $('ntPdfOff').hidden = !e.detail; });
   $('ntFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });

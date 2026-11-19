@@ -208,10 +208,12 @@
           <h3>Réseaux existants</h3>
           <p class="hint">Importés ou récupérés en données ouvertes, visibles sous le sol en 3D.</p>
           <div class="ch-actions">
+            <button type="button" class="btn" id="ntZone">Dessiner la zone</button>
             <button type="button" class="btn" id="ntFetch">Importer depuis les banques publiques</button>
             <label class="btn ph-pick">Importer un PDF (DT)<input type="file" id="ntPdf" accept=".pdf,application/pdf" hidden></label>
             <label class="btn ph-pick">Importer GeoJSON / KML<input type="file" id="ntFile" accept=".geojson,.json,.kml,application/json,application/geo+json,application/vnd.google-earth.kml+xml" hidden></label>
           </div>
+          <p class="hint" id="ntZoneTxt"></p><button type="button" class="link" id="ntZoneOff" hidden>Effacer la zone</button>
           <button type="button" class="link" id="ntPdfOff" hidden>Retirer le plan PDF de la carte</button>
           <label class="ch-field">Type à l’import <select id="ntImpType" class="ch-ty" aria-label="Type des réseaux importés"></select></label>
           <details class="ch-more"><summary>Quelles données ?</summary><p>Banques publiques : IGN BD TOPO (canalisations, lignes électriques) et OpenStreetMap, pour la zone affichée. PDF (DT) : plan vectoriel lu sur votre appareil, calé avec 2 points communs avec la carte. Les réseaux de distribution des villes ne sont pas publics : tracez-les d’après les plans de la DT-DICT, ou importez un GeoJSON ou KML.</p></details>
