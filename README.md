@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.3.1 : zoom et grand angle pris en compte, parcelles en traits fins
+
+- Correction : la focale de la photo (zoom, téléobjectif, grand angle) n'était pas lue ; toutes les photos étaient ouvertes avec un champ standard (24 mm pour un drone, 26 mm pour un téléphone). La focale équivalente 35 mm est maintenant lue dans la photo, recalculée d'après la focale réelle et la taille du capteur si elle manque, et le zoom numérique des drones est appliqué. La vue 3D et la superposition ont donc le bon champ dès l'ouverture.
+- Parcelles du cadastre en traits fins (données vectorielles de l'IGN) au lieu d'une image épaisse : limites nettes de près comme de loin, avec un carré sur chaque angle de parcelle. Le clic s'accroche à l'angle le plus proche.
+- Plan IGN plus transparent, pour laisser voir la photo.
+
 ## Version 2.3.0 : caler la photo sur le plan IGN et les parcelles
 
 - En superposition, des repères au sol s'affichent par-dessus la photo, vus depuis la position de la prise de vue : plan IGN (routes, bâtiments) en transparence, limites de parcelles du cadastre, et photo aérienne en option. Trois boutons « Repères au sol » les affichent ou les masquent ; le choix est mémorisé.

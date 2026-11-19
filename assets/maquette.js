@@ -400,9 +400,30 @@ const WMTS_ANY = (layer, style, fmt) => (z, x, y) => `https://data.geopf.fr/wmts
 /* Repères au sol proposés en superposition : plan IGN (routes, bâtiments), parcelles du cadastre, photo aérienne. */
 const REF = {
   ortho: { url: WMTS_ORTHO, op: .6, z: .02 },
-  plan: { url: WMTS_ANY('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'normal', 'image/png'), op: .5, z: .03 },
-  parc: { url: WMTS_ANY('CADASTRALPARCELS.PARCELLAIRE_EXPRESS', 'PCI%20vecteur', 'image/png'), op: 1, z: .04, clear: true }
+  plan: { url: WMTS_ANY('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2', 'normal', 'image/png'), op: .38, z: .03 },
+  parc: { vec: true, z: .05 }
 };
+/* Parcelles du cadastre en traits fins (données vectorielles de l'IGN) : limites nettes à toutes les distances et angles de parcelle sur lesquels le clic s'accroche. */
+async function buildParcels(frame, bounds, zOff) {
+  const a = frame.toLL(bounds[0], bounds[1]), b = frame.toLL(bounds[2], bounds[3]);
+  const u = 'https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=3000&BBOX=' + [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])].map(v => v.toFixed(7)).join(',') + ',urn:ogc:def:crs:EPSG::4326';
+  const r = await fetch(u); if (!r.ok) throw new Error('cadastre ' + r.status); const j = await r.json();
+  const seg = [], seen = new Set(), pts = [], corners = [], key = (x, y) => Math.round(x * 20) + ':' + Math.round(y * 20);
+  (j.features || []).forEach(f => { const g = f.geometry; if (!g) return; (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []).forEach(poly => poly.forEach(ring => {
+    const en = ring.map(c => frame.toEN(c[1], c[0]));
+    for (let i = 0; i < en.length; i++) {
+      const k = key(en[i][0], en[i][1]); if (!seen.has(k)) { seen.add(k); pts.push(en[i][0], en[i][1], zOff); corners.push([en[i][0], en[i][1]]); }
+      if (i) { const k2 = key(en[i - 1][0], en[i - 1][1]), e = k < k2 ? k + '|' + k2 : k2 + '|' + k; if (!seen.has(e)) { seen.add(e); seg.push(en[i - 1][0], en[i - 1][1], zOff, en[i][0], en[i][1], zOff); } }
+    }
+  })); });
+  const grp = new THREE.Group(); if (!seg.length) return { grp, corners, n: 0 };
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+  const halo = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x1a1200, transparent: true, opacity: .55, depthTest: false, toneMapped: false, fog: false })); halo.position.z = -.01; halo.scale.setScalar(1.0005); halo.renderOrder = 4;
+  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xffa000, depthTest: false, toneMapped: false, fog: false })); lines.renderOrder = 5;
+  const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const dots = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xffd23f, size: 7, sizeAttenuation: false, depthTest: false, toneMapped: false, fog: false })); dots.renderOrder = 6;
+  grp.add(halo, lines, dots); return { grp, corners, n: seg.length / 6 };
+}
 async function buildGround(frame, bounds, { maxTiles = 36, zMin = 15, zOff = 0, url = WMTS_ORTHO, clear = false } = {}) {
   // bounds : [minE, minN, maxE, maxN] en mètres autour de l'origine ; choisit le niveau de zoom qui garde ≤ 36 tuiles
   const corners = [[bounds[0], bounds[1]], [bounds[2], bounds[3]]].map(p => frame.toLL(p[0], p[1]));
@@ -677,7 +698,9 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     const dist = d.z < -0.05 ? Math.min(260, -o.z / d.z * hl) : 150, hx = hl > 1e-3 ? d.x / hl : 0, hy = hl > 1e-3 ? d.y / hl : 0, cx = o.x + hx * dist * .6, cy = o.y + hy * dist * .6, half = Math.max(90, Math.min(300, dist * .8 + 70));
     return [cx - half, cy - half, cx + half, cy + half];
   };
-  const dropRef = kind => { const c = v3.refs[kind]; if (!c) return; world.remove(c.mesh); c.mesh.geometry.dispose(); if (c.mesh.material.map) c.mesh.material.map.dispose(); c.mesh.material.dispose(); delete v3.refs[kind]; };
+  const binObj = o => o.traverse(q => { if (q.geometry) q.geometry.dispose(); if (q.material) { if (q.material.map) q.material.map.dispose(); q.material.dispose(); } });
+  const dropRef = kind => { const c = v3.refs[kind]; if (!c) return; world.remove(c.mesh); binObj(c.mesh); delete v3.refs[kind]; };
+  v3.dropRefs = () => Object.keys(v3.refs).forEach(dropRef);
   const syncRef = () => {
     const lk = v3.lock;
     Object.keys(REF).forEach(kind => {
@@ -686,14 +709,22 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
       const b = refBounds(lk), key = b.map(v => Math.round(v / 25)).join(',');
       if (cur && cur.key === key) { cur.mesh.visible = true; return; }
       dropRef(kind); const tok = v3.refTok[kind] = (v3.refTok[kind] || 0) + 1, R = REF[kind];
-      buildGround(state.frame, b, { maxTiles: 64, zMin: 15, zOff: R.z, url: R.url, clear: !!R.clear }).then(g => {
-        const m = g.mesh, bin = () => { m.geometry.dispose(); if (m.material.map) m.material.map.dispose(); m.material.dispose(); };
-        if (!v3 || v3.dead || v3.refTok[kind] !== tok || !g.tiles) { bin(); if (v3 && !v3.dead && v3.refTok[kind] === tok && !g.tiles && onNote) onNote('Ce repère au sol n’a pas pu être chargé (connexion ou zone non couverte).'); return; }
-        m.material.transparent = true; m.material.opacity = R.op; m.material.depthWrite = false; m.material.toneMapped = false; m.renderOrder = 3; m.userData.dispose = true;
-        world.add(m); v3.refs[kind] = { mesh: m, key }; m.visible = !!(v3.lock && v3.refOn[kind]); v3.wakeC = performance.now() + 700;
-      }).catch(() => { /* repère indisponible */ });
+      const live = () => v3 && !v3.dead && v3.refTok[kind] === tok, fail = () => { if (live() && onNote) onNote('Ce repère au sol n’a pas pu être chargé (connexion ou zone non couverte).'); };
+      const put = (m, extra) => { world.add(m); v3.refs[kind] = Object.assign({ mesh: m, key }, extra); m.visible = !!(v3.lock && v3.refOn[kind]); v3.wakeC = performance.now() + 700; };
+      if (R.vec) buildParcels(state.frame, b, R.z).then(g => { if (!live()) { binObj(g.grp); return; } if (!g.n) { fail(); return; } put(g.grp, { corners: g.corners.map(c => new THREE.Vector3(c[0], c[1], 0).applyMatrix4(Tinv)) }); }).catch(fail);
+      else buildGround(state.frame, b, { maxTiles: 64, zMin: 15, zOff: R.z, url: R.url }).then(g => {
+        const m = g.mesh; if (!live() || !g.tiles) { binObj(m); if (!g.tiles) fail(); return; }
+        m.material.transparent = true; m.material.opacity = R.op; m.material.depthWrite = false; m.material.toneMapped = false; m.renderOrder = 3; m.userData.dispose = true; put(m);
+      }).catch(fail);
     });
     v3.wakeC = performance.now() + 700;
+  };
+  /* angle de parcelle le plus proche du clic, à l'écran */
+  const snapRef = (px, py) => {
+    const c = v3.refs.parc; if (!c || !c.mesh.visible || !c.corners) return null;
+    const r = boxOf(), q = new THREE.Vector3(); let best = null, bd = 16 * 16;
+    c.corners.forEach(P => { q.copy(P).project(camera); if (q.z > 1 || q.z < -1) return; const dx = (q.x + 1) / 2 * r.width - px, dy = (1 - q.y) / 2 * r.height - py, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = P; } });
+    return best && best.clone();
   };
   v3.syncRef = syncRef;
   const anyRef = () => Object.keys(REF).some(k => v3.refOn[k]);
@@ -730,9 +761,9 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     const lk = v3.lock; if (!lk) return;
     if (!lk.pending) {
       // avec des repères au sol affichés, le clic vise le sol (angle de parcelle, bord de route) ; sinon un élément de la maquette, et à défaut le sol
-      const P = anyRef() ? (groundP(px, py) || snap(px, py)) : (snap(px, py) || groundP(px, py));
+      const corner = snapRef(px, py), P = corner || (anyRef() ? (groundP(px, py) || snap(px, py)) : (snap(px, py) || groundP(px, py)));
       if (!P) { onNote && onNote('Rien à cet endroit : visez le sol, sous l’horizon, ou un élément de la maquette.'); return; }
-      lk.pending = P; drawMarks(); onNote && onNote('Repère choisi (rond jaune). Cliquez maintenant le même point sur la photo : elle sera redressée pour qu’il tombe dessus. Échap pour annuler.');
+      lk.pending = P; drawMarks(); onNote && onNote((corner ? 'Angle de parcelle accroché' : 'Repère choisi') + ' (rond jaune). Cliquez maintenant le même point sur la photo : elle sera redressée pour qu’il tombe dessus. Échap pour annuler.');
     } else {
       const r = boxOf(); let t = [px / r.width * 2 - 1, -(py / r.height * 2 - 1)];
       if (lk.Hi) { const q = map3(lk.Hi, t[0], t[1]); if (q[2] > 0) t = [q[0], q[1]]; } // le clic vise la photo telle qu'elle est affichée, déjà redressée
@@ -941,7 +972,7 @@ export function close3D() {
   if (v3.virtual) { state.sol = null; state.frame = null; }
   v3.dead = true; cancelAnimationFrame(v3.raf); v3.ro.disconnect(); v3.controls.dispose();
   v3.scene.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && (o.userData.photoId || o.userData.dispose || o === v3.ground || o === v3.ground2)) { o.geometry.dispose(); if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
-  v3.look.dispose(); v3.renderer.dispose(); v3.renderer.domElement.remove(); if (v3.marks) v3.marks.remove(); v3 = null;
+  if (v3.dropRefs) v3.dropRefs(); v3.look.dispose(); v3.renderer.dispose(); v3.renderer.domElement.remove(); if (v3.marks) v3.marks.remove(); v3 = null;
 }
 
 

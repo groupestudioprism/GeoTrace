@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.3.0';
+const VERSION = '2.3.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -187,6 +187,17 @@ function compassSvg(h) {
 }
 
 /* ================= Lecture des métadonnées ================= */
+/* Focale équivalente 35 mm de la photo, pour que la vue 3D ait le même champ que l'appareil : zoom, téléobjectif et grand angle compris.
+   À défaut de la valeur toute faite, elle est recalculée d'après la focale réelle et la taille du capteur. Le zoom numérique des drones est appliqué en plus. */
+function focal35(m, drone) {
+  let f = num(m.FocalLengthIn35mmFormat); if (f == null) f = num(m.FocalLengthIn35mmFilm);
+  if (!(f > 0)) {
+    const fl = num(m.FocalLength), rx = num(m.FocalPlaneXResolution), ry = num(m.FocalPlaneYResolution), w = num(m.ExifImageWidth), h = num(m.ExifImageHeight), un = { 2: 25.4, 3: 10, 4: 1, 5: .001 }[m.FocalPlaneResolutionUnit] || ({ inches: 25.4, Centimeter: 10, cm: 10 }[m.FocalPlaneResolutionUnit]) || 25.4;
+    if (fl > 0 && rx > 0 && ry > 0 && w > 0 && h > 0) { const d = Math.hypot(w / rx * un, h / ry * un); if (d > 2 && d < 80) f = fl * 43.267 / d; }
+  }
+  const dz = num(m.DigitalZoomRatio); if (f > 0 && drone && dz > 1.01 && dz < 30) f *= dz;
+  return f > 0 ? f : null;
+}
 async function readMeta(input) {
   let m = {};
   try { m = await exifr.parse(input, { gps: true, xmp: true, tiff: true, exif: true, mergeOutput: true }) || {}; } catch (e) { m = {}; }
@@ -201,7 +212,7 @@ async function readMeta(input) {
   const date = m.DateTimeOriginal instanceof Date ? m.DateTimeOriginal : (m.CreateDate instanceof Date ? m.CreateDate : null);
   return {
     lat: num(m.latitude), lon: num(m.longitude), alt: num(m.GPSAltitude), rel: num(m.RelativeAltitude),
-    heading: heading != null ? ((heading % 360) + 360) % 360 : null, headingSrc, pitch: gimbal, f35: num(m.FocalLengthIn35mmFilm), date,
+    heading: heading != null ? ((heading % 360) + 360) % 360 : null, headingSrc, pitch: gimbal, f35: focal35(m, drone), date,
     dev: drone ? 'drone' : tab ? 'tab' : 'phone', model: [make, model].filter(Boolean).join(' '),
   };
 }
