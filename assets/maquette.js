@@ -408,8 +408,7 @@ const REF = {
 async function fetchRoads(frame, bounds) {
   const a = frame.toLL(bounds[0], bounds[1]), b = frame.toLL(bounds[2], bounds[3]);
   const u = 'https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=BDTOPO_V3:troncon_de_route&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=1500&BBOX=' + [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])].map(v => v.toFixed(7)).join(',') + ',urn:ogc:def:crs:EPSG::4326';
-  let r = await fetch(u).catch(() => null); if (!r || !r.ok) { await new Promise(t => setTimeout(t, 900)); r = await fetch(u); } // le service de l'IGN répond parfois à la deuxième demande
-  if (!r.ok) throw new Error('routes ' + r.status); const j = await r.json(), out = [];
+  const j = await wfsJson(u), out = [];
   (j.features || []).forEach(f => {
     const g = f.geometry, pr = f.properties || {}, nat = String(pr.nature || ''); if (!g || /sentier|escalier|bac|piste cyclable/i.test(nat)) return;
     let w = +pr.largeur_de_chaussee; if (!(w > 0)) w = /chemin/i.test(nat) ? 3 : 5;
@@ -427,18 +426,22 @@ function roadsGroup(roads, zOff) { // les deux bords de chaque chaussée, en tra
   grp.add(halo, lines); return grp;
 }
 /* Parcelles du cadastre en traits fins (données vectorielles de l'IGN) : limites nettes à toutes les distances et angles de parcelle sur lesquels le clic s'accroche. */
-async function buildParcels(frame, bounds, zOff) {
+async function wfsJson(u) { let r = await fetch(u).catch(() => null); for (let k = 0; k < 2 && (!r || !r.ok); k++) { await new Promise(t => setTimeout(t, 900 + 900 * k)); r = await fetch(u).catch(() => null); } if (!r || !r.ok) throw new Error('IGN ' + (r ? r.status : 'réseau')); return r.json(); } // le service de l'IGN répond parfois au deuxième ou troisième essai
+async function fetchParcels(frame, bounds) {
   const a = frame.toLL(bounds[0], bounds[1]), b = frame.toLL(bounds[2], bounds[3]);
   const u = 'https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&COUNT=3000&BBOX=' + [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])].map(v => v.toFixed(7)).join(',') + ',urn:ogc:def:crs:EPSG::4326';
-  const r = await fetch(u); if (!r.ok) throw new Error('cadastre ' + r.status); const j = await r.json();
-  const seg = [], seen = new Set(), pts = [], corners = [], key = (x, y) => Math.round(x * 20) + ':' + Math.round(y * 20);
+  const j = await wfsJson(u), seg = [], seen = new Set(), corners = [], key = (x, y) => Math.round(x * 20) + ':' + Math.round(y * 20);
   (j.features || []).forEach(f => { const g = f.geometry; if (!g) return; (g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []).forEach(poly => poly.forEach(ring => {
     const en = ring.map(c => frame.toEN(c[1], c[0]));
     for (let i = 0; i < en.length; i++) {
-      const k = key(en[i][0], en[i][1]); if (!seen.has(k)) { seen.add(k); pts.push(en[i][0], en[i][1], zOff); corners.push([en[i][0], en[i][1]]); }
-      if (i) { const k2 = key(en[i - 1][0], en[i - 1][1]), e = k < k2 ? k + '|' + k2 : k2 + '|' + k; if (!seen.has(e)) { seen.add(e); seg.push(en[i - 1][0], en[i - 1][1], zOff, en[i][0], en[i][1], zOff); } }
+      const k = key(en[i][0], en[i][1]); if (!seen.has(k)) { seen.add(k); corners.push([en[i][0], en[i][1]]); }
+      if (i) { const k2 = key(en[i - 1][0], en[i - 1][1]), e = k < k2 ? k + '|' + k2 : k2 + '|' + k; if (!seen.has(e)) { seen.add(e); seg.push(en[i - 1][0], en[i - 1][1], en[i][0], en[i][1]); } }
     }
   })); });
+  return { seg, corners };
+}
+function parcelsGroup(data, zOff) {
+  const seg = [], pts = [], corners = data.corners; for (let i = 0; i < data.seg.length; i += 4) seg.push(data.seg[i], data.seg[i + 1], zOff, data.seg[i + 2], data.seg[i + 3], zOff); corners.forEach(c => pts.push(c[0], c[1], zOff));
   const grp = new THREE.Group(); if (!seg.length) return { grp, corners, n: 0 };
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
   const halo = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x1a1200, transparent: true, opacity: .55, depthTest: false, toneMapped: false, fog: false })); halo.position.z = -.01; halo.scale.setScalar(1.0005); halo.renderOrder = 4;
@@ -724,6 +727,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     return [cx - half, cy - half, cx + half, cy + half];
   };
   const roadsFor = lk => { const b = refBounds(lk), key = b.map(v => Math.round(v / 25)).join(','); if (!v3.roadCache || v3.roadCache.key !== key) { const pr = fetchRoads(state.frame, b); v3.roadCache = { key, p: pr }; pr.catch(() => { if (v3 && v3.roadCache && v3.roadCache.p === pr) v3.roadCache = null; }); } return v3.roadCache.p; };
+  const parcFor = lk => { const b = refBounds(lk), key = b.map(v => Math.round(v / 25)).join(','); if (!v3.parcCache || v3.parcCache.key !== key) { const pr = fetchParcels(state.frame, b); v3.parcCache = { key, p: pr }; pr.catch(() => { if (v3 && v3.parcCache && v3.parcCache.p === pr) v3.parcCache = null; }); } return v3.parcCache.p; };
   const binObj = o => o.traverse(q => { if (q.geometry) q.geometry.dispose(); if (q.material) { if (q.material.map) q.material.map.dispose(); q.material.dispose(); } });
   const dropRef = kind => { const c = v3.refs[kind]; if (!c) return; world.remove(c.mesh); binObj(c.mesh); delete v3.refs[kind]; };
   v3.dropRefs = () => Object.keys(v3.refs).forEach(dropRef);
@@ -738,7 +742,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
       const live = () => v3 && !v3.dead && v3.refTok[kind] === tok, fail = () => { if (live() && onNote) onNote('Ce repère au sol n’a pas pu être chargé (connexion ou zone non couverte).'); };
       const put = (m, extra) => { world.add(m); v3.refs[kind] = Object.assign({ mesh: m, key }, extra); m.visible = !!(v3.lock && v3.refOn[kind]); v3.wakeC = performance.now() + 700; };
       if (R.vec === 'route') roadsFor(lk).then(rs => { if (!live()) return; if (!rs.length) { fail(); return; } put(roadsGroup(rs, R.z)); }).catch(fail);
-      else if (R.vec) buildParcels(state.frame, b, R.z).then(g => { if (!live()) { binObj(g.grp); return; } if (!g.n) { fail(); return; } put(g.grp, { corners: g.corners.map(c => new THREE.Vector3(c[0], c[1], 0).applyMatrix4(Tinv)) }); }).catch(fail);
+      else if (R.vec) parcFor(lk).then(d => { if (!live()) return; if (!d.seg.length) { fail(); return; } const g = parcelsGroup(d, R.z); put(g.grp, { corners: d.corners.map(c => new THREE.Vector3(c[0], c[1], 0).applyMatrix4(Tinv)) }); }).catch(fail);
       else buildGround(state.frame, b, { maxTiles: 64, zMin: 15, zOff: R.z, url: R.url }).then(g => {
         const m = g.mesh; if (!live() || !g.tiles) { binObj(m); if (!g.tiles) fail(); return; }
         m.material.transparent = true; m.material.opacity = R.op; m.material.depthWrite = false; m.material.toneMapped = false; m.renderOrder = 3; m.userData.dispose = true; put(m);
@@ -754,57 +758,74 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     return best && best.clone();
   };
   v3.syncRef = syncRef;
-  /* Calage automatique sur les routes, sans rien afficher : la chaussée est repérée dans la photo (zones grises, ni végétation ni ciel), les routes de l'IGN sont projetées
-     depuis la position de la prise de vue, puis on cherche le glissement, la rotation et le changement d'échelle de la photo qui les superposent le mieux.
-     Le résultat n'est gardé que si la correspondance est nette ; il sert de base, que des points cliqués peuvent ensuite corriger. */
+  /* Calage automatique sur les routes et les parcelles, sans rien afficher.
+     Principe : on cherche où était réellement l'appareil. Pour chaque hypothèse (cap, inclinaison, roulis, position, hauteur, zoom, dans les marges d'erreur d'un GPS et d'une boussole),
+     les routes et les limites de parcelles de l'IGN sont projetées sur la photo et comparées à ce qu'elle montre : la chaussée doit tomber sur du gris et ses abords sur autre chose,
+     les bords de route et les limites de parcelles sur des contours visibles. Recherche large (des dizaines de milliers d'hypothèses), puis affinage des meilleures.
+     Le résultat n'est gardé que s'il est net et sans rival ; il devient un redressement de la photo, que des points cliqués peuvent corriger. */
   v3.autoRoads = async ({ quiet = false } = {}) => {
     const lk = v3.lock, say = t => { if (!quiet && onNote) onNote(t); }; if (!lk || !photoEl || !photoEl.naturalWidth) return { ok: false, why: 'photo' };
-    say('Recherche des routes dans la photo…');
-    let roads; try { roads = await roadsFor(lk); } catch (e) { say('Les routes de l’IGN n’ont pas pu être chargées (connexion).'); return { ok: false, why: 'net' }; }
-    if (!v3 || v3.dead || v3.lock !== lk) return { ok: false, why: 'changed' };
-    const a = lk.aspect, GW = 96, GH = Math.max(24, Math.round(GW / a)), n = GW * GH, q = new THREE.Vector3();
-    // 1. où les routes devraient se trouver dans le cadre
-    const cv = document.createElement('canvas'); cv.width = GW; cv.height = GH; const cx = cv.getContext('2d', { willReadFrequently: true }); cx.fillStyle = '#000'; cx.fillRect(0, 0, GW, GH); cx.fillStyle = '#fff';
-    const proj = (E, N) => { q.set(E, N, 0).applyMatrix4(Tinv).project(camera); return (q.z > 1 || q.z < -1) ? null : [(q.x + 1) / 2 * GW, (1 - q.y) / 2 * GH]; };
-    roads.forEach(r => { if (r.w < 2.2) return; for (let i = 1; i < r.pts.length; i++) {
-      const A = r.pts[i - 1], B = r.pts[i], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < .01) continue; const m = Math.max(1, Math.ceil(L / 4)), nx = -(B[1] - A[1]) / L * r.w / 2, ny = (B[0] - A[0]) / L * r.w / 2;
-      for (let k = 0; k < m; k++) {
-        const x0 = A[0] + (B[0] - A[0]) * k / m, y0 = A[1] + (B[1] - A[1]) * k / m, x1 = A[0] + (B[0] - A[0]) * (k + 1) / m, y1 = A[1] + (B[1] - A[1]) * (k + 1) / m;
-        const c = [proj(x0 + nx, y0 + ny), proj(x1 + nx, y1 + ny), proj(x1 - nx, y1 - ny), proj(x0 - nx, y0 - ny)]; if (c.some(v => !v) || c.every(v => v[0] < -GW || v[0] > 2 * GW || v[1] < -GH || v[1] > 2 * GH)) continue;
-        cx.beginPath(); cx.moveTo(c[0][0], c[0][1]); cx.lineTo(c[1][0], c[1][1]); cx.lineTo(c[2][0], c[2][1]); cx.lineTo(c[3][0], c[3][1]); cx.closePath(); cx.fill();
-      } } });
-    const md = cx.getImageData(0, 0, GW, GH).data, M = new Float32Array(n); let sM = 0; for (let i = 0; i < n; i++) { M[i] = md[i * 4] / 255; sM += M[i]; }
-    if (sM / n < .012 || sM / n > .6) { say('Pas de route de l’IGN dans le champ de cette photo : calez-la avec des points.'); return { ok: false, why: 'noroad' }; }
-    // 2. où la photo ressemble à de la chaussée
-    const PW = GW * 2, PH = GH * 2, pc = document.createElement('canvas'); pc.width = PW; pc.height = PH; let pd;
-    try { const px = pc.getContext('2d', { willReadFrequently: true }); px.drawImage(photoEl, 0, 0, PW, PH); pd = px.getImageData(0, 0, PW, PH).data; } catch (e) { say('Cette photo ne peut pas être analysée (image distante protégée).'); return { ok: false, why: 'pixels' }; }
-    const R0 = new Float32Array(PW * PH), R = new Float32Array(PW * PH);
-    for (let i = 0; i < PW * PH; i++) { const r = pd[i * 4] / 255, g = pd[i * 4 + 1] / 255, b = pd[i * 4 + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = (mx - mn) / (mx + .001); R0[i] = (g > r * 1.04 && g > b * 1.04) || (b > r * 1.18) || sat > .2 || mx < .2 || mx > .9 ? 0 : 1 - sat / .2; }
-    for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { let t = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const u = x + dx, v = y + dy; if (u >= 0 && u < PW && v >= 0 && v < PH) { t += R0[v * PW + u]; c++; } } R[y * PW + x] = t / c; }
-    // 3. recherche : pour chaque point du cadre, où aller le chercher dans la photo
-    const X = Float32Array.from({ length: GW }, (_, i) => ((i + .5) / GW * 2 - 1) * a), Y = Float32Array.from({ length: GH }, (_, j) => 1 - (j + .5) / GH * 2);
-    const ncc = (tx, ty, th, ls, st) => {
-      const sc = Math.exp(ls), c = Math.cos(th) * sc, sn = Math.sin(th) * sc; let sR = 0, sRR = 0, sMR = 0, sm = 0, smm = 0, cnt = 0;
-      for (let j = 0; j < GH; j += st) for (let i = 0; i < GW; i += st) { const x = X[i], y = Y[j], px = c * x - sn * y + tx, py = sn * x + c * y + ty, u = Math.floor((px / a + 1) / 2 * PW), v = Math.floor((1 - py) / 2 * PH), r = u >= 0 && u < PW && v >= 0 && v < PH ? R[v * PW + u] : 0, m = M[j * GW + i]; sR += r; sRR += r * r; sMR += m * r; sm += m; smm += m * m; cnt++; }
-      return (sMR - sm * sR / cnt) / Math.sqrt((smm - sm * sm / cnt) * (sRR - sR * sR / cnt) + 1e-9);
-    };
-    const prior = (tx, ty, th, ls) => .02 * (tx * tx + ty * ty) / .01 + .02 * (th / .07) ** 2 + .02 * (ls / .08) ** 2, sc = (p, st) => ncc(p[0], p[1], p[2], p[3], st) - prior(p[0], p[1], p[2], p[3]);
-    let best = [0, 0, 0, 0], bs = sc(best, 2);
-    for (let th = -9; th <= 9; th += 3) for (let ls = -.12; ls <= .121; ls += .06) for (let tx = -.3; tx <= .301; tx += .05) for (let ty = -.3; ty <= .301; ty += .05) { const p = [tx, ty, th * RAD, ls], v = sc(p, 2); if (v > bs) { bs = v; best = p; } }
-    bs = sc(best, 1); let steps = [.025, .025, 1.5 * RAD, .03];
-    for (let it = 0; it < 5; it++) { for (let k = 0; k < 4; k++) for (const d of [-1, 1]) { const p = best.slice(); p[k] += d * steps[k]; const v = sc(p, 1); if (v > bs) { bs = v; best = p; } } steps = steps.map(v => v / 2); }
-    const raw = ncc(best[0], best[1], best[2], best[3], 1), raw0 = ncc(0, 0, 0, 0, 1), moved = Math.hypot(best[0], best[1]) > .012 || Math.abs(best[2]) > .008 || Math.abs(best[3]) > .012;
-    if (!(raw >= .2) || (moved && raw - raw0 < .03)) { say('La route n’est pas assez nette dans cette photo pour un calage automatique fiable : calez-la avec des points.'); return { ok: false, why: 'faible', score: raw }; }
-    if (!moved) { say('La photo tombe déjà sur les routes : rien à corriger.'); return { ok: true, moved: false, score: raw }; }
-    // 4. quatre points d'appui au sol, bien écartés, qui portent ce redressement (il suit ensuite la vue si on la réoriente)
-    const cand = []; for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) { const nx = -.85 + 1.7 * i / 16, ny = -.85 + 1.7 * j / 16; ptr.set(nx, ny); ray.setFromCamera(ptr, camera); const o = ray.ray.origin.clone().applyMatrix4(v3.Tm), d = ray.ray.direction.clone().transformDirection(v3.Tm); if (d.z > -1e-4) continue; const t = -o.z / d.z; if (t <= 0 || t * Math.hypot(d.x, d.y) > 800) continue; cand.push({ nx, ny, P: new THREE.Vector3(o.x + d.x * t, o.y + d.y * t, 0).applyMatrix4(Tinv) }); }
-    const ext = f => cand.reduce((b, c) => (!b || f(c) > f(b) ? c : b), null), four = [...new Set([ext(c => c.nx + c.ny), ext(c => -c.nx - c.ny), ext(c => c.nx - c.ny), ext(c => c.ny - c.nx)])];
-    if (four.length < 4 || four.some(c => !c)) { say('Le sol n’est pas assez visible dans cette photo pour un calage automatique.'); return { ok: false, why: 'sol' }; }
-    const esc = Math.exp(best[3]), co = Math.cos(best[2]) * esc, si = Math.sin(best[2]) * esc;
-    lk.auto = four.map(c => { const x = c.nx * a, y = c.ny; return { P: c.P, t: [(co * x - si * y + best[0]) / a, si * x + co * y + best[1]] }; });
-    keepWarp(lk); applyLock(); persist();
-    say(`Photo calée automatiquement sur les routes (correspondance ${raw >= .4 ? 'nette' : 'moyenne'}). Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.`);
-    return { ok: true, moved: true, score: raw };
+    if (lk.busy) return { ok: false, why: 'busy' }; lk.busy = true;
+    try {
+      say('Recherche des routes et des parcelles dans la photo…');
+      const [rr, pp] = await Promise.allSettled([roadsFor(lk), parcFor(lk)]); if (!v3 || v3.dead || v3.lock !== lk) return { ok: false, why: 'changed' };
+      const roads = rr.status === 'fulfilled' ? rr.value : [], parc = pp.status === 'fulfilled' ? pp.value : { seg: [] };
+      if (rr.status !== 'fulfilled' && pp.status !== 'fulfilled') { say('Les routes et les parcelles de l’IGN n’ont pas pu être chargées (service indisponible). Réessayez dans un instant.'); return { ok: false, why: 'net' }; }
+      // 1. cartes tirées de la photo : « ressemble à de la chaussée » et « contour visible »
+      const a = lk.aspect, PW = 256, PH = Math.max(48, Math.round(PW / a)), NP = PW * PH, pc = document.createElement('canvas'); pc.width = PW; pc.height = PH; let pd;
+      try { const px = pc.getContext('2d', { willReadFrequently: true }); px.drawImage(photoEl, 0, 0, PW, PH); pd = px.getImageData(0, 0, PW, PH).data; } catch (e) { say('Cette photo ne peut pas être analysée (image distante protégée).'); return { ok: false, why: 'pixels' }; }
+      const R0 = new Float32Array(NP), Lm = new Float32Array(NP), R = new Float32Array(NP), G0 = new Float32Array(NP), E = new Float32Array(NP);
+      for (let i = 0; i < NP; i++) { const r = pd[i * 4] / 255, g = pd[i * 4 + 1] / 255, b = pd[i * 4 + 2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = (mx - mn) / (mx + .001); Lm[i] = .3 * r + .59 * g + .11 * b + .6 * (g - (r + b) / 2); R0[i] = (g > r * 1.04 && g > b * 1.04) || (b > r * 1.18) || sat > .2 || mx < .2 || mx > .9 ? 0 : 1 - sat / .2; }
+      const blur = (src, dst, k) => { for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { let t = 0, c = 0; for (let dy = -k; dy <= k; dy++) for (let dx = -k; dx <= k; dx++) { const u = x + dx, v = y + dy; if (u >= 0 && u < PW && v >= 0 && v < PH) { t += src[v * PW + u]; c++; } } dst[y * PW + x] = t / c; } };
+      blur(R0, R, 1);
+      for (let y = 1; y < PH - 1; y++) for (let x = 1; x < PW - 1; x++) { const i = y * PW + x; G0[i] = Math.hypot(Lm[i + 1] - Lm[i - 1], Lm[i + PW] - Lm[i - PW]); }
+      blur(G0, E, 2); let mE = 0; for (let i = 0; i < NP; i++) mE += E[i]; mE = mE / NP || 1e-6; for (let i = 0; i < NP; i++) E[i] = Math.min(3, E[i] / mE) - 1;
+      // 2. points d'épreuve au sol, dans le repère du chantier : chaussée, abords, traits (bords de route et limites de parcelles)
+      const cam0 = poseCam(lk, lk.adj), o0 = cam0.position.clone().applyMatrix4(v3.Tm), near = (x, y) => Math.hypot(x - o0.x, y - o0.y) < 330, pr = [], pb = [], pl = [];
+      roads.forEach(r => { if (r.w < 2.2) return; for (let i = 1; i < r.pts.length; i++) { const A = r.pts[i - 1], B = r.pts[i], L = Math.hypot(B[0] - A[0], B[1] - A[1]); if (L < .01) continue; const m = Math.max(1, Math.round(L / 2)), ux = -(B[1] - A[1]) / L, uy = (B[0] - A[0]) / L;
+        for (let k = 0; k <= m; k++) { const x = A[0] + (B[0] - A[0]) * k / m, y = A[1] + (B[1] - A[1]) * k / m; if (!near(x, y)) continue; [-r.w / 3, 0, r.w / 3].forEach(d => pr.push(x + ux * d, y + uy * d)); [r.w / 2 + 2.5, r.w / 2 + 6].forEach(d => { pb.push(x + ux * d, y + uy * d); pb.push(x - ux * d, y - uy * d); }); pl.push(x + ux * r.w / 2, y + uy * r.w / 2, x - ux * r.w / 2, y - uy * r.w / 2); } } });
+      const nEdge = pl.length;
+      for (let i = 0; i < parc.seg.length; i += 4) { const x0 = parc.seg[i], y0 = parc.seg[i + 1], x1 = parc.seg[i + 2], y1 = parc.seg[i + 3], L = Math.hypot(x1 - x0, y1 - y0), m = Math.max(1, Math.round(L / 2.5)); for (let k = 0; k <= m; k++) { const x = x0 + (x1 - x0) * k / m, y = y0 + (y1 - y0) * k / m; if (near(x, y)) pl.push(x, y); } }
+      const thin = (arr, max) => { const n = arr.length / 2; if (n <= max) return Float32Array.from(arr); const st = Math.ceil(n / max), o = []; for (let i = 0; i < n; i += st) o.push(arr[i * 2], arr[i * 2 + 1]); return Float32Array.from(o); };
+      const Pr = thin(pr, 2400), Pb = thin(pb, 2400), Pl = thin(pl, 3200);
+      // 3. note d'une hypothèse de prise de vue
+      const mPV = new THREE.Matrix4(), acc = [0, 0];
+      const sum = (pts, map, e, st) => { let sw = 0, sv = 0; for (let i = 0; i < pts.length; i += 2 * st) { const x = pts[i], y = pts[i + 1], w = e[3] * x + e[7] * y + e[15]; if (w < 1) continue; const nx = (e[0] * x + e[4] * y + e[12]) / w, ny = (e[1] * x + e[5] * y + e[13]) / w; if (nx < -1 || nx > 1 || ny < -1 || ny > 1) continue; const wt = w < 60 ? 1 : 3600 / (w * w), u = Math.min(PW - 1, (nx + 1) / 2 * PW | 0), v = Math.min(PH - 1, (1 - ny) / 2 * PH | 0); sw += wt; sv += wt * map[v * PW + u]; } acc[0] = sw; acc[1] = sv; };
+      const D = { yaw: 6, pitch: 3, roll: 1.5, e: 5, n: 5, z: lk.p.dev === 'drone' ? 6 : .5, zoom: .04 }, KS = ['yaw', 'pitch', 'roll', 'e', 'n', 'z', 'zoom'], SG = KS.map(k => D[k]);
+      const adjOf = x => { const o = Object.assign({}, lk.adj); o.yaw += x[0]; o.pitch += x[1]; o.roll += x[2]; o.e += x[3]; o.n += x[4]; o.z += x[5]; o.zoom = Math.max(.3, Math.min(4, lk.adj.zoom * Math.exp(x[6]))); return o; };
+      const matOf = x => { const c = poseCam(lk, adjOf(x)); mPV.multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse).multiply(Tinv); return mPV.elements; };
+      let ref = null;
+      const raw = (x, st) => { const e = matOf(x); let C = 0, hasR = false, swr = 0; if (Pr.length) { sum(Pr, R, e, st); swr = acc[0]; const ar = acc[0] > 0 ? acc[1] / acc[0] : 0; sum(Pb, R, e, st); const ab = acc[0] > 0 ? acc[1] / acc[0] : 0; hasR = swr > 3; C = hasR ? ar - ab : 0; } sum(Pl, E, e, st); const swl = acc[0], al = swl > 3 ? acc[1] / swl : 0; return { C, al, swr, swl, hasR }; };
+      const total = (x, st) => { const q = raw(x, st); if (ref && (q.swr < ref.swr * .5 / st || q.swl < ref.swl * .45 / st)) return -9; let pen = 0; for (let k = 0; k < 7; k++) pen += (x[k] / SG[k]) ** 2; return q.C + .14 * q.al - .012 * pen; };
+      const zero = [0, 0, 0, 0, 0, 0, 0], q0 = raw(zero, 1); ref = { swr: q0.swr, swl: q0.swl };
+      if (q0.swr < 12 && q0.swl < 40) { say('Ni route ni limite de parcelle de l’IGN dans le champ de cette photo : calez-la avec des points.'); return { ok: false, why: 'noroad' }; }
+      // 4. recherche large au hasard dans les marges d'erreur, puis affinage des meilleures hypothèses
+      let seed = 12345; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296, gau = () => (rnd() + rnd() + rnd() + rnd() - 2) * 1.73;
+      const top = [{ x: zero, s: total(zero, 3) }], NT = 14, N1 = 36000; let t0 = performance.now();
+      for (let i = 0; i < N1; i++) {
+        const wide = i % 3 === 0 ? 2.2 : 1.2, x = SG.map(sg => gau() * sg * wide), sc = total(x, 3);
+        if (top.length < NT || sc > top[top.length - 1].s) { top.push({ x, s: sc }); top.sort((p1, p2) => p2.s - p1.s); if (top.length > NT) top.pop(); }
+        if ((i & 255) === 0 && performance.now() - t0 > 12) { await new Promise(r => setTimeout(r, 0)); t0 = performance.now(); if (!v3 || v3.dead || v3.lock !== lk) return { ok: false, why: 'changed' }; }
+      }
+      const polish = async (x, st) => { let bs = total(x, st), steps = SG.map(v => v * .5); for (let it = 0; it < 7; it++) { for (let k = 0; k < 7; k++) for (const d of [-1, 1]) { const y = x.slice(); y[k] += d * steps[k]; const v = total(y, st); if (v > bs) { bs = v; x = y; } } steps = steps.map(v => v * .55); } return { x, s: bs }; };
+      const fin = []; for (const c of top) { fin.push(await polish(c.x, 2)); await new Promise(r => setTimeout(r, 0)); if (!v3 || v3.dead || v3.lock !== lk) return { ok: false, why: 'changed' }; }
+      fin.sort((p1, p2) => p2.s - p1.s); const best = await polish(fin[0].x, 1), qb = raw(best.x, 1), s0 = total(zero, 1);
+      // 5. contrôles : résultat net, meilleur que le point de départ, et sans rival ailleurs
+      const gain = best.s - s0, far = (x, y) => Math.sqrt(x.reduce((t, v, k) => t + ((v - y[k]) / SG[k]) ** 2, 0)), rival = fin.slice(1).find(c => far(c.x, best.x) > 2.5 && c.s > best.s - Math.max(.012, gain * .06));
+      const strong = (qb.hasR && qb.C >= .16) || (!qb.hasR && qb.al >= .45), moved = far(best.x, zero) > .12;
+      const info = { score: +best.s.toFixed(3), route: +qb.C.toFixed(3), traits: +qb.al.toFixed(3), gain: +gain.toFixed(3), x: best.x.map(v => +v.toFixed(3)) };
+      if (!strong || (moved && gain < .025)) { say('Les routes et les limites ne sont pas assez nettes dans cette photo pour un calage automatique fiable : calez-la avec des points.'); return Object.assign({ ok: false, why: 'faible' }, info); }
+      if (!moved) { say('La photo tombe déjà sur les routes et les parcelles : rien à corriger.'); return Object.assign({ ok: true, moved: false }, info); }
+      if (rival) { say('Deux calages différents conviennent presque aussi bien l’un que l’autre : je préfère ne pas choisir. Calez la photo avec des points.'); return Object.assign({ ok: false, why: 'ambigu' }, info); }
+      // 6. quatre points d'appui au sol, bien écartés : où ils sont dans la photo (appareil retrouvé) et où la vue 3D les montre
+      const camB = poseCam(lk, adjOf(best.x)), cand = [];
+      for (let j = 0; j <= 16; j++) for (let i = 0; i <= 16; i++) { const nx = -.85 + 1.7 * i / 16, ny = -.85 + 1.7 * j / 16; ptr.set(nx, ny); ray.setFromCamera(ptr, camera); const o = ray.ray.origin.clone().applyMatrix4(v3.Tm), d = ray.ray.direction.clone().transformDirection(v3.Tm); if (d.z > -1e-4) continue; const t = -o.z / d.z; if (t <= 0 || t * Math.hypot(d.x, d.y) > 600) continue; const P = new THREE.Vector3(o.x + d.x * t, o.y + d.y * t, 0).applyMatrix4(Tinv), n = P.clone().project(camB); if (n.z > 1 || n.z < -1 || Math.abs(n.x) > 3 || Math.abs(n.y) > 3) continue; cand.push({ nx, ny, P, t: [n.x, n.y] }); }
+      const ext = f => cand.reduce((b, c) => (!b || f(c) > f(b) ? c : b), null), four = [...new Set([ext(c => c.nx + c.ny), ext(c => -c.nx - c.ny), ext(c => c.nx - c.ny), ext(c => c.ny - c.nx)])];
+      if (four.length < 4 || four.some(c => !c)) { say('Le sol n’est pas assez visible dans cette photo pour un calage automatique.'); return { ok: false, why: 'sol' }; }
+      lk.auto = four.map(c => ({ P: c.P, t: c.t })); keepWarp(lk); applyLock(); persist();
+      say(`Photo calée automatiquement sur ${qb.hasR ? 'les routes' : 'les limites'}${qb.hasR && parc.seg.length ? ' et les parcelles' : ''} (correspondance ${qb.C >= .3 ? 'nette' : 'moyenne'}). Vérifiez, puis affinez avec des points si besoin. Double-clic pour annuler.`);
+      return Object.assign({ ok: true, moved: true }, info);
+    } finally { lk.busy = false; }
   };
   const anyRef = () => Object.keys(REF).some(k => v3.refOn[k]);
   const groundP = (px, py) => { // point du sol sous le clic, dans le repère de la scène

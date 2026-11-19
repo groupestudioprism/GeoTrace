@@ -228,6 +228,14 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.5.0 : calage automatique plus poussé, routes et parcelles ensemble
+
+- La recherche ne déplace plus l'image au jugé : elle retrouve où était réellement l'appareil (cap, inclinaison, roulis, position, hauteur, zoom), dans les marges d'erreur d'un GPS et d'une boussole. Une photo en vue oblique ne « glisse » donc plus vers le fond.
+- Routes et parcelles servent ensemble : la chaussée doit tomber sur du gris et ses abords sur autre chose ; les bords de route et les limites de parcelles doivent tomber sur des contours visibles de la photo.
+- 36 000 hypothèses essayées, puis affinage des 14 meilleures (environ une seconde, sans bloquer l'écran).
+- Trois contrôles avant d'appliquer : correspondance nette, vrai progrès par rapport au point de départ, et aucun autre calage très différent qui conviendrait presque aussi bien (sinon GeoTrace le dit et ne choisit pas).
+- Le bouton s'appelle maintenant « Caler automatiquement ». Les services de l'IGN sont redemandés jusqu'à trois fois s'ils ne répondent pas.
+
 ## Version 2.4.0 : calage automatique des photos sur les routes
 
 - À la première superposition d'une photo, GeoTrace cherche la chaussée dans l'image (zones grises, ni végétation ni ciel), projette les routes de l'IGN (BD TOPO : axe et largeur) depuis la position de la prise de vue, puis trouve le glissement, la rotation et le changement d'échelle de la photo qui les superposent le mieux. Rien n'est affiché pendant le calcul, qui dure moins d'une seconde.
