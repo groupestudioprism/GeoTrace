@@ -510,13 +510,10 @@ const sharedKey = p => SHARED + (p.dev || 'phone');
 /* Réglage propre à la photo s'il existe, sinon réglage commun (appliqué à toutes les photos), sinon aucun. */
 /* Réglages fournis avec le projet (fichier .geotrace.json) : { photos: { clé: réglage }, commun: { drone|phone: réglage } }. */
 let projVues = null;
-const loadAdj = p => {
+const loadAdj = p => { // chaque photo a son propre calage, indépendant des autres : ni réglage commun, ni réglage hérité d'une photo voisine
   try {
-    const own = localStorage.getItem(adjKey(p)) || localStorage.getItem(sharedKey(p));
-    const pv = projVues && ((projVues.photos && projVues.photos[p.key || p.name]) || (projVues.commun && projVues.commun[p.dev || 'phone']));
-    // sans réglage propre ni fichier d'équipe : le calage automatique du projet (hauteur, cap, décalage corrigés d'après les autres photos)
-    const rv = localStorage.getItem('geotrace:rvue:' + (p.key || p.name));
-    return Object.assign(ADJ0(), own ? JSON.parse(own) : (pv || (rv ? JSON.parse(rv) : {})));
+    const own = localStorage.getItem(adjKey(p)), pv = projVues && projVues.photos && projVues.photos[p.key || p.name];
+    return Object.assign(ADJ0(), own ? JSON.parse(own) : (pv || {}));
   } catch (e) { return ADJ0(); }
 };
 /* Tous les réglages de photos enregistrés sur cet ordinateur, pour le fichier de calage de l'équipe. */

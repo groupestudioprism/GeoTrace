@@ -846,3 +846,5 @@ body.split3d #v3Full { background: rgba(255,255,255,.14); }
 }
 
 .pip-ref { align-items: center; } .pip-ref b { flex: 1 1 100%; font-size: .8rem; font-weight: 600; opacity: .85; }
+
+#v3Near, #v3Share { display: none !important; } /* le calage est propre à chaque photo */

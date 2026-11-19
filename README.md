@@ -228,6 +228,11 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.5.1 : un calage par photo, indépendant des autres
+
+- Chaque photo est calée pour elle-même : plus de réglage commun par type d'appareil, plus de réglage hérité d'une photo voisine, plus d'ancien calage global repris au passage. Le calage automatique part des seules données de la photo (GPS, cap, inclinaison, focale).
+- Les boutons « Aux photos voisines » et « Appliquer à toutes » sont retirés. Le calage propre à chaque photo reste enregistré, y compris dans le fichier de calage de l'équipe.
+
 ## Version 2.5.0 : calage automatique plus poussé, routes et parcelles ensemble
 
 - La recherche ne déplace plus l'image au jugé : elle retrouve où était réellement l'appareil (cap, inclinaison, roulis, position, hauteur, zoom), dans les marges d'erreur d'un GPS et d'une boussole. Une photo en vue oblique ne « glisse » donc plus vers le fond.
