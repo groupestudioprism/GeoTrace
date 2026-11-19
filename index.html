@@ -34,23 +34,14 @@
 <noscript><p style="padding:24px">GeoTrace a besoin de JavaScript pour fonctionner.</p></noscript>
 
 <header id="top">
-  <button class="icon-btn only-mobile" id="panelToggle" type="button" aria-label="Afficher la liste des photos" aria-expanded="false" data-ic="list"></button>
   <a class="brand" href="./" aria-label="GeoTrace, accueil">
     <img class="sym" src="assets/symbol.png" alt="" width="31" height="36">
     <img class="wm wm-l" src="assets/wordmark.svg" alt="GeoTrace" width="116" height="23"><img class="wm wm-d" src="assets/wordmark-dark.svg" alt="" width="116" height="23">
   </a>
-
-  <a class="sturno" href="https://www.sturno.com" target="_blank" rel="noopener" aria-label="Application STURNO">
-    <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="30" height="30">
-    <b>STURNO</b>
-  </a>
-
-
-  <span class="grow"></span>
-  <span class="sub" id="sub" aria-live="polite"></span>
-
+  <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir<span class="lbl-x"> des photos</span></span></button>
+  <button class="btn" id="panelToggle" type="button" title="Afficher ou masquer la liste des photos" aria-label="Liste des photos" aria-expanded="true"><span data-ic="list"></span><span class="lbl">Photos</span></button>
   <div class="pop-wrap">
-    <button class="btn" id="layersBtn" type="button" title="Changer le fond de carte et les calques" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Fond de carte</button>
+    <button class="btn" id="layersBtn" type="button" title="Changer le fond de carte et les calques" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Fond<span class="lbl-x"> de carte</span></button>
     <div class="menu" id="layersMenu" hidden>
       <fieldset>
         <legend>Fond de carte</legend>
@@ -92,7 +83,7 @@
       <button type="button" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV de la sélection</small></button>
     </div>
   </div>
-
+  <span class="grow"></span>
   <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
   <div class="pop-wrap">
     <button class="icon-btn" id="hmBtn" type="button" aria-label="Aide" aria-expanded="false" aria-controls="hmMenu" data-ic="help"></button>
@@ -103,7 +94,10 @@
   </div>
   <button class="btn vh" id="tutoBtn" type="button">Tuto</button>
   <button class="icon-btn vh" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
-  <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir des photos</span></button>
+  <a class="sturno" href="https://www.sturno.com" target="_blank" rel="noopener" aria-label="Application STURNO">
+    <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="30" height="30">
+    <b>STURNO</b>
+  </a>
 </header>
 
 <main id="app">
@@ -113,6 +107,7 @@
         <span class="src" id="srcName">Aucune photo ouverte</span>
         <button class="btn small" id="addBtn" type="button" disabled>Ajouter</button>
       </div>
+      <span class="sub" id="sub" aria-live="polite"></span>
       <div class="filter">
         <span class="si" data-ic="search"></span>
         <input id="q" type="search" placeholder="Filtrer par nom, dossier ou note" autocomplete="off" aria-label="Filtrer les photos">

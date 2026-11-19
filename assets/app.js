@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -958,7 +958,7 @@ function setTheme(t) {
 $('themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
 /* ================= Panneau ================= */
-function applyPanel() { $('app').classList.toggle('panel-off', !prefs.panel); setTimeout(() => map.invalidateSize(), 60); }
+function applyPanel() { $('app').classList.toggle('panel-off', !prefs.panel); if (!matchMedia('(max-width: 760px)').matches) $('panelToggle').setAttribute('aria-expanded', String(!!prefs.panel)); setTimeout(() => map.invalidateSize(), 60); }
 const isMobile = () => matchMedia('(max-width: 760px)').matches;
 function closeSheet() { $('app').classList.remove('sheet-open'); $('panelToggle').setAttribute('aria-expanded', 'false'); }
 function togglePanel() {
@@ -1277,7 +1277,7 @@ $('v3Full').addEventListener('click', () => { try { localStorage.setItem('geotra
   const apply = f => { f = Math.min(.8, Math.max(.28, f)); if (vert()) root.setProperty('--sh', Math.round(f * 100) + 'vh'); else { root.setProperty('--sw', Math.round(f * 100) + 'vw'); try { localStorage.setItem(SW_KEY, String(f)); } catch (e) { /* ignoré */ } } map.invalidateSize(); return f; };
   g.addEventListener('pointerdown', e => {
     e.preventDefault(); g.classList.add('drag'); try { g.setPointerCapture(e.pointerId); } catch (er) { /* sans capture */ }
-    const mv = ev => apply(vert() ? (ev.clientY - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h'))) / innerHeight : ev.clientX / innerWidth);
+    const mv = ev => apply(vert() ? (ev.clientY - parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h'))) / innerHeight : (ev.clientX - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail-w')) || 0)) / innerWidth);
     const up = () => { g.classList.remove('drag'); g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); };
     g.addEventListener('pointermove', mv); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
   });

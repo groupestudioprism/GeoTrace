@@ -228,6 +228,15 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.1.0 : nouvelle disposition
+
+- Sur ordinateur, la barre du haut disparaît : les outils sont dans une colonne à gauche (Ouvrir, Photos, Fond, Chantier, 3D, Exporter, puis thème et aide en bas). La carte gagne toute la hauteur de l'écran.
+- Le bouton « Photos » de la colonne affiche ou masque la liste des photos ; le nombre de photos s'affiche sous le nom du dossier.
+- Les panneaux Chantier et Maquette deviennent une colonne de travail sur toute la hauteur, à droite ; la frise et les mentions de la carte se décalent pour ne pas passer dessous.
+- Les menus (fond de carte, 3D, export, aide) s'ouvrent à côté de la colonne.
+- En vue 3D partagée : colonne d'outils, 3D, carte et panneau Chantier côte à côte.
+- Sur téléphone, la barre du haut en icônes est conservée.
+
 ## Version 2.0.0 : refonte du site
 
 **Design**
