@@ -483,7 +483,7 @@ export const savePhotoAdj = (p, a) => saveAdj(p, a);
 /* Applique le réglage de la photo ouverte à toutes les autres (leurs réglages propres sont effacés). Renvoie le nombre de photos concernées. */
 function shareAdj(lk, photos) {
   try {
-    const a = lk.adj; localStorage.setItem(sharedKey(lk.p), JSON.stringify(a)); let n = 0;
+    const a = lk.adj, c = Object.assign({}, a); delete c.warp; localStorage.setItem(sharedKey(lk.p), JSON.stringify(c)); let n = 0;
     photos.forEach(p => { if (p === lk.p || (p.dev || 'phone') !== (lk.p.dev || 'phone')) return; if (localStorage.getItem(adjKey(p)) != null) localStorage.removeItem(adjKey(p)); n++; });
     saveAdj(lk.p, a); return n;
   } catch (e) { return 0; }
@@ -492,7 +492,7 @@ function shareAdj(lk, photos) {
 function shareNear(lk, photos) {
   const t0 = lk.p.t; if (t0 == null) return 0;
   let n = 0;
-  photos.forEach(p => { if (p === lk.p || p.t == null || (p.dev || 'phone') !== (lk.p.dev || 'phone') || Math.abs(p.t - t0) > 120) return; saveAdj(p, Object.assign({}, lk.adj)); n++; });
+  photos.forEach(p => { if (p === lk.p || p.t == null || (p.dev || 'phone') !== (lk.p.dev || 'phone') || Math.abs(p.t - t0) > 120) return; const c = Object.assign({}, lk.adj); delete c.warp; saveAdj(p, c); n++; });
   saveAdj(lk.p, lk.adj); return n;
 }
 /* Remet toutes les photos sans réglage. */
@@ -501,7 +501,7 @@ function clearAdj(photos) { projVues = null; try { photos.forEach(p => { localSt
 function disposeTree(g) { g.traverse(o => { if ((o.isMesh || o.isLine || o.isSprite) && o.userData.dispose) { if (o.geometry) o.geometry.dispose(); [].concat(o.material || []).forEach(m => { if (m.map) m.map.dispose(); m.dispose(); }); } }); }
 
 /* photos : [{ id, name, key, lat, lon, heading, pitch, f35, dev, rel, tex }] ; focus : id d'une photo pour placer la caméra comme à la prise de vue. */
-export async function open3D(host, { photos = [], focus = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote, onItem, onGround, onMoveItem, virtual = null }) {
+export async function open3D(host, { photos = [], focus = null, photoEl = null, zones = [], zoneColors = null, devs = [], devColors = null, phases = [], phaseId = null, nets = [], netColors = null, engins = [], enginsBase = 'assets/models/', onPhoto, onElement, onNote, onItem, onGround, onMoveItem, virtual = null }) {
   close3D();
   // sans maquette : un site vide (terrain, photos, zones, réseaux, engins) autour d'un point GPS, repère local à l'identité
   let m = state.model, virt = false;
@@ -586,6 +586,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     const W = host.clientWidth || 800, H = host.clientHeight || 500; let w = W, h = H;
     if (v3.lock) { const a = v3.lock.aspect, k = v3.k == null ? 1 : v3.k; let wt = W, ht = H; if (W / H > a) wt = H * a; else ht = W / a; w = W + (wt - W) * k; h = H + (ht - H) * k; }
     camera.aspect = w / h;
+    if (v3.applyWarp) v3.applyWarp();
     renderer.setSize(w, h); const st = renderer.domElement.style; st.position = 'absolute'; st.left = (W - w) / 2 + 'px'; st.top = (H - h) / 2 + 'px';
     camera.updateProjectionMatrix();
   };
@@ -603,7 +604,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   const applyLock = () => {
     const lk = v3.lock; if (!lk) return; const cam = poseCam(lk, lk.adj);
     camera.position.copy(cam.position); camera.quaternion.copy(cam.quaternion); camera.fov = cam.fov;
-    camera.updateProjectionMatrix(); camera.updateMatrixWorld(); drawMarks();
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld(); computeWarp(lk); applyWarp(); drawMarks();
   };
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
   const syncVis = () => {
@@ -615,33 +616,54 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
   };
   const setXf = k => { v3.k = k; syncVis(); fitSize(); if (v3.lock) applyLock(); };
   v3.syncVis = syncVis; v3.poseCam = poseCam; v3.applyLock = applyLock;
-  /* Calage par points : un point de la maquette, puis le même point sur la photo. 1 point règle le cap et l'inclinaison, 2 points ou plus règlent aussi le roulis et le zoom. */
-  const ndcOf = (cam, x, y, z) => { const q = new THREE.Vector3(x, y, z).project(cam); return q; };
-  const solve = lk => {
-    const pr = lk.pairs; if (!pr.length) return;
-    const full = pr.length >= 2, a0 = lk.adj;
-    const get = x => Object.assign({}, a0, { yaw: x[0], pitch: x[1], roll: full ? x[2] : a0.roll, zoom: full ? Math.exp(x[3]) : a0.zoom });
-    const res = x => {
-      const cam = poseCam(lk, get(x)), out = [];
-      pr.forEach(q => { const n = ndcOf(cam, q.P.x, q.P.y, q.P.z); out.push(n.x - q.t[0], n.y - q.t[1]); });
-      if (full) out.push(x[2] * .004, (x[3] - Math.log(a0.zoom)) * .3);
-      return out;
-    };
-    let x = [a0.yaw, a0.pitch, a0.roll, Math.log(a0.zoom)]; const k = full ? 4 : 2; let lam = 1e-3, r = res(x), cost = r.reduce((t, v) => t + v * v, 0);
-    for (let it = 0; it < 40; it++) {
-      const J = []; for (let j = 0; j < k; j++) { const y = x.slice(), h = j === 3 ? 1e-3 : .02; y[j] += h; const r2 = res(y); J.push(r2.map((v, i) => (v - r[i]) / h)); }
-      const A = Array.from({ length: k }, (_, i) => Array.from({ length: k }, (_, j) => J[i].reduce((t, v, m) => t + v * J[j][m], 0) + (i === j ? lam : 0))), b = J.map(row => -row.reduce((t, v, m) => t + v * r[m], 0));
-      for (let i = 0; i < k; i++) { // élimination de Gauss
-        let m = i; for (let j = i + 1; j < k; j++) if (Math.abs(A[j][i]) > Math.abs(A[m][i])) m = j;
-        [A[i], A[m]] = [A[m], A[i]]; [b[i], b[m]] = [b[m], b[i]]; if (Math.abs(A[i][i]) < 1e-14) continue;
-        for (let j = i + 1; j < k; j++) { const f = A[j][i] / A[i][i]; for (let l = i; l < k; l++) A[j][l] -= f * A[i][l]; b[j] -= f * b[i]; }
-      }
-      const dx = Array(k).fill(0); for (let i = k - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < k; j++) t -= A[i][j] * dx[j]; dx[i] = Math.abs(A[i][i]) < 1e-14 ? 0 : t / A[i][i]; }
-      const y = x.slice(); for (let j = 0; j < k; j++) y[j] += dx[j]; const r2 = res(y), c2 = r2.reduce((t, v) => t + v * v, 0);
-      if (c2 < cost) { x = y; r = r2; const gain = cost - c2; cost = c2; lam = Math.max(lam / 3, 1e-9); if (gain < 1e-14) break; } else lam *= 5;
+  /* Superposition : la caméra reste à la position de la photo ; c'est la photo qui est redressée pour que ses points tombent sur ceux de la maquette.
+     1 point : glissement ; 2 points : rotation et échelle ; 3 points : étirement ; 4 points et plus : perspective complète (moindres carrés).
+     Les matrices 3 × 3 sont rangées ligne par ligne, en coordonnées normalisées de l'image ([-1, 1], y vers le haut). */
+  const mul3 = (a, b) => { const o = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) o.push(a[r * 3] * b[c] + a[r * 3 + 1] * b[3 + c] + a[r * 3 + 2] * b[6 + c]); return o; };
+  const inv3 = m => { const [a, b, c, d, e, f, g, h, i] = m, A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C; if (Math.abs(det) < 1e-12) return null; return [A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d].map(v => v / det); };
+  const map3 = (m, x, y) => { const w = m[6] * x + m[7] * y + m[8]; return [(m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w, w]; };
+  const gauss = (A, b) => { // système linéaire, pivot partiel ; null s'il est dégénéré
+    const n = b.length; A = A.map(r => r.slice()); b = b.slice();
+    for (let i = 0; i < n; i++) {
+      let m = i; for (let j = i + 1; j < n; j++) if (Math.abs(A[j][i]) > Math.abs(A[m][i])) m = j;
+      [A[i], A[m]] = [A[m], A[i]]; [b[i], b[m]] = [b[m], b[i]]; if (Math.abs(A[i][i]) < 1e-10) return null;
+      for (let j = i + 1; j < n; j++) { const f = A[j][i] / A[i][i]; for (let l = i; l < n; l++) A[j][l] -= f * A[i][l]; b[j] -= f * b[i]; }
     }
-    lk.adj = get(x); lk.adj.zoom = Math.max(.3, Math.min(4, lk.adj.zoom));
+    const x = Array(n).fill(0); for (let i = n - 1; i >= 0; i--) { let t = b[i]; for (let j = i + 1; j < n; j++) t -= A[i][j] * x[j]; x[i] = t / A[i][i]; }
+    return x;
   };
+  const lsq = (rows, rhs) => { const n = rows[0].length, A = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => rows.reduce((t, r) => t + r[i] * r[j], 0))), b = Array.from({ length: n }, (_, i) => rows.reduce((t, r, k) => t + r[i] * rhs[k], 0)); return gauss(A, b); };
+  const warpOf = (S, D, a) => { // S : points de la photo, D : où ils doivent tomber (x déjà corrigé du rapport largeur/hauteur a)
+    const n = S.length; if (!n) return null;
+    const trans = () => { let x = 0, y = 0; S.forEach((q, k) => { x += D[k][0] - q[0]; y += D[k][1] - q[1]; }); return [1, 0, x / n, 0, 1, y / n, 0, 0, 1]; };
+    const simil = () => { const rows = [], rhs = []; S.forEach((q, k) => { rows.push([q[0], -q[1], 1, 0]); rhs.push(D[k][0]); rows.push([q[1], q[0], 0, 1]); rhs.push(D[k][1]); }); const h = lsq(rows, rhs); return h && [h[0], -h[1], h[2], h[1], h[0], h[3], 0, 0, 1]; };
+    const affine = () => { const R = S.map(q => [q[0], q[1], 1]), u = lsq(R, D.map(q => q[0])), v = lsq(R, D.map(q => q[1])); return u && v ? [u[0], u[1], u[2], v[0], v[1], v[2], 0, 0, 1] : null; };
+    const persp = () => { const rows = [], rhs = []; S.forEach((q, k) => { const [x, y] = q, [u, v] = D[k]; rows.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); rhs.push(u); rows.push([0, 0, 0, x, y, 1, -v * x, -v * y]); rhs.push(v); }); const h = lsq(rows, rhs); return h && [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1]; };
+    // garde-fou : la photo ne doit ni se retourner, ni se replier, ni changer de taille de façon absurde (points trop proches ou mal placés) ; sinon on retombe sur une correction plus simple
+    const sane = M => { if (!M || M.some(v => !Number.isFinite(v))) return false; const c = [[-a, -1], [a, -1], [a, 1], [-a, 1]].map(q => map3(M, q[0], q[1])); if (c.some(q => !(q[2] > 0.25))) return false; let ar = 0; for (let k = 0; k < 4; k++) ar += c[k][0] * c[(k + 1) % 4][1] - c[(k + 1) % 4][0] * c[k][1]; const r = ar / (8 * a), o = map3(M, 0, 0), x = map3(M, .5, 0); return r > 0.35 && r < 3 && Math.abs(Math.atan2(x[1] - o[1], x[0] - o[0])) < 0.6; };
+    const tries = n >= 4 ? [persp, affine, simil, trans] : n === 3 ? [affine, simil, trans] : n === 2 ? [simil, trans] : [trans];
+    for (let k = 0; k < tries.length; k++) { const M = tries[k](); if (sane(M)) return { M, level: tries.length - 1 - k, full: k === 0 }; }
+    return null;
+  };
+  const ndcOf = (cam, P) => new THREE.Vector3(P.x, P.y, P.z).project(cam);
+  const computeWarp = lk => {
+    lk.H = lk.Hi = null; const a = lk.aspect, S = [], D = [];
+    lk.pairs.forEach(q => { const n = ndcOf(camera, q.P); if (n.z > 1 || n.z < -1) return; S.push([q.t[0] * a, q.t[1]]); D.push([n.x * a, n.y]); });
+    const w = warpOf(S, D, a); lk.warpFull = !w || w.full; if (!w) return; const M = w.M;
+    const H = mul3([1 / a, 0, 0, 0, 1, 0, 0, 0, 1], mul3(M, [a, 0, 0, 0, 1, 0, 0, 0, 1])), Hi = inv3(H); if (!Hi) return;
+    lk.H = H; lk.Hi = Hi;
+  };
+  const applyWarp = () => {
+    const el = photoEl, lk = v3 && v3.lock; if (!el) return;
+    if (!lk || !lk.H) { el.style.transform = ''; return; }
+    const W = el.clientWidth, Hh = el.clientHeight; if (!W || !Hh) return;
+    let w = W, h = Hh; if (W / Hh > lk.aspect) w = Hh * lk.aspect; else h = W / lk.aspect; const ox = (W - w) / 2, oy = (Hh - h) / 2;
+    const N = [2 / w, 0, -1 - 2 * ox / w, 0, -2 / h, 1 + 2 * oy / h, 0, 0, 1], Ni = [w / 2, 0, ox + w / 2, 0, -h / 2, oy + h / 2, 0, 0, 1];
+    const M = mul3(Ni, mul3(lk.H, N)).map((v, _, m) => v / m[8]);
+    el.style.transformOrigin = '0 0'; el.style.transform = `matrix3d(${M[0]},${M[3]},0,${M[6]},${M[1]},${M[4]},0,${M[7]},0,0,1,0,${M[2]},${M[5]},0,1)`;
+  };
+  v3.applyWarp = applyWarp;
+  const keepWarp = lk => { if (lk.pairs.length) lk.adj.warp = lk.pairs.map(q => [q.P.x, q.P.y, q.P.z, q.t[0], q.t[1]].map(v => +v.toFixed(4))); else delete lk.adj.warp; };
   const boxOf = () => renderer.domElement.getBoundingClientRect();
   const worldVerts = () => {
     if (v3.verts) return v3.verts; holder.updateMatrixWorld(true); const out = [], v = new THREE.Vector3();
@@ -662,7 +684,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     marks.textContent = ''; const lk = v3.lock; if (!lk) return;
     const r = boxOf(), hr = host.getBoundingClientRect(), ox = r.left - hr.left, oy = r.top - hr.top, q = new THREE.Vector3();
     const at = (P) => { q.copy(P).project(camera); return [ox + (q.x + 1) / 2 * r.width, oy + (1 - q.y) / 2 * r.height]; };
-    lk.pairs.forEach(pq => { const [x, y] = at(pq.P); dot(x, y, '#ffd23f', true); dot(ox + (pq.t[0] + 1) / 2 * r.width, oy + (1 - pq.t[1]) / 2 * r.height, '#ff5a36', false); });
+    lk.pairs.forEach(pq => { const [x, y] = at(pq.P); dot(x, y, '#ffd23f', true); const w = lk.H ? map3(lk.H, pq.t[0], pq.t[1]) : pq.t; dot(ox + (w[0] + 1) / 2 * r.width, oy + (1 - w[1]) / 2 * r.height, '#ff5a36', false); });
     if (lk.pending) { const [x, y] = at(lk.pending); dot(x, y, '#ffd23f', true); }
   };
   v3.pick = (px, py) => { // clic sans déplacement en superposition
@@ -670,11 +692,13 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     if (!lk.pending) {
       const P = snap(px, py);
       if (!P) { onNote && onNote('Aucun élément de la maquette à cet endroit. Cliquez sur une canalisation ou un ouvrage visible.'); return; }
-      lk.pending = P; drawMarks(); onNote && onNote('Point de la maquette choisi (rond jaune). Cliquez maintenant le même point sur la photo. Échap pour annuler.');
+      lk.pending = P; drawMarks(); onNote && onNote('Point de la maquette choisi (rond jaune). Cliquez maintenant le même point sur la photo : elle sera redressée pour qu’il tombe dessus. Échap pour annuler.');
     } else {
-      const r = boxOf(); lk.pairs.push({ P: lk.pending, t: [px / r.width * 2 - 1, -(py / r.height * 2 - 1)] }); lk.pending = null;
-      solve(lk); applyLock(); persist(); const n = lk.pairs.length;
-      onNote && onNote(n === 1 ? '1 point calé. Ajoutez un deuxième point, loin du premier, pour régler aussi la rotation et le zoom.' : `${n} points calés. Double-clic pour tout réinitialiser.`);
+      const r = boxOf(); let t = [px / r.width * 2 - 1, -(py / r.height * 2 - 1)];
+      if (lk.Hi) { const q = map3(lk.Hi, t[0], t[1]); if (q[2] > 0) t = [q[0], q[1]]; } // le clic vise la photo telle qu'elle est affichée, déjà redressée
+      lk.pairs.push({ P: lk.pending, t }); lk.pending = null; keepWarp(lk);
+      applyLock(); persist(); const n = lk.pairs.length;
+      onNote && onNote(!lk.warpFull ? `${n} points, mais ils sont trop proches ou mal placés pour redresser davantage sans abîmer la photo : correction limitée. Choisissez des points éloignés les uns des autres.` : n === 1 ? '1 point : la photo a glissé pour le faire coïncider. Ajoutez d’autres points, éloignés les uns des autres : à partir de 4, la perspective est corrigée.' : n < 4 ? `${n} points : la photo est tournée et mise à l’échelle. Encore ${4 - n} pour corriger la perspective.` : `${n} points : photo redressée en perspective. Double-clic pour retirer les points.`);
     }
   };
   v3.cancel = () => { const lk = v3.lock; if (!lk || !lk.pending) return false; lk.pending = null; drawMarks(); onNote && onNote(''); return true; };
@@ -684,13 +708,14 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     p._asp = aspect || p._asp || 4 / 3; if (p._bb) build(p, p._asp);
     if (v3.fly) v3.fly.cancel();
     const lk = { p, aspect: p._asp, adj: loadAdj(p), pairs: [], pending: null };
+    lk.pairs = (Array.isArray(lk.adj.warp) ? lk.adj.warp : []).filter(w => Array.isArray(w) && w.length === 5 && w.every(Number.isFinite)).map(w => ({ P: new THREE.Vector3(w[0], w[1], w[2]), t: [w[3], w[4]] }));
     const done = () => { const was = !!v3.lock; v3.fly = null; v3.lock = lk; controls.enabled = false; if (was || matchMedia('(prefers-reduced-motion: reduce)').matches) { v3.xf = null; setXf(1); } else { v3.xf = { t0: performance.now(), dur: 750 }; setXf(0); } onNote && onNote(''); resolve(true); };
     if (v3.lock) return done();
     const tgt = poseCam(lk, lk.adj); controls.enabled = false;
     v3.fly = { t0: performance.now(), dur: 750, from: { pos: camera.position.clone(), q: camera.quaternion.clone(), fov: camera.fov }, tgt, done, cancel: () => { v3.fly = null; if (!v3.lock) controls.enabled = true; resolve(false); } };
   });
   v3.release = () => {
-    if (!v3.lock) return; v3.lock = null; v3.xf = null; v3.k = 1;
+    if (!v3.lock) return; v3.lock = null; v3.xf = null; v3.k = 1; applyWarp();
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     camera.up.set(0, 0, 1); camera.fov = 60; controls.target.copy(camera.position).addScaledVector(dir, 12); controls.enabled = true; syncVis(); marks.textContent = ''; onNote && onNote(''); fitSize(); controls.update();
   };
@@ -809,7 +834,7 @@ export async function open3D(host, { photos = [], focus = null, zones = [], zone
     const k = e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 300 : 1; zAcc += (e.deltaY || 0) * k / 100; zXY = [e.clientX, e.clientY];
     if (!zRaf) zRaf = requestAnimationFrame(zoomStep);
   }, { passive: false, capture: true });
-  el.addEventListener('dblclick', () => { if (!v3.lock) return; v3.lock.adj = ADJ0(); v3.lock.pairs = []; v3.lock.pending = null; applyLock(); persist(); onNote && onNote(''); });
+  el.addEventListener('dblclick', () => { const lk = v3.lock; if (!lk) return; if (lk.pairs.length) { lk.pairs = []; delete lk.adj.warp; onNote && onNote('Points retirés : la photo reprend sa forme d’origine.'); } else { lk.adj = ADJ0(); onNote && onNote(''); } lk.pending = null; applyLock(); persist(); });
   el.addEventListener('pointerup', e => {
     if (v3.lock) {
       const was = down; drag = null; down = null;

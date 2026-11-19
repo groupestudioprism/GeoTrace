@@ -228,6 +228,15 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 2.2.0 : superposition par redressement de la photo
+
+- En superposition, la vue 3D reste à la position exacte de la photo. Les points cliqués (un point de la maquette, puis le même sur la photo) ne déplacent plus la caméra : c'est la photo qui est redressée pour tomber dessus.
+- 1 point : la photo glisse ; 2 points : elle tourne et change d'échelle ; 3 points : elle s'étire ; 4 points et plus : la perspective est corrigée (au mieux de tous les points).
+- Rond jaune : le point de la maquette ; point rouge : où tombe le point de la photo après redressement. Double-clic : retirer les points (un second double-clic remet la vue à zéro).
+- Garde-fou : si les points sont trop proches ou mal placés, la photo n'est ni retournée ni écrasée ; la correction est limitée et un message le dit.
+- Le redressement est enregistré avec la photo (et dans le fichier de calage de l'équipe) ; il n'est jamais copié sur les autres photos par « Aux photos voisines » ou « Appliquer à toutes ».
+- Hors superposition, rien ne change : position des photos sur la carte, cônes, vue 3D libre.
+
 ## Version 2.1.0 : nouvelle disposition
 
 - Sur ordinateur, la barre du haut disparaît : les outils sont dans une colonne à gauche (Ouvrir, Photos, Fond, Chantier, 3D, Exporter, puis thème et aide en bas). La carte gagne toute la hauteur de l'écran.

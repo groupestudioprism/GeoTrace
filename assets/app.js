@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1323,7 +1323,7 @@ async function open3d(focusId) {
   $('v3d').hidden = false; document.body.style.overflow = 'hidden'; setSplit(split3d);
   $('v3Pip').hidden = true; $('v3Elem').hidden = true; setBlend(false);
   status('Préparation de la vue 3D…');
-  try { await M.open3D($('v3Host'), { virtual, photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote, onGround: groundTool, onItem: id => { if (Chantier) Chantier.selectItem(id); }, onMoveItem: (id, la, lo) => { if (Chantier) Chantier.moveEngin(id, la, lo); } }); }
+  try { await M.open3D($('v3Host'), { virtual, photoEl: $('v3PipImg'), photos: list, focus: null, zones: Chantier ? Chantier.getZones() : [], zoneColors: Chantier ? Chantier.COLORS : null, devs: Chantier ? Chantier.getDevs() : [], devColors: Chantier ? Chantier.DEV_COLORS : null, phases: Chantier ? Chantier.getPhases() : [], phaseId: Chantier ? Chantier.getPhase() : null, nets: Chantier ? Chantier.getNets() : [], netColors: Chantier ? Chantier.NET_COLORS : null, engins: Chantier ? Chantier.getEngins3d() : [], enginsBase: Chantier ? Chantier.MODELS_BASE : undefined, onPhoto: alignPhoto, onElement: showElem, onNote: showNote, onGround: groundTool, onItem: id => { if (Chantier) Chantier.selectItem(id); }, onMoveItem: (id, la, lo) => { if (Chantier) Chantier.moveEngin(id, la, lo); } }); }
   catch (e) { console.error(e); close3d(); status('La vue 3D n’a pas pu démarrer sur cet appareil.', { ms: 5000 }); return; }
   status('');
   fillPhase3d(); { const n = Chantier ? Chantier.getNets().length : 0; $('v3NetsL').hidden = !n; $('v3Nets').checked = true; }
@@ -1384,7 +1384,7 @@ function markStrip(id) {
   const b = st.querySelector(`[data-id="${id}"]`); if (b) { b.classList.add('on'); if (!b.hidden) b.scrollIntoView({ inline: 'center', block: 'nearest' }); }
 }
 const HINT_FREE = $('v3Hint').textContent;
-const HINT_LOCK = 'Superposition : Glisser : orienter · Maj + glisser : déplacer · Molette : zoom · Double-clic : annuler le calage · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
+const HINT_LOCK = 'Superposition : la vue 3D reste à la position de la photo, c’est la photo qui est redressée. Cliquez un point de la maquette puis le même sur la photo · Double-clic : retirer les points · Glisser : orienter la vue · ← → : photo suivante · Échap ou ✕ : retour à la vue 3D.';
 function setBlend(on) {
   $('v3Blend').setAttribute('aria-pressed', String(on)); $('v3Pip').classList.toggle('blend', on); $('v3Alpha').hidden = !on;
   $('v3Hint').textContent = on ? HINT_LOCK : HINT_FREE; $('v3d').classList.toggle('locked', on); $('v3Calib').hidden = !on; $('v3Share').hidden = $('v3Near').hidden = $('v3Clear').hidden = $('v3Save').hidden = !on;
