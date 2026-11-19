@@ -566,3 +566,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 
 - La zone se dessine **à main levée** (maintenir appuyé et contourner, souris ou doigt) ou en cliquant les coins.
 - Plus de limite de 4 km : la zone est découpée en carreaux d'environ 1 km, interrogés 2 par 2, avec progression sur le bouton ; seuls les carreaux qui touchent la zone sont demandés (150 carreaux maximum, soit de l'ordre de 150 km²). Le message final indique, par source, le nombre de tronçons et les requêtes restées sans réponse.
+
+## Version 2.8.0 : gaz, électricité et chaleur en données ouvertes
+
+- Nouvelles sources dans « Importer depuis les banques publiques » : **Agence ORE** (réseaux de distribution de gaz et d'électricité, jeux repérés dans le catalogue au moment de l'import) et **France Chaleur Urbaine** (tracés des réseaux de chaleur et de froid, fichier data.gouv lu une fois puis filtré sur la zone). Nouveau type de réseau « Chaleur, froid ».
+- Ces tracés sont **indicatifs** (ils ne remplacent pas la réponse de DT-DICT). Eau potable et assainissement : pas de base nationale ouverte, seules certaines collectivités publient leurs données (à importer en GeoJSON / KML) ; sinon plan de DT en PDF.
+- Les adresses de ces services n'ont pas pu être testées depuis l'environnement de développement (test avec réponses simulées) : le message final indique, par source, les requêtes restées sans réponse.
