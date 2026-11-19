@@ -576,3 +576,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 ## Version 2.8.1 : calage automatique du PDF de DT
 
 - À l'ouverture d'un PDF de DT, GeoTrace cherche les repères de quadrillage Lambert-93 écrits sur le plan (nombres à 6 chiffres pour X, 7 chiffres pour Y). S'il en trouve au moins 2 de chaque et qu'ils sont cohérents (même échelle en X et en Y, alignés), le plan est **calé tout seul** et l'aperçu s'affiche. Sinon : calage à 2 points comme avant. Dans les deux cas, vérifier l'aperçu avant d'importer.
+
+## Version 2.8.2 : sources énergie vérifiées (Enedis, GRDF, RTE) et correction du WFS IGN
+
+- Enedis (Data-Fair : réseaux BT/HTA souterrains et aériens), GRDF (OpenDataSoft, gaz de distribution, pagination par 100) et RTE via ODRÉ (lignes souterraines très haute tension) remplacent les sources devinées. Chaque source est comptée séparément dans le message final.
+- IGN BD TOPO : la boîte de recherche est maintenant envoyée au format WFS 2.0 (latitude puis longitude, CRS en urn), l'ordre des axes de la réponse est détecté. L'ancienne forme pouvait renvoyer une zone décalée, donc peu ou pas de résultats.
+- Pas encore branché : gaz de transport (GRTgaz), poteaux et postes Enedis (points).
