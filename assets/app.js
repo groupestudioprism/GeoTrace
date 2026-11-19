@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '1.35.0';
+const VERSION = '1.36.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -442,7 +442,6 @@ function finish() {
   $('dFrom').max = $('dTo').max = dates.length ? isoDay(dates[dates.length - 1]) : '';
   $('addBtn').disabled = false; $('exportBtn').disabled = false;
   refresh(true);
-  setTimeout(autoProjectCalib, 600); // le projet se cale tout seul dès qu'il est ouvert
   const withGps = placedOf(photos).length;
   if (!withGps) status('Aucune de ces photos ne contient de position GPS. Elles restent dans la liste.', { ms: 7000 });
 }
@@ -744,7 +743,6 @@ function sendRepTo3D(key, items) {
 }
 async function openRepere() {
   const p = vList[vIdx]; if (!p) return;
-  if (pcRun) { status('Le calage du projet est en cours : patientez quelques instants.', { ms: 3500 }); return; }
   const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
   if (!src) { status('Cette photo ne peut pas être repérée dans le navigateur.', { ms: 4000 }); return; }
   if (!Rep) { try { Rep = await import('./repere.js'); } catch (e) { console.error(e); status('Repérage indisponible.', { ms: 4000 }); return; } }
@@ -801,66 +799,6 @@ async function paintOver() {
 }
 [['ofOwn', 'own'], ['ofOthers', 'others']].forEach(([id, k]) => { $(id).checked = !!ovlF[k]; $(id).addEventListener('change', () => { ovlF[k] = $(id).checked; store.set('geotrace:ovlf', ovlF); paintOver(); }); });
 window.addEventListener('resize', () => { if (!$('viewer').hidden) paintOver(); });
-/* Calage de tout le projet : points communs entre toutes les photos voisines, réglage de toutes les photos ensemble */
-let pcLayer = null, pcRun = null;
-const PCSIG = 'geotrace:pcsig';
-const pcSig = list => list.map(p => p.key).sort().join('|');
-// Au chargement d'un projet : calage automatique, sauf si ces mêmes photos ont déjà été calées
-function autoProjectCalib() {
-  const list = photos.filter(p => p.lat != null && p.heading != null);
-  if (list.length < 2 || pcRun) return;
-  let done = null; try { done = localStorage.getItem(PCSIG); } catch (e) { /* stockage indisponible */ }
-  if (done === pcSig(list)) return;
-  projectCalib(true);
-}
-async function projectCalib(auto) {
-  if (pcRun) return;
-  const list = photos.filter(p => p.lat != null && p.heading != null);
-  if (list.length < 2) { status('Il faut au moins 2 photos avec position GPS et direction.', { ms: 4000 }); return; }
-  let box = document.getElementById('pcBox');
-  if (!box) {
-    box = document.createElement('div'); box.id = 'pcBox'; box.setAttribute('role', 'status');
-    box.innerHTML = '<b>Calage du projet</b><span id="pcTxt"></span><progress id="pcBar" max="1" value="0"></progress><button class="btn small" id="pcStop" type="button">Arrêter</button>';
-    document.body.appendChild(box);
-  }
-  box.hidden = false;
-  const run = pcRun = { stop: false };
-  document.getElementById('pcStop').onclick = () => { run.stop = true; };
-  const txt = document.getElementById('pcTxt'), bar = document.getElementById('pcBar');
-  let M = null; try { M = await maq(); } catch (e) { M = null; }
-  let PC = null;
-  try { PC = await import('./projcal.js'); } catch (e) { console.error(e); }
-  if (!PC) { box.hidden = true; pcRun = null; status('Calage du projet indisponible.', { ms: 4000 }); return; }
-  const items = list.map(p => ({ key: p.key, pose: poseOf(p, M), load: async () => {
-    const src = p.kind === 'remote' ? (p.previewUrl || p.url) : await displayUrl(p);
-    if (!src) return null;
-    return await new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
-  } }));
-  let applied = false;
-  const apply = res => {
-    applied = true;
-    try { localStorage.setItem(PCSIG, pcSig(list)); } catch (e) { /* stockage indisponible */ }
-    for (const k in res.adjs) { try { localStorage.setItem('geotrace:rvue:' + k, JSON.stringify(res.adjs[k])); } catch (e) { /* stockage indisponible */ } }
-    if (pcLayer) { pcLayer.remove(); pcLayer = null; }
-    if (window.L && map && res.points.length) {
-      const rend = L.canvas({ padding: 0.3 });
-      pcLayer = L.layerGroup(res.points.map(q => L.circleMarker(q, { renderer: rend, radius: 2, weight: 0, fillColor: '#ff2d8a', fillOpacity: .8, interactive: false }))).addTo(map);
-    }
-    status('Projet calé : ' + res.stats.photos + ' photos, ' + res.stats.pairs + ' paires, ' + res.stats.obs + ' points communs. Écart moyen ' + res.stats.before.toFixed(1) + ' → ' + res.stats.after.toFixed(1) + ' px. Les dessins sont recalculés à l’ouverture.', { ms: 7000 });
-    if (!$('viewer').hidden) paintOver();
-  };
-  let r = null;
-  try { r = await PC.calibrateProject({ photos: items, onProgress: (t, f) => { txt.textContent = t; bar.value = f || 0; }, cancelled: () => run.stop, onCalibrated: apply }); }
-  catch (e) { console.error(e); r = { error: 'Le calage a échoué.' }; }
-  box.hidden = true; pcRun = null;
-  if (!applied) {
-    if (!r || r.cancelled) { status('Calage du projet arrêté : rien n’a été modifié.', { ms: 4000 }); return; }
-    if (r.error && auto) { status('Calage automatique impossible : ' + r.error, { ms: 6000 }); return; }
-    if (r.error) { status('Calage du projet : ' + r.error, { ms: 6000 }); return; }
-    apply(r);
-  }
-}
-$('pcBtn').addEventListener('click', () => projectCalib(false));
 function paintRepBtn() { const p = vList[vIdx], b = $('vRep'); if (!b || !p) return; const n = repCount(reps[p.key]); b.textContent = n ? `Repérage (${n})` : 'Repérer'; }
 $('vRep').addEventListener('click', openRepere);
 $('vClose').addEventListener('click', closeViewer);

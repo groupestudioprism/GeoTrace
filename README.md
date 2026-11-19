@@ -228,6 +228,12 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 1.36.0 : fin du calage automatique du projet
+
+- Le calage de tout le projet (recherche de points communs entre toutes les photos) est retiré : il était long et faisait chauffer le PC à chaque ouverture, surtout avec plusieurs centaines de photos de drone.
+- Plus aucun calcul lourd au chargement des photos. Le bouton « Recaler le projet » et son entrée du menu 3D disparaissent.
+- Le recalage d'une seule photo reste disponible (Repérage › « Recaler automatiquement » et « Aux photos voisines »), sans ralentir le reste.
+
 ## Version 1.35.0 : la 3D sans maquette
 
 - Le bouton 3D (Photos en 3D) s'ouvre sans maquette Revit : on voit la photo aérienne en relief autour de ce qui est affiché sur la carte, avec les photos, zones, déviations, réseaux, phases et engins. Tout reste modifiable en direct.

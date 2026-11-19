@@ -692,9 +692,6 @@ body.on-welcome .pop-wrap { display: none; }
 .v-over[hidden] { display: none; }
 
 /* Calage de tout le projet : fenêtre de progression */
-#pcBox { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000; display: grid; gap: 8px; width: min(440px, calc(100vw - 24px)); padding: 12px 14px; background: var(--panel, #fff); color: var(--text, #111); border: 1px solid var(--line, #ccd); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
-#pcBox[hidden] { display: none; }
-#pcBox progress { width: 100%; }
 
 .vh { display: none !important; }
 /* Dessin des réseaux sur la carte */
