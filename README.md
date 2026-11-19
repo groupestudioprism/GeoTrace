@@ -582,3 +582,8 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Enedis (Data-Fair : réseaux BT/HTA souterrains et aériens), GRDF (OpenDataSoft, gaz de distribution, pagination par 100) et RTE via ODRÉ (lignes souterraines très haute tension) remplacent les sources devinées. Chaque source est comptée séparément dans le message final.
 - IGN BD TOPO : la boîte de recherche est maintenant envoyée au format WFS 2.0 (latitude puis longitude, CRS en urn), l'ordre des axes de la réponse est détecté. L'ancienne forme pouvait renvoyer une zone décalée, donc peu ou pas de résultats.
 - Pas encore branché : gaz de transport (GRTgaz), poteaux et postes Enedis (points).
+
+## Version 2.9.0 : onglet Réseaux réorganisé
+
+- Deux sous-onglets fixes en haut (qui restent visibles au défilement) : **Repérage** et **Réseaux existants** (avec le nombre de réseaux).
+- Réseaux existants : bloc « Importer des réseaux » repliable (ouvert tant qu'il n'y a rien), recherche par nom ou type, pastilles de résumé par type, liste **groupée par type** (repliable, avec nombre et longueur). Chaque ligne est compacte ; « Voir » la sélectionne et déplie ses réglages (type, profondeur, diamètre, modifier le tracé, supprimer).

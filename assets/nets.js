@@ -277,9 +277,10 @@ function render() {
   });
 }
 export function select(id, openPanel) {
-  sel = id; render(); list();
+  sel = id; render(); list(); if (id) subTab('ex');
   if (openPanel) { $('chPanel').hidden = false; $('chBtn').setAttribute('aria-expanded', 'true'); tab('n'); const li = document.querySelector(`#ntList li[data-id="${id}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
 }
+function subTab(k) { document.querySelectorAll('#ntSub button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.sub === k))); $('ntPaneRs').hidden = k !== 'rs'; $('ntPaneEx').hidden = k !== 'ex'; }
 let tabFn = () => {};
 function tab(k) { tabFn(k); }
 
@@ -342,14 +343,25 @@ function addVertex(d, ll) {
 function stopEdit() { if (handles) { map.removeLayer(handles); handles = null; } if (edit) { edit = null; list(); } }
 
 /* ---------- liste ---------- */
-function list() {
-  const ul = $('ntList'); if (!ul) return;
-  const ds = getNets().filter(d => d.ph !== 'rsx'); $('ntEmpty').hidden = ds.length > 0; $('ntClear').hidden = !ds.length;
-  ul.innerHTML = ds.map(d => `<li data-id="${esc(d.id)}" class="${d.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[d.type].color}"></i><input class="ch-name" value="${esc(d.name)}" aria-label="Nom du réseau" maxlength="40"><small>${fmtLen(length(d.pts))}</small></div>
-    <div class="ch-acts"><select class="ch-ty" aria-label="Type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === d.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select>
+let openG = new Set(), qNet = '';
+const itemHtml = d => `<li data-id="${esc(d.id)}" class="${d.id === sel ? 'on' : ''}"><div class="ch-row"><i class="ch-sw" style="background:${TYPES[d.type].color}"></i><input class="ch-name" value="${esc(d.name)}" aria-label="Nom du réseau" maxlength="40"><small>${fmtLen(length(d.pts))}</small><button type="button" class="link" data-a="go">Voir</button></div>
+    <div class="nt-more"><div class="ch-acts"><select class="ch-ty" aria-label="Type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === d.type ? ' selected' : ''}>${v.label}</option>`).join('')}</select>
     <label class="dv-w">Prof. <input type="number" class="dv-width nt-depth" min="-30" max="15" step=".1" value="${d.depth}" aria-label="Profondeur en mètres, négative si aérien"> m</label>
     <label class="dv-w">Ø <input type="number" class="dv-width nt-diam" min="10" max="3000" step="10" value="${d.diam}" aria-label="Diamètre en millimètres"> mm</label></div>
-    <div class="ch-acts"><button type="button" class="link" data-a="go">Voir</button><button type="button" class="link" data-a="edit">${edit === d.id ? 'Terminer' : 'Modifier'}</button><button type="button" class="link danger" data-a="del">Supprimer</button></div></li>`).join('');
+    <div class="ch-acts"><button type="button" class="link" data-a="edit">${edit === d.id ? 'Terminer' : 'Modifier le tracé'}</button><button type="button" class="link danger" data-a="del">Supprimer</button></div></div></li>`;
+function list() {
+  const ul = $('ntList'); if (!ul) return;
+  const all = getNets().filter(d => d.ph !== 'rsx'), q = qNet.trim().toLowerCase();
+  const ds = q ? all.filter(d => (d.name + ' ' + TYPES[d.type].label).toLowerCase().includes(q)) : all;
+  $('ntEmpty').hidden = all.length > 0; $('ntClear').hidden = !all.length;
+  const cnt = $('ntCount'); if (cnt) { cnt.hidden = !all.length; cnt.textContent = all.length; }
+  const by = {}; ds.forEach(d => (by[d.type] = by[d.type] || []).push(d));
+  const km = a => fmtLen(a.reduce((s, d) => s + length(d.pts), 0));
+  $('ntSum').innerHTML = all.length ? Object.keys(TYPES).filter(k => all.some(d => d.type === k)).map(k => `<span class="nt-chip"><i style="background:${TYPES[k].color}"></i>${TYPES[k].label} ${all.filter(d => d.type === k).length}</span>`).join('') : '';
+  ul.innerHTML = Object.keys(TYPES).filter(k => by[k]).map(k => {
+    const open = q || openG.has(k) || by[k].some(d => d.id === sel);
+    return `<li class="nt-g"><details data-t="${k}"${open ? ' open' : ''}><summary><i class="ch-sw" style="background:${TYPES[k].color}"></i><b>${TYPES[k].label}</b><span>${by[k].length} · ${km(by[k])}</span></summary><ul>${by[k].map(itemHtml).join('')}</ul></details></li>`;
+  }).join('');
 }
 
 export function init(ctx) {
@@ -360,6 +372,10 @@ export function init(ctx) {
   $('ntImpType').innerHTML = '<option value="">Type selon le fichier</option>' + Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   $('ntTypes').addEventListener('click', e => { const b = e.target.closest('.nt-type'); if (b) startDraw(b.dataset.type); });
   $('ntFetch').addEventListener('click', fetchOpen);
+  $('ntSub').addEventListener('click', e => { const b = e.target.closest('button[data-sub]'); if (b) subTab(b.dataset.sub); });
+  $('ntQ').addEventListener('input', e => { qNet = e.target.value; list(); });
+  $('ntList').addEventListener('toggle', e => { const d = e.target.closest && e.target.closest('details[data-t]'); if (d) { if (d.open) openG.add(d.dataset.t); else openG.delete(d.dataset.t); } }, true);
+  $('ntImp').open = !getNets().length; list();
   $('ntZone').addEventListener('click', startZone); $('ntZoneOff').addEventListener('click', clearZone); zoneUi();
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && zdraw) zoneStop(); });
   $('ntPdf').addEventListener('change', e => { const f = e.target.files[0]; if (f) openDT(f, { map, status, TYPES, addItems, toLL }).catch(() => status('Import du PDF impossible.', { ms: 6000 })); e.target.value = ''; });
@@ -370,13 +386,13 @@ export function init(ctx) {
   $('ntDrawBack').addEventListener('click', () => { if (draw && draw.pts.length) { draw.pts.pop(); draw.dots.clearLayers(); draw.pts.forEach(p => L.circleMarker(p, { radius: 4, color: '#fff', weight: 2, fillColor: TYPES[draw.type].color, fillOpacity: 1, interactive: false }).addTo(draw.dots)); preview(); drawText(); } });
   map.on('click', onClick); map.on('dblclick', e => { if (draw) { L.DomEvent.stop(e); finishLine(); } });
   map.on('mousemove', e => { if (draw && draw.pts.length) preview(e.latlng); });
-  $('ntList').addEventListener('input', e => { const li = e.target.closest('li'); if (!li) return; const d = nets.find(q => q.id === li.dataset.id); if (!d) return;
+  $('ntList').addEventListener('input', e => { const li = e.target.closest('li[data-id]'); if (!li) return; const d = nets.find(q => q.id === li.dataset.id); if (!d) return;
     if (e.target.classList.contains('ch-name')) { d.name = e.target.value.trim() || TYPES[d.type].label; save(); }
     else if (e.target.classList.contains('nt-depth')) { const v = parseFloat(e.target.value); if (Number.isFinite(v) && v >= -30 && v <= 15) { d.depth = v; save(); render(); } }
     else if (e.target.classList.contains('nt-diam')) { const v = parseFloat(e.target.value); if (v >= 10 && v <= 3000) { d.diam = v; save(); } } });
-  $('ntList').addEventListener('change', e => { const li = e.target.closest('li'); if (!li || !e.target.classList.contains('ch-ty')) return; const d = nets.find(q => q.id === li.dataset.id); if (d) { d.type = e.target.value; d.depth = TYPES[d.type].depth; d.diam = TYPES[d.type].diam; save(); render(); list(); } });
+  $('ntList').addEventListener('change', e => { const li = e.target.closest('li[data-id]'); if (!li || !e.target.classList.contains('ch-ty')) return; const d = nets.find(q => q.id === li.dataset.id); if (d) { d.type = e.target.value; d.depth = TYPES[d.type].depth; d.diam = TYPES[d.type].diam; save(); render(); list(); } });
   $('ntList').addEventListener('click', e => {
-    const li = e.target.closest('li'); if (!li) return; const d = nets.find(q => q.id === li.dataset.id), a = e.target.dataset.a;
+    const li = e.target.closest('li[data-id]'); if (!li) return; const d = nets.find(q => q.id === li.dataset.id), a = e.target.dataset.a;
     if (!a) { if (!e.target.closest('input,select,label')) select(li.dataset.id, false); return; }
     if (a === 'go') { select(d.id, false); map.fitBounds(L.latLngBounds(d.pts).pad(.6), { maxZoom: 19 }); }
     else if (a === 'edit') { if (edit === d.id) stopEdit(); else startEdit(d.id); }

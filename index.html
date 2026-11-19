@@ -172,6 +172,8 @@
           <p class="hint ch-empty" id="dvEmpty">Choisissez un type ci-dessus, puis tracez le parcours sur la carte.</p>
         </div>
         <div id="chTabN" hidden>
+          <div class="nt-sub" id="ntSub" role="tablist" aria-label="Réseaux"><button type="button" role="tab" data-sub="rs" aria-selected="true">Repérage</button><button type="button" role="tab" data-sub="ex" aria-selected="false">Réseaux existants <b id="ntCount" hidden></b></button></div>
+          <div id="ntPaneRs">
           <section class="rs" aria-label="Repérage sur le plan">
             <h3>Repérage sur le plan</h3>
             <p class="hint" id="rsHint">Choisissez un outil, puis dessinez sur la carte.</p>
@@ -205,8 +207,10 @@
             </div>
             <button type="button" class="link danger" id="rsClear" hidden>Tout supprimer</button>
           </section>
-          <h3>Réseaux existants</h3>
-          <p class="hint">Importés ou récupérés en données ouvertes, visibles sous le sol en 3D.</p>
+          </div>
+          <div id="ntPaneEx" hidden>
+          <details class="nt-imp" id="ntImp" open><summary>Importer des réseaux</summary>
+          <p class="hint">Banques publiques, plan de DT en PDF ou fichier. Les réseaux sont visibles sous le sol en 3D.</p>
           <div class="ch-actions">
             <button type="button" class="btn" id="ntZone">Dessiner la zone</button>
             <button type="button" class="btn" id="ntFetch">Importer depuis les banques publiques</button>
@@ -218,10 +222,13 @@
           <label class="ch-field">Type à l’import <select id="ntImpType" class="ch-ty" aria-label="Type des réseaux importés"></select></label>
           <details class="ch-more"><summary>Quelles données ?</summary><p>Banques publiques : IGN BD TOPO (canalisations, lignes électriques), Enedis (électricité BT/HTA), GRDF (gaz), RTE via ODRÉ (très haute tension souterraine), tracés indicatifs, France Chaleur Urbaine (chaleur et froid) et OpenStreetMap. Il n’existe pas de base publique nationale pour l’eau potable et l’assainissement. PDF (DT) : plan vectoriel lu sur votre appareil, calé avec 2 points communs avec la carte. Les réseaux de distribution des villes ne sont pas publics : tracez-les d’après les plans de la DT-DICT, ou importez un GeoJSON ou KML.</p></details>
           <div class="ch-types" id="ntTypes" hidden></div>
-          <h3>Réseaux importés</h3>
+          </details>
+          <div class="nt-head"><b>Réseaux importés</b><input type="search" id="ntQ" class="ch-ty" placeholder="Chercher un réseau" aria-label="Chercher un réseau"></div>
+          <div class="nt-sum" id="ntSum"></div>
           <ul id="ntList"></ul>
           <p class="hint ch-empty" id="ntEmpty">Aucun réseau pour l’instant.</p>
           <button type="button" class="link danger" id="ntClear" hidden>Tout supprimer</button>
+          </div>
         </div>
         <div id="chTabE" hidden>
           <p class="hint">Situations de chantier : posez des engins, camions, véhicules et personnel à leur taille réelle, puis tournez-les. En 3D, ce sont les vrais modèles. Une phase peut choisir ceux qui sont présents.</p>
