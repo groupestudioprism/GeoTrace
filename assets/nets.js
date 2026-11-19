@@ -1,6 +1,7 @@
 /* GeoTrace – réseaux existants : tracé à la main d'après un plan DT-DICT, import GeoJSON / KML (WGS 84 ou Lambert-93),
    récupération des données ouvertes de la vue (IGN BD TOPO, OpenStreetMap). Affichés en 2D et en 3D (enterrés).
    Enregistrés avec le calage (chantier.nets). */
+import { openDT, clearOverlay } from './dtpdf.js';
 const L = window.L;
 const $ = id => document.getElementById(id);
 const BASE = 'geotrace:nets';
@@ -119,6 +120,8 @@ export function replaceFromPhoto(key, items) {
   save(); render(); list();
 }
 
+export const addItems = (items, src) => add(items, src);
+
 /* ---------- données ouvertes de la vue ---------- */
 const wfs = (layer, b) => `https://data.geopf.fr/wfs/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=BDTOPO_V3:${layer}&outputFormat=application/json&srsName=EPSG:4326&count=800&bbox=${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()},EPSG:4326`;
 async function getJSON(url, opt) { const r = await fetch(url, opt); if (!r.ok) throw new Error('http ' + r.status); return r.json(); }
@@ -142,7 +145,7 @@ async function fetchOpen() {
       }), 'osm');
     }),
   ]);
-  btn.disabled = false; btn.textContent = 'Récupérer les données ouvertes de la vue';
+  btn.disabled = false; btn.textContent = 'Importer depuis les banques publiques';
   status(total ? `${total} tronçon(s) ajouté(s). ${rep.join(' · ')}` : `Aucun nouveau réseau dans cette vue. ${rep.join(' · ')}`, { ms: 7000 });
 }
 async function importFile(f) {
@@ -254,6 +257,8 @@ export function init(ctx) {
   $('ntImpType').innerHTML = '<option value="">Type selon le fichier</option>' + Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
   $('ntTypes').addEventListener('click', e => { const b = e.target.closest('.nt-type'); if (b) startDraw(b.dataset.type); });
   $('ntFetch').addEventListener('click', fetchOpen);
+  $('ntPdf').addEventListener('change', e => { const f = e.target.files[0]; if (f) openDT(f, { map, status, TYPES, addItems }).catch(() => status('Import du PDF impossible.', { ms: 6000 })); e.target.value = ''; });
+  $('ntPdfOff').addEventListener('click', clearOverlay); document.addEventListener('dt-overlay', e => { $('ntPdfOff').hidden = !e.detail; });
   $('ntFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
   $('ntClear').addEventListener('click', e => { if (e.target.dataset.sure) { nets = []; stopEdit(); save(); sel = null; render(); list(); delete e.target.dataset.sure; e.target.textContent = 'Tout supprimer'; } else { e.target.dataset.sure = '1'; e.target.textContent = 'Confirmer ?'; setTimeout(() => { if (e.target.isConnected) { delete e.target.dataset.sure; e.target.textContent = 'Tout supprimer'; } }, 3000); } });
   $('ntDrawOk').addEventListener('click', finishLine); $('ntDrawNo').addEventListener('click', cancelDraw);

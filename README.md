@@ -550,3 +550,10 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Le repérage utilise maintenant les **mêmes réglages fins par photo que la vue 3D** (cap, inclinaison, roulis, zoom, décalages, y compris ceux du fichier de calage de l'équipe). Un réglage fait d'un côté vaut de l'autre.
 - Onglet Dessiner, **« Caler la photo »** : « Caler sur un dessin » (cliquer un point d'un dessin en transparence, puis l'endroit où il doit tomber sur la photo ; un point règle cap et inclinaison, deux ou plus règlent aussi roulis et zoom) et curseurs de réglage fin. Les dessins des autres photos et la 3D suivent immédiatement.
 - Les points trop proches de l'horizon (moins de 1,5° sous l'horizontale) ne sont plus projetés : leur position au sol n'est pas fiable.
+
+## Version 2.7.0 : réseaux existants, banques publiques et PDF de DT
+
+- Onglet Réseaux : **« Importer depuis les banques publiques »** (IGN BD TOPO canalisations et lignes électriques, OpenStreetMap, sur la vue de la carte) et **« Importer un PDF (DT) »**.
+- Le PDF est lu sur l'appareil (pdf.js), rien n'est envoyé. Les traits colorés sont regroupés par couleur ; chaque couleur reçoit un type de réseau (deviné d'après le code couleur, modifiable) ; le fond gris/noir est décoché.
+- Calage : 2 points repérables sur le plan puis les mêmes 2 points sur la carte (similitude : échelle, rotation, position). Aperçu sur la carte, puis import. Le plan peut être posé en fond (opacité réglable) pour vérifier ou tracer par-dessus, notamment pour un PDF scanné (sans traits).
+- Limites : profondeur et diamètre sont des valeurs par défaut (la légende du plan n'est pas lue) ; un plan scanné ne se vectorise pas tout seul ; un plan d'ensemble sans échelle fiable exige 2 points éloignés.

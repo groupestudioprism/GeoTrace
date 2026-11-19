@@ -848,3 +848,20 @@ body.split3d #v3Full { background: rgba(255,255,255,.14); }
 .pip-ref { align-items: center; } .pip-ref b { flex: 1 1 100%; font-size: .8rem; font-weight: 600; opacity: .85; }
 
 #v3Near, #v3Share { display: none !important; } /* le calage est propre à chaque photo */
+
+/* import d'un plan DT (PDF) */
+.dt-modal { position: fixed; inset: 0; z-index: 5000; background: rgba(8,12,20,.6); display: flex; align-items: center; justify-content: center; padding: 12px; }
+.dt-modal[hidden] { display: none; }
+.dt-box { background: var(--surface, #fff); color: inherit; border-radius: var(--r-l, 14px); width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.dt-box header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(128,128,128,.25); } .dt-box header .link { margin-left: auto; }
+.dt-body { display: flex; gap: 12px; padding: 12px; min-height: 0; flex: 1; overflow: auto; }
+.dt-view { flex: 1 1 60%; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.dt-tools { display: flex; align-items: center; gap: 6px; }
+.dt-scroll { overflow: auto; border: 1px solid rgba(128,128,128,.3); border-radius: var(--r, 10px); background: #e9ecef; max-height: 70vh; }
+.dt-stage { position: relative; line-height: 0; cursor: crosshair; } .dt-stage canvas { width: 100%; height: auto; display: block; }
+.dt-dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #ffc61a; color: #111; font: 700 12px/22px var(--font, sans-serif); text-align: center; border: 2px solid #111; font-style: normal; pointer-events: none; }
+.dt-modal aside { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; } .dt-modal aside h4 { margin: 6px 0 0; }
+.dt-col { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 0; } .dt-col label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.dt-bar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5200; background: #111; color: #fff; padding: 10px 16px; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); font-size: 14px; } .dt-bar .link { color: #ffc61a; margin-left: 8px; }
+.dt-tip { font-weight: 700; }
+@media (max-width: 760px) { .dt-body { flex-direction: column; } .dt-modal aside { flex-basis: auto; } }

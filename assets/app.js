@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
