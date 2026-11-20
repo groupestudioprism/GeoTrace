@@ -599,3 +599,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Premier essai réel de l'import (site de Brech, Morbihan) : Enedis, GRDF, IGN et France Chaleur Urbaine répondent. Sur ce site, on récupère notamment la HTA souterraine Enedis qui longe la route.
 - Les banques renvoient des ouvrages entiers : une ligne électrique IGN de 155 km était importée en totalité. Les tracés sont maintenant coupés aux limites de la zone demandée (avec 10 % de marge).
 - La source RTE via ODRÉ est retirée : le jeu `lignes-souterraines-rte-nv` ne contient pas de tracé (aucun champ géographique), la requête échouait.
+
+## Version 2.9.3 : maquette enterrée
+
+- Panneau Maquette 3D : nouveau champ « Niveau par rapport au sol » (0 = posée sur le sol, valeur négative = enterrée) et bouton « Enterrer (dessus au niveau du sol) ».
+- En 3D, quand la maquette est sous le sol, le terrain devient translucide (case « Réseaux enterrés »), comme pour les réseaux.
+- Le niveau est enregistré dans le fichier de calage (`niveau_m`).

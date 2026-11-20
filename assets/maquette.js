@@ -220,7 +220,7 @@ export function georefPairs(crs) {
 /* Place la maquette d'après le géoréférencement du fichier. Rend false si le fichier n'en contient pas d'utilisable. */
 export function applyGeoref(crs) {
   const pairs = georefPairs(crs); if (!pairs) return false;
-  state.geo = { pairs, angle: 0, fixScale: true, auto: crs || state.georef.crs };
+  state.geo = { pairs, angle: 0, fixScale: true, auto: crs || state.georef.crs, dz: +state.geo.dz || 0 };
   return true;
 }
 
@@ -250,7 +250,7 @@ export const setChantierProvider = f => { chantierProvider = f; };
 export const getProjChantier = () => projChantier;
 export function exportCalage() {
   return JSON.stringify({ geotrace: 'calage', version: 1, maquette: state.model ? state.model.name : null,
-    fixScale: state.geo.fixScale, angle: state.geo.angle,
+    fixScale: state.geo.fixScale, angle: state.geo.angle, niveau_m: +(+state.geo.dz || 0).toFixed(2),
     points: state.geo.pairs.map(p => ({ maquette: p.m.map(v => +v.toFixed(3)), lat: +p.ll[0].toFixed(8), lon: +p.ll[1].toFixed(8) })),
     resultat: state.sol && !state.sol.placeholder ? { echelle: +state.sol.s.toFixed(5), rotation_deg: +(state.sol.theta / RAD).toFixed(3), ecart_moyen_m: +state.sol.rms.toFixed(3) } : null,
     vues: collectVues(), chantier: chantierProvider ? chantierProvider() : null }, null, 2);
@@ -260,7 +260,7 @@ export function importCalage(text) {
   if (!j || j.geotrace !== 'calage' || !Array.isArray(j.points)) throw new Error('format');
   projVues = j.vues && typeof j.vues === 'object' ? j.vues : null;
   projChantier = j.chantier && typeof j.chantier === 'object' ? j.chantier : null;
-  state.geo = { fixScale: j.fixScale !== false, angle: +j.angle || 0,
+  state.geo = { fixScale: j.fixScale !== false, angle: +j.angle || 0, dz: Number.isFinite(+j.niveau_m) ? +j.niveau_m : 0,
     pairs: j.points.filter(p => Array.isArray(p.maquette) && Number.isFinite(p.lat) && Number.isFinite(p.lon)).map(p => ({ m: [+p.maquette[0], +p.maquette[1]], ll: [p.lat, p.lon] })) };
 }
 
@@ -569,7 +569,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
   const scene = new THREE.Scene();
   // La maquette reste exactement où elle est (ses propres coordonnées, ni tournée ni déplacée) : c'est le terrain, les photos, les réseaux et la caméra qui sont placés autour d'elle.
   const holder = new THREE.Group(); holder.add(m.group.clone()); scene.add(holder);
-  const sl = state.sol, Tm = new THREE.Matrix4().compose(new THREE.Vector3(sl.t[0], sl.t[1], 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), sl.theta), new THREE.Vector3(sl.s, sl.s, sl.s));
+  const sl = state.sol, Tm = new THREE.Matrix4().compose(new THREE.Vector3(sl.t[0], sl.t[1], +state.geo.dz || 0), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), sl.theta), new THREE.Vector3(sl.s, sl.s, sl.s));
   const Tinv = Tm.clone().invert(), qInv = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -sl.theta);
   const world = new THREE.Group(); world.matrixAutoUpdate = false; world.matrix.copy(Tinv); world.matrixWorldNeedsUpdate = true; scene.add(world); world.updateMatrixWorld(true);
   // ciel, soleil, ombres portées et matériaux physiques
@@ -666,7 +666,7 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
   const syncVis = () => {
     const on = v3.groundOn !== false, gs = [v3.ground, v3.ground2];
-    if (!v3.lock) { look.setLocked(false); markers.visible = true; const ug = v3.hasNets && v3.netsOn; if (v3.netsGroup) v3.netsGroup.visible = v3.netsOn; gs.forEach(g => { if (g) { g.visible = on; const want = ug ? .32 : 1; if (ug) { g.material.transparent = true; g.material.depthWrite = false; } else { g.material.transparent = false; g.material.depthWrite = true; } g.material.opacity = want; g.material.needsUpdate = true; } }); return; }
+    if (!v3.lock) { look.setLocked(false); markers.visible = true; const ug = (v3.hasNets || (+state.geo.dz || 0) < 0) && v3.netsOn; /* maquette enterrée : le sol devient translucide comme pour les réseaux */ if (v3.netsGroup) v3.netsGroup.visible = v3.netsOn; gs.forEach(g => { if (g) { g.visible = on; const want = ug ? .32 : 1; if (ug) { g.material.transparent = true; g.material.depthWrite = false; } else { g.material.transparent = false; g.material.depthWrite = true; } g.material.opacity = want; g.material.needsUpdate = true; } }); return; }
     // superposition : le fond aérien et les repères s'effacent en fondu pendant que la photo apparaît dessous
     const k = v3.k == null ? 1 : v3.k, a = 1 - k; if (v3.netsGroup) v3.netsGroup.visible = false; look.setLocked(true); renderer.setClearColor(0xbcd3e6, a); markers.visible = k < .4;
     gs.forEach(g => { if (!g) return; const vis = a > .01 && on; g.visible = vis; if (vis && !g.material.transparent) { g.material.transparent = true; g.material.needsUpdate = true; } g.material.opacity = a; });

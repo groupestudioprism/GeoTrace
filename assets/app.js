@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.9.2';
+const VERSION = '2.9.3';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -1178,7 +1178,7 @@ function maqUi(info) {
   if (!m) return;
   if (info) { $('maqName').textContent = m.name; $('maqInfo').textContent = `${m.kind}, ${fmt(info.meshes, 0)} éléments, ${fmt(info.size[0], 0)} × ${fmt(info.size[1], 0)} m, hauteur ${fmt(info.size[2], 0)} m`; }
   const g = M.state.geo, sol = M.state.sol, n = g.pairs.length;
-  $('maqAngle').value = g.angle; $('maqScale').checked = g.fixScale;
+  $('maqAngle').value = g.angle; $('maqScale').checked = g.fixScale; $('maqDz').value = +(+g.dz || 0).toFixed(2);
   $('maqAngleRow').hidden = n > 1;
   const ul = $('maqPts'); ul.textContent = '';
   g.pairs.forEach((p, i) => {
@@ -1227,6 +1227,9 @@ $('maqShow').addEventListener('change', e => Maq && Maq.setVisible(e.target.chec
 $('maqOpacity').addEventListener('input', e => Maq && Maq.setOpacity(e.target.value / 100));
 $('maqAngle').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.angle = +e.target.value || 0; afterCal(); });
 $('maqScale').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.fixScale = e.target.checked; afterCal(); });
+/* Niveau de la maquette : 0 = posée sur le sol, négatif = enterrée. La vue 3D ouverte est reconstruite à la prochaine ouverture. */
+$('maqDz').addEventListener('change', e => { if (!Maq) return; Maq.state.geo.dz = Math.max(-50, Math.min(50, +e.target.value || 0)); afterCal(); });
+$('maqBury').addEventListener('click', () => { const m = Maq && Maq.state.model; if (!m || !m.box) return; const s = Maq.state.sol && Maq.state.sol.s || 1; Maq.state.geo.dz = -+(m.box.max.z * s).toFixed(2); afterCal(); });
 $('maqZoom').addEventListener('click', () => { const b = Maq && Maq.mapBounds(); if (b) map.fitBounds(L.latLngBounds(b).pad(.4), { maxZoom: 20 }); });
 $('maqRemove').addEventListener('click', () => { idbDel(); if (!Maq) return; closeCal(); Maq.unloadModel(); Maq.refreshOverlay(); maqUi(); maqError(''); });
 $('maqExport').addEventListener('click', () => {

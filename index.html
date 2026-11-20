@@ -294,6 +294,8 @@
         <div class="mq-opts">
           <label id="maqAngleRow" hidden>Orientation, en degrés <input type="number" id="maqAngle" value="0" step="1" min="-360" max="360"></label>
           <label><input type="checkbox" id="maqScale" checked> Garder l’échelle réelle (1:1)</label>
+          <label title="0 : la maquette est posée sur le sol. Valeur négative : elle est enterrée d’autant.">Niveau par rapport au sol, en mètres <input type="number" id="maqDz" value="0" step="0.1" min="-50" max="50"></label>
+          <button class="link" type="button" id="maqBury" title="Descend la maquette pour que son dessus arrive au niveau du sol">Enterrer (dessus au niveau du sol)</button>
         </div>
         <div class="mq-acts">
           <button class="btn primary" type="button" id="maqAdd">Ajouter un point GPS</button>
