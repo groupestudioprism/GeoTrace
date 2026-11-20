@@ -664,7 +664,12 @@ export async function open3D(host, { photos = [], focus = null, photoEl = null, 
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(); computeWarp(lk); applyWarp(); drawMarks();
   };
   // en superposition on ne garde que la maquette : ni repères, ni plans des autres photos, ni photo aérienne
+  /* Maquette enterrée : en superposition sur une photo, on ne dessine que ce qui dépasse du sol. La photo montre la surface ; la partie enterrée par-dessus ferait croire que l'ouvrage est posé dessus. */
+  const cutPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+  const clipHolder = on => { const dz = +state.geo.dz || 0, use = on && dz < 0; cutPlane.constant = dz / (sl.s || 1) - 0.02; renderer.localClippingEnabled = use;
+    holder.traverse(o => { if (!o.isMesh) return; [].concat(o.material || []).forEach(m => { const want = use ? [cutPlane] : null; if ((m.clippingPlanes || null) !== want && !(use && m.clippingPlanes && m.clippingPlanes[0] === cutPlane)) { m.clippingPlanes = want; m.needsUpdate = true; } }); }); };
   const syncVis = () => {
+    clipHolder(!!v3.lock);
     const on = v3.groundOn !== false, gs = [v3.ground, v3.ground2];
     if (!v3.lock) { look.setLocked(false); markers.visible = true; const ug = (v3.hasNets || (+state.geo.dz || 0) < 0) && v3.netsOn; /* maquette enterrée : le sol devient translucide comme pour les réseaux */ if (v3.netsGroup) v3.netsGroup.visible = v3.netsOn; gs.forEach(g => { if (g) { g.visible = on; const want = ug ? .32 : 1; if (ug) { g.material.transparent = true; g.material.depthWrite = false; } else { g.material.transparent = false; g.material.depthWrite = true; } g.material.opacity = want; g.material.needsUpdate = true; } }); return; }
     // superposition : le fond aérien et les repères s'effacent en fondu pendant que la photo apparaît dessous

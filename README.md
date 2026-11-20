@@ -605,3 +605,7 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Panneau Maquette 3D : nouveau champ « Niveau par rapport au sol » (0 = posée sur le sol, valeur négative = enterrée) et bouton « Enterrer (dessus au niveau du sol) ».
 - En 3D, quand la maquette est sous le sol, le terrain devient translucide (case « Réseaux enterrés »), comme pour les réseaux.
 - Le niveau est enregistré dans le fichier de calage (`niveau_m`).
+
+## Version 2.9.4 : maquette enterrée masquée en superposition
+
+- Quand la maquette est sous le sol, la superposition sur une photo ne dessine plus que ce qui dépasse du terrain : la photo montre la surface, l'ouvrage enterré n'y apparaît donc pas. Il reste visible dans la vue 3D libre, à travers le sol.
