@@ -1,6 +1,6 @@
 /* GeoTrace – cache de l'application pour un démarrage rapide et hors connexion.
    Les fonds de carte ne sont pas mis en cache : ils demandent une connexion. */
-const CACHE = 'geotrace-v2.9.0';
+const CACHE = 'geotrace-v2.9.1';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'assets/app.css', 'assets/app.js', 'assets/boot.js', 'assets/config.js', 'assets/geo.js', 'assets/maquette.js', 'assets/chantier.js', 'assets/devs.js', 'assets/engins.js', 'assets/engins3d.js', 'assets/look3d.js', 'assets/rig.js', 'assets/rigkin.js', 'assets/art.js', 'assets/phases.js', 'assets/nets.js', 'assets/dtpdf.js', 'assets/planning.js', 'assets/repere.js', 'assets/repere-core.js', 'assets/reseaux.js', 'assets/net3d.js', 'assets/site3d.js', 'vendor/three/utils/BufferGeometryUtils.js', 'assets/symlib.js', 'assets/photoproj.js', 'assets/autocal.js', 'assets/zones3d.js',

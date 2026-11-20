@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.9.0';
+const VERSION = '2.9.1';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -207,8 +207,12 @@ async function readMeta(input) {
   const tab = /ipad|tab|core-t|rugged/i.test(model);
   // Priorité : cap de l'image (téléphone, tablette), puis lacet de la nacelle, puis cap du drone.
   let heading = num(m.GPSImgDirection), headingSrc = heading != null ? (String(m.GPSImgDirectionRef || 'T').toUpperCase().startsWith('M') ? 'nord magnétique' : 'nord vrai') : null;
-  if (heading == null && num(m.GimbalYawDegree) != null) { heading = num(m.GimbalYawDegree); headingSrc = 'nacelle du drone'; }
-  if (heading == null && num(m.FlightYawDegree) != null) { heading = num(m.FlightYawDegree); headingSrc = 'cap du drone'; }
+  // Drone : le lacet de la nacelle vient d'un gyroscope qui dérive (une dizaine de degrés constatés sur un même vol), le cap de l'appareil est recalé sur la boussole.
+  // Tant que les deux sont proches, la nacelle suit l'appareil et c'est son cap qui fait foi ; un grand écart est un vrai panoramique de la nacelle.
+  const gy = num(m.GimbalYawDegree), fy = num(m.FlightYawDegree);
+  if (heading == null && gy != null && fy != null && Math.abs(((fy - gy + 540) % 360) - 180) <= 30) { heading = fy; headingSrc = 'cap du drone'; }
+  if (heading == null && gy != null) { heading = gy; headingSrc = 'nacelle du drone'; }
+  if (heading == null && fy != null) { heading = fy; headingSrc = 'cap du drone'; }
   const date = m.DateTimeOriginal instanceof Date ? m.DateTimeOriginal : (m.CreateDate instanceof Date ? m.CreateDate : null);
   return {
     lat: num(m.latitude), lon: num(m.longitude), alt: num(m.GPSAltitude), rel: num(m.RelativeAltitude),

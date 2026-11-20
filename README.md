@@ -587,3 +587,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 
 - Deux sous-onglets fixes en haut (qui restent visibles au défilement) : **Repérage** et **Réseaux existants** (avec le nombre de réseaux).
 - Réseaux existants : bloc « Importer des réseaux » repliable (ouvert tant qu'il n'y a rien), recherche par nom ou type, pastilles de résumé par type, liste **groupée par type** (repliable, avec nombre et longueur). Chaque ligne est compacte ; « Voir » la sélectionne et déplie ses réglages (type, profondeur, diamètre, modifier le tracé, supprimer).
+
+## Version 2.9.1 : orientation des photos de drone corrigée
+
+- Sur un drone, GeoTrace prenait le lacet de la nacelle (`GimbalYawDegree`). Ce capteur dérive : sur le vol d'essai, il était décalé d'environ 11° par rapport au cap de l'appareil (`FlightYawDegree`) sur toutes les photos sauf une, et la superposition 3D tombait à côté des routes et des parcelles.
+- Désormais, tant que les deux valeurs sont à moins de 30° l'une de l'autre (la nacelle suit l'appareil), c'est le cap de l'appareil qui est retenu. Au-delà, c'est un vrai panoramique de la nacelle et son lacet reste utilisé.
+- Effet : cône de vue sur la carte et superposition 3D justes dès l'ouverture, sans calage. Les photos déjà calées avec moins de 4 points sont à vérifier.
