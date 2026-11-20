@@ -175,7 +175,7 @@ function startZone() {
 function clearZone() { zoneStop(); if (zone) { map.removeLayer(zone.layer); zone = null; } zoneUi(); }
 
 
-/* Données ouvertes énergie : Enedis (Data-Fair), GRDF et ODRÉ (OpenDataSoft), chaleur (France Chaleur Urbaine, data.gouv) */
+/* Données ouvertes énergie : Enedis (Data-Fair), GRDF (OpenDataSoft), chaleur (France Chaleur Urbaine, data.gouv) */
 let fcuData = null;
 const mkLines = (feats, o) => feats.flatMap((f, i) => lines(f && (f.geometry || f)).map((c, k) => ({ sid: o.id + ':' + ((f && (f.id || (f.properties && (f.properties.id || f.properties.objectid)))) || i) + ':' + k + ':' + c.length, type: o.type, name: o.name, depth: o.depth, diam: TYPES[o.type].diam, pts: c.map(q => [q[1], q[0]]) })));
 const ENEDIS = [['reseau-souterrain-bt', 'Électricité BT souterraine', TYPES.elec.depth], ['reseau-souterrain-hta', 'Électricité HTA souterraine', TYPES.elec.depth], ['reseau-bt', 'Électricité BT aérienne', -8], ['reseau-hta', 'Électricité HTA aérienne', -9]];
@@ -197,7 +197,6 @@ async function odsFetch(host, ds, b, o, src) {
   return n;
 }
 const grdfFetch = b => odsFetch('opendata.grdf.fr', 'cartographie-du-reseau-grdf-en-service', b, { id: 'grdf', type: 'gaz', name: 'Gaz (GRDF)', depth: TYPES.gaz.depth }, 'grdf');
-const odreFetch = b => odsFetch('odre.opendatasoft.com', 'lignes-souterraines-rte-nv', b, { id: 'rte', type: 'elec', name: 'Électricité HTB souterraine (RTE)', depth: 1.5 }, 'odre');
 async function fcuFetch(b) {
   if (!fcuData) fcuData = (async () => {
     const d = await getJSON('https://www.data.gouv.fr/api/1/datasets/64f05d3568e4d575eb454ffe/');
@@ -217,13 +216,18 @@ async function fetchOpen() {
   const b = zone ? zone.bounds : map.getBounds();
   if (!zone && map.getZoom() < 15) { status('Zoomez sur le chantier ou dessinez la zone à récupérer (bouton « Dessiner la zone »).', { ms: 5000 }); return; }
   const btn = $('ntFetch'); btn.disabled = true; btn.textContent = 'Recherche en cours…';
-  const rep = {}; let total = 0; const addZ = (items, src) => add(zone ? items.filter(it => it.pts.some(inZone)) : items, src); addZ2 = addZ;
+  /* Les banques renvoient des ouvrages entiers (une ligne HT fait parfois 150 km) : on ne garde que la partie située dans la zone demandée, avec une petite marge. */
+  const mLa = (b.getNorth() - b.getSouth()) * .1, mLo = (b.getEast() - b.getWest()) * .1, X0 = b.getWest() - mLo, X1 = b.getEast() + mLo, Y0 = b.getSouth() - mLa, Y1 = b.getNorth() + mLa;
+  const seg = (A, B) => { let t0 = 0, t1 = 1; const dx = B[1] - A[1], dy = B[0] - A[0]; for (const [pp, q] of [[-dx, A[1] - X0], [dx, X1 - A[1]], [-dy, A[0] - Y0], [dy, Y1 - A[0]]]) { if (pp === 0) { if (q < 0) return null; } else { const r = q / pp; if (pp < 0) { if (r > t1) return null; if (r > t0) t0 = r; } else { if (r < t0) return null; if (r < t1) t1 = r; } } } return [[A[0] + dy * t0, A[1] + dx * t0], [A[0] + dy * t1, A[1] + dx * t1], t1 < 1]; };
+  const clip = it => { if (it.kind || it.pts.length < 2) return it.pts.some(q => q[1] >= X0 && q[1] <= X1 && q[0] >= Y0 && q[0] <= Y1) ? [it] : []; const out = []; let cur = null;
+    for (let i = 1; i < it.pts.length; i++) { const c = seg(it.pts[i - 1], it.pts[i]); if (!c) { cur = null; continue; } if (!cur) { cur = [c[0]]; out.push(cur); } cur.push(c[1]); if (c[2]) cur = null; }
+    return out.filter(r => r.length > 1).map((r, k) => Object.assign({}, it, { sid: out.length === 1 ? it.sid : it.sid + ':c' + k, pts: r })); };
+  const rep = {}; let total = 0; const addZ = (items, src) => { const cut = items.flatMap(clip); return add(zone ? cut.filter(it => it.pts.some(inZone)) : cut, src); }; addZ2 = addZ;
   const run = async (nom, fn) => { const r = rep[nom] || (rep[nom] = { n: 0, ko: 0 }); try { const n = await fn(); total += n; r.n += n; } catch (e) { r.ko++; } };
   const doBox = async b => { await Promise.all([
     run('IGN canalisations', async () => { const j = await getJSON(wfs('canalisation', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => { const nat = f.properties.nature || '', under = String(f.properties.position_par_rapport_au_sol) === '-1'; const type = guessType(nat); return { sid: f.id + ':' + c.length, type, name: ('Canalisation ' + nat).slice(0, 40), depth: under ? TYPES[type].depth : 0, diam: TYPES[type].diam, pts: c.map(ign) }; })), 'ign'); }),
     run('Enedis', () => enedisFetch(b)),
     run('GRDF', () => grdfFetch(b)),
-    run('RTE (ODRÉ)', () => odreFetch(b)),
     run('Chaleur (France Chaleur Urbaine)', () => fcuFetch(b)),
     run('IGN lignes électriques', async () => { const j = await getJSON(wfs('ligne_electrique', b)); return addZ(j.features.flatMap(f => lines(f.geometry).map(c => ({ sid: f.id + ':' + c.length, type: 'elec', name: 'Ligne électrique', depth: -9, diam: 40, pts: c.map(ign) }))), 'ign'); }),
     run('OpenStreetMap', async () => {

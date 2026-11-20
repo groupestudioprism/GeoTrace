@@ -593,3 +593,9 @@ Les dessins des autres photos et l'envoi en 3D reposent sur la position GPS, le 
 - Sur un drone, GeoTrace prenait le lacet de la nacelle (`GimbalYawDegree`). Ce capteur dérive : sur le vol d'essai, il était décalé d'environ 11° par rapport au cap de l'appareil (`FlightYawDegree`) sur toutes les photos sauf une, et la superposition 3D tombait à côté des routes et des parcelles.
 - Désormais, tant que les deux valeurs sont à moins de 30° l'une de l'autre (la nacelle suit l'appareil), c'est le cap de l'appareil qui est retenu. Au-delà, c'est un vrai panoramique de la nacelle et son lacet reste utilisé.
 - Effet : cône de vue sur la carte et superposition 3D justes dès l'ouverture, sans calage. Les photos déjà calées avec moins de 4 points sont à vérifier.
+
+## Version 2.9.2 : import des banques publiques vérifié en conditions réelles
+
+- Premier essai réel de l'import (site de Brech, Morbihan) : Enedis, GRDF, IGN et France Chaleur Urbaine répondent. Sur ce site, on récupère notamment la HTA souterraine Enedis qui longe la route.
+- Les banques renvoient des ouvrages entiers : une ligne électrique IGN de 155 km était importée en totalité. Les tracés sont maintenant coupés aux limites de la zone demandée (avec 10 % de marge).
+- La source RTE via ODRÉ est retirée : le jeu `lignes-souterraines-rte-nv` ne contient pas de tracé (aucun champ géographique), la requête échouait.
