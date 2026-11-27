@@ -42,7 +42,7 @@
   --r: 8px;
   --r-l: 12px;
   --head-h: 50px;
-  --nav-w: 300px;
+  --nav-w: 340px;
   --side-w: 380px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif;
   --display: var(--font);
@@ -135,8 +135,7 @@ main.panel-off { grid-template-columns: 0 minmax(0, 1fr); }
 #panel.app-nav { position: relative; background: var(--nc-nav); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 0; display: flex; flex-direction: column; min-width: 0; }
 .nav-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; overscroll-behavior: contain; }
 .nav-sec { flex: none; display: flex; flex-direction: column; min-height: 0; }
-#navPhotos { order: 10; }
-#navPhotos.open { flex: 1 1 auto; min-height: 430px; }
+#navPhotos.open { flex: 1 1 auto; min-height: 380px; }
 .nav-entry { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 0 6px 0 10px; background: none; border: 0; border-radius: var(--r); color: var(--ink); font-weight: 500; font-size: 15px; text-align: left; }
 .nav-entry:hover { background: var(--nc-hover); }
 .nav-entry svg.ic { width: 17px; height: 17px; }
@@ -223,17 +222,19 @@ main.panel-off .nav-toggle svg.ic { transform: scaleX(-1); }
 [data-theme="dark"] #toast { background: #ebebeb; color: #171717; }
 #toast .bar b { background: var(--bleu); }
 
-/* ---------- Barre latérale à droite (Chantier, Maquette) ---------- */
-#chPanel, #maqPanel { top: 0; right: 0; bottom: 0; width: var(--side-w); max-width: 100%; max-height: none; border-radius: 0; border: 0; border-left: 1px solid var(--line); box-shadow: none; background: var(--panel); }
-#maqPanel { padding: 14px 18px 18px; }
-.ch-head, .mq-head { padding: 14px 10px 8px 20px; }
-.ch-head b, .mq-head b { font-family: var(--font); font-size: 1.3rem; font-weight: 700; }
-.mq-head { padding: 0 0 4px; display: flex; align-items: center; justify-content: space-between; }
-.ch-tabs { padding: 0 10px; gap: 0; border-bottom: 1px solid var(--line); }
-.ch-tabs button { padding: 10px 4px 9px; font-weight: 500; font-size: .9rem; color: var(--muted); border-bottom-width: 2px; }
+/* ---------- Interfaces Chantier et Maquette, dans la navigation ---------- */
+#panel #chPanel, #panel #maqPanel { position: static; inset: auto; width: auto; max-width: none; height: auto; max-height: none; overflow: visible; margin: 0 0 8px; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; z-index: auto; }
+#panel #chPanel { display: flex; flex-direction: column; }
+#panel #maqPanel { display: flex; flex-direction: column; gap: 10px; padding: 4px 6px 4px 12px; }
+#panel #chPanel[hidden], #panel #maqPanel[hidden] { display: none; }
+#panel .ch-head, #panel .mq-head { display: none; }
+.ch-tabs { margin: 2px 0 0; padding: 0 2px; gap: 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.ch-tabs button { flex: 1 0 auto; padding: 8px 6px 8px; font-weight: 500; font-size: .86rem; color: var(--muted); border-bottom-width: 2px; }
 .ch-tabs button[aria-selected="true"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--bleu); }
-.ch-body { padding: 14px 16px; }
-.ch-foot { background: var(--panel); }
+#panel .ch-body { flex: none; overflow: visible; padding: 12px 4px 8px 8px; }
+#panel .ch-foot { padding: 8px 4px 0 8px; border-top: 1px solid var(--line); background: transparent; }
+#panel .nt-sub { top: -8px; background: var(--panel); }
+[data-theme] #panel .nt-sub { background: color-mix(in srgb, var(--panel) 96%, transparent); }
 .ch-type { border-radius: var(--r); background: var(--panel); }
 .ch-type:hover { background: var(--nc-hover); border-color: var(--line); }
 .ch-type[aria-pressed="true"] { background: var(--nc-btn); border-color: var(--bleu); box-shadow: 0 0 0 1px var(--bleu) inset; color: var(--nc-btn-ink); }
@@ -242,16 +243,19 @@ main.panel-off .nav-toggle svg.ic { transform: scaleX(-1); }
 #chList li, #dvList li, #egList li { border-radius: var(--r); background: var(--panel-2); border-color: transparent; }
 #chList li.on, #dvList li.on, #egList li.on { border-color: var(--bleu); box-shadow: 0 0 0 1px var(--bleu) inset; }
 .ch-empty { border-radius: var(--r); }
-.nt-sub { background: var(--panel); }
-.mapwrap:has(#chPanel:not([hidden])) #timeline, .mapwrap:has(#maqPanel:not([hidden])) #timeline { right: calc(var(--side-w) + 54px); }
-.mapwrap:has(#chPanel:not([hidden])) .leaflet-right, .mapwrap:has(#maqPanel:not([hidden])) .leaflet-right { margin-right: var(--side-w); }
-.mapwrap:has(#chPanel:not([hidden])) #coords, .mapwrap:has(#maqPanel:not([hidden])) #coords { right: calc(var(--side-w) + 56px); }
+#panel .nav-panel.open > .nav-entry { background: var(--nc-btn); color: var(--nc-btn-ink); }
+#panel .nav-panel.open > .nav-entry > span:first-child { color: var(--nc-btn-ink); }
+
 #maqPlan { left: 8px; border: 0; border-radius: var(--r-l); }
 /* Vue 3D partagée : le panneau Chantier est rangé à côté de la carte, les contrôles restent sur la carte */
 body.split3d main { margin-left: 0; border-radius: 0 16px 16px 0; }
-body.split3d .mapwrap .leaflet-right { margin-right: 0; }
-body.split3d .mapwrap #timeline { right: 54px; } body.split3d .mapwrap #coords { right: 56px; }
-@media (min-width: 761px) { body.split3d #chPanel { width: var(--side-w); max-width: 40vw; } }
+@media (min-width: 761px) {
+  body.split3d main { grid-template-columns: minmax(0, 1fr) var(--nav-w); }
+  body.split3d main.panel-off { grid-template-columns: minmax(0, 1fr) 0; }
+  body.split3d main #panel { visibility: visible; grid-column: 2; grid-row: 1; }
+  body.split3d main.panel-off #panel { visibility: hidden; }
+  body.split3d .mapwrap { grid-column: 1; grid-row: 1; }
+}
 
 /* ---------- Fenêtres ---------- */
 dialog, [data-theme="dark"] dialog { border: 0; border-radius: var(--r-l); box-shadow: var(--shadow); background: var(--panel); color: var(--ink); }
@@ -268,7 +272,7 @@ dialog, [data-theme="dark"] dialog { border: 0; border-radius: var(--r-l); box-s
 .contours { opacity: .35; }
 
 /* ---------- Écrans larges ou petits ---------- */
-@media (max-width: 1100px) { :root { --nav-w: 270px; --side-w: 340px; } }
+@media (max-width: 1100px) { :root { --nav-w: 310px; } }
 @media (max-width: 760px) {
   :root { --head-h: 50px; }
   #top { gap: 0; }
@@ -286,7 +290,41 @@ dialog, [data-theme="dark"] dialog { border: 0; border-radius: var(--r-l); box-s
   #panel.app-nav, main.panel-off #panel.app-nav { position: absolute; z-index: 1050; background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 16px 16px 0 0; height: 60%; }
   .map-top .filter { width: auto; flex: 1; }
   #navPhotos.open { min-height: 320px; }
-  #chPanel, #maqPanel { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: min(56vh, 460px); border-left: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; z-index: 1040; box-shadow: 0 -8px 24px rgba(0,0,0,.25); }
-  .mapwrap:has(#chPanel:not([hidden])) .leaflet-right, .mapwrap:has(#maqPanel:not([hidden])) .leaflet-right { margin-right: 0; }
+  #panel.app-nav { height: 72%; }
   #welcome { padding: 12px; }
 }
+
+/* ---------- Menu de base façon Cartes ---------- */
+.nav-toggle-sec > .nav-entry { padding-right: 10px; }
+.nav-entry[aria-pressed="true"], .nav-entry.active { background: var(--nc-btn); color: var(--nc-btn-ink); }
+.nav-entry[aria-pressed="true"] > span:first-child { color: var(--nc-btn-ink); }
+.nav-entry[aria-pressed="true"] svg.ic { fill: currentColor; }
+.nav-caption { margin: 14px 0 2px; padding: 10px 10px 4px; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+.nav-note, .nav-cap { margin: 2px 10px 4px 37px; font-size: .84rem; color: var(--muted); }
+.nav-cap { margin-top: 6px; font-weight: 600; }
+a.nav-item { text-decoration: none; }
+.nav-body .dates { padding: 0 6px 4px 37px; flex-wrap: wrap; gap: 6px 8px; }
+.nav-body .dates label { flex: 1 1 120px; min-width: 0; }
+.nav-body .dates input { width: 100%; height: 32px; }
+/* Mes appareils : un appareil par ligne, nombre à droite */
+.nav-body #chips { flex-direction: column; flex-wrap: nowrap; gap: 2px; }
+.nav-body #chips .chip { width: 100%; height: 34px; padding: 0 10px 0 37px; position: relative; justify-content: flex-start; gap: 10px; border: 0; border-radius: var(--r); background: none; color: var(--ink); font-size: 15px; font-weight: 400; }
+.nav-body #chips .chip:hover { background: var(--nc-hover); }
+.nav-body #chips .chip i { position: absolute; left: 15px; width: 10px; height: 10px; }
+.nav-body #chips .chip b { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; display: inline-grid; place-items: center; border-radius: 100px; background: var(--nc-btn); color: var(--nc-btn-ink); font-size: 12px; font-weight: 700; }
+.nav-body #chips .chip:not([aria-pressed="true"]) { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.nav-body #chips .chip:not([aria-pressed="true"]) b { background: transparent; color: var(--muted); }
+.nav-body #chips #favOnly { display: none; }
+/* Mes cartes */
+.nav-maps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.nav-maps li { position: relative; display: flex; align-items: center; }
+.nav-maps .nav-item { padding-left: 37px; padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; line-height: 26px; }
+.nav-del { position: absolute; right: 4px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); opacity: 0; }
+.nav-maps li:hover .nav-del, .nav-del:focus-visible { opacity: 1; }
+.nav-del:hover { background: var(--nc-hover); color: var(--ink); }
+.nav-del svg.ic { width: 15px; height: 15px; }
+#navMapAdd svg.ic { color: var(--bleu); }
+.nav-mapform { display: flex; flex-direction: column; gap: 6px; padding: 4px 6px 6px 37px; }
+.nav-mapform input { height: 34px; padding: 0 10px; border: 2px solid var(--nc-field); border-radius: var(--r); background: var(--panel); color: var(--ink); }
+.nav-mapform input:focus { border-color: var(--bleu); outline: 0; }
+.nav-mapacts { display: flex; gap: 6px; }

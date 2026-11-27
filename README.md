@@ -234,9 +234,16 @@ GeoTrace reprend l'interface de l'application Cartes du Nextcloud de STURNO (bui
 
 - **En-tête Nextcloud** : logo à gauche, outils en icônes (Ouvrir, Photos, Fond, Chantier, 3D, Exporter) dont le nom apparaît au survol, petit trait sous l'outil ouvert. Thème, aide et STURNO à droite.
 - **Contenu en carte arrondie** posée sur le fond bleu STURNO, comme dans Nextcloud.
-- **Navigation à gauche, rubriques repliables** : Fond de carte (fond et calques), Chantier (Zones d'installation, Déviations, Réseaux, Phases, Engins), Maquette et 3D (Maquette Revit, Photos en 3D), Exporter (GeoJSON, KML, CSV, ZIP), Mes photos (avec le nombre de photos), et Paramètres en bas (adresse des photos, thème, visite guidée, aide). Les rubriques ouvertes sont mémorisées.
+- **Menu de gauche de base, comme Cartes** :
+  - **Mes favoris** : un clic n'affiche que les photos favorites (nombre à droite) ;
+  - **Mes contacts** : renvoie vers Cartes de Nextcloud, où restent les contacts ;
+  - **Mes photos** : le dossier ouvert et la liste des photos ;
+  - **Mes traces** : parcours dans l'ordre des prises et période (du… au…) ;
+  - **Mes appareils** : téléphone, tablette, drone, avec le nombre de photos ; un clic masque ou réaffiche un appareil ;
+  - **Mes cartes** : les chantiers, un lien de partage Nextcloud chacun. « Nouvelle carte » en ajoute un dans le navigateur ; ceux de toute l'équipe se déclarent dans `cartes` de `assets/config.js`. Un clic ouvre le chantier.
+- **En dessous, les options GeoTrace avec leurs interfaces complètes** : Fond de carte (fond et calques), Chantier (tout le panneau : Zones, Déviations, Réseaux, Phases, Engins), Maquette 3D (tout le panneau de calage), Photos en 3D et Exporter (GeoJSON, KML, CSV, ZIP). Paramètres en bas (adresse des photos, thème, visite guidée, aide). Les rubriques ouvertes sont mémorisées.
+- **Vue 3D partagée** : 3D à gauche, carte au milieu, navigation avec le Chantier à droite.
 - **Sur la carte** : bouton rond pour masquer la navigation et champ « Rechercher une photo » en haut à gauche ; recadrage, mesure, position et zoom en colonne en bas à droite.
-- **Panneaux Chantier et Maquette** en barre latérale à droite, sur toute la hauteur, avec des onglets soulignés.
 - **Couleurs et formes de Nextcloud** en clair et en sombre (bleu primaire, boutons secondaires bleutés, rayons de 8 px, police du système). L'outil actif n'est plus jaune mais bleu.
 - Sur téléphone : en-tête à icônes défilant, navigation et panneaux en feuille depuis le bas.
 - Aucun changement des fonctions, des fichiers de calage ni des données gardées dans le navigateur. Nouveaux fichiers : `assets/nc.css` (habillage) et `assets/nav.js` (navigation).

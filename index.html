@@ -81,6 +81,17 @@
 <main id="app">
   <aside id="panel" class="app-nav" aria-label="Navigation GeoTrace">
     <div class="nav-scroll">
+    <!-- Menu de base, comme Cartes de Nextcloud -->
+    <section class="nav-sec nav-toggle-sec" id="navFav">
+      <button type="button" class="nav-entry" id="navFavBtn" aria-pressed="false" title="N’afficher que les photos favorites"><span data-ic="star"></span><span class="ne-t">Mes favoris</span><b class="nav-count" id="navFavCount" hidden>0</b></button>
+    </section>
+    <section class="nav-sec" id="navContacts">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="users"></span><span class="ne-t">Mes contacts</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <p class="nav-note">Les contacts restent dans Cartes de Nextcloud.</p>
+        <a class="nav-item" id="navNcMaps" target="_blank" rel="noopener"><span data-ic="out"></span>Ouvrir Cartes dans Nextcloud</a>
+      </div>
+    </section>
     <section class="nav-sec open" id="navPhotos">
       <button type="button" class="nav-entry" data-sec aria-expanded="true"><span data-ic="image"></span><span class="ne-t">Mes photos</span><b class="nav-count" id="navCount" hidden>0</b><i class="chev" data-ic="chev"></i></button>
       <div class="nav-body">
@@ -90,23 +101,50 @@
         <button class="btn small" id="addBtn" type="button" disabled>Ajouter</button>
       </div>
       <span class="sub" id="sub" aria-live="polite"></span>
-      <div class="chips" id="chips" role="group" aria-label="Appareils">
-        <button type="button" class="chip on" data-dev="phone" aria-pressed="true"><i></i>Téléphone<b>0</b></button>
-        <button type="button" class="chip on" data-dev="tab" aria-pressed="true"><i></i>Tablette<b>0</b></button>
-        <button type="button" class="chip on" data-dev="drone" aria-pressed="true"><i></i>Drone<b>0</b></button>
-        <button type="button" class="chip fav" id="favOnly" aria-pressed="false"><span data-ic="star"></span>Favoris<b>0</b></button>
-      </div>
-      <div class="dates">
-        <label>Du <input type="date" id="dFrom" aria-label="Photos prises à partir du"></label>
-        <label>au <input type="date" id="dTo" aria-label="Photos prises jusqu’au"></label>
-        <button type="button" class="link" id="dReset" hidden>Effacer</button>
-      </div>
     </div>
     <ul id="list"></ul>
     <div class="empty" id="emptyList" hidden></div>
       </div>
     </section>
-    <section class="nav-sec" id="navFond">
+    <section class="nav-sec" id="navTraces">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="route"></span><span class="ne-t">Mes traces</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <label><input type="checkbox" id="optTrack"> Parcours dans l’ordre des prises</label>
+        <p class="nav-cap">Période des prises de vue</p>
+        <div class="dates">
+          <label>Du <input type="date" id="dFrom" aria-label="Photos prises à partir du"></label>
+          <label>au <input type="date" id="dTo" aria-label="Photos prises jusqu’au"></label>
+          <button type="button" class="link" id="dReset" hidden>Effacer</button>
+        </div>
+      </div>
+    </section>
+    <section class="nav-sec" id="navDevices">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="phone"></span><span class="ne-t">Mes appareils</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <div class="chips" id="chips" role="group" aria-label="Appareils">
+          <button type="button" class="chip on" data-dev="phone" aria-pressed="true"><i></i>Téléphone<b>0</b></button>
+          <button type="button" class="chip on" data-dev="tab" aria-pressed="true"><i></i>Tablette<b>0</b></button>
+          <button type="button" class="chip on" data-dev="drone" aria-pressed="true"><i></i>Drone<b>0</b></button>
+          <button type="button" class="chip fav" id="favOnly" aria-pressed="false"><span data-ic="star"></span>Favoris<b>0</b></button>
+        </div>
+      </div>
+    </section>
+    <section class="nav-sec" id="navMaps">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="pin"></span><span class="ne-t">Mes cartes</span><b class="nav-count" id="navMapsCount" hidden>0</b><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <ul class="nav-maps" id="navMapsList"></ul>
+        <button type="button" class="nav-item" id="navMapAdd"><span data-ic="plus"></span>Nouvelle carte</button>
+        <form class="nav-mapform" id="navMapForm" hidden>
+          <input type="text" id="navMapName" placeholder="Nom (ex. Z-LIEUVIN)" required aria-label="Nom de la carte">
+          <input type="url" id="navMapLink" placeholder="Lien de partage Nextcloud" required aria-label="Lien de partage Nextcloud du chantier">
+          <span class="nav-mapacts"><button type="submit" class="btn small primary">Ajouter</button><button type="button" class="btn small" id="navMapCancel">Annuler</button></span>
+        </form>
+      </div>
+    </section>
+
+    <!-- Options GeoTrace, avec leurs interfaces complètes -->
+    <div class="nav-caption">GeoTrace</div>
+    <section class="nav-sec gt" id="navFond">
       <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="layers"></span><span class="ne-t">Fond de carte</span><i class="chev" data-ic="chev"></i></button>
       <div class="nav-body" id="layersMenu">
         <fieldset>
@@ -119,75 +157,12 @@
           <label><input type="checkbox" id="optCadastre"> Parcelles cadastrales</label>
           <label><input type="checkbox" id="optThumbs"> Vignettes sur les repères</label>
           <label><input type="checkbox" id="optCones" checked> Direction de prise de vue</label>
-          <label><input type="checkbox" id="optTrack"> Parcours dans l’ordre des prises</label>
           <label><input type="checkbox" id="optCluster" checked> Regrouper les photos proches</label>
         </fieldset>
       </div>
     </section>
-    <section class="nav-sec" id="navChantier">
-      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="zone"></span><span class="ne-t">Chantier</span><i class="chev" data-ic="chev"></i></button>
-      <div class="nav-body nav-sub">
-        <button type="button" class="nav-item" data-chtab="z"><span data-ic="zone"></span>Zones d’installation</button>
-        <button type="button" class="nav-item" data-chtab="d"><span data-ic="road"></span>Déviations</button>
-        <button type="button" class="nav-item" data-chtab="n"><span data-ic="pipe"></span>Réseaux</button>
-        <button type="button" class="nav-item" data-chtab="p"><span data-ic="cal"></span>Phases</button>
-        <button type="button" class="nav-item" data-chtab="e"><span data-ic="truck"></span>Engins</button>
-      </div>
-    </section>
-    <section class="nav-sec" id="nav3d">
-      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="cube"></span><span class="ne-t">Maquette et 3D</span><i class="chev" data-ic="chev"></i></button>
-      <div class="nav-body nav-sub">
-        <button type="button" class="nav-item" data-nav-go="maqBtn"><span data-ic="cube"></span>Maquette Revit</button>
-        <button type="button" class="nav-item" data-nav-go="vue3dBtn"><span data-ic="eye"></span>Photos en 3D</button>
-      </div>
-    </section>
-    <section class="nav-sec" id="navExport">
-      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="download"></span><span class="ne-t">Exporter</span><i class="chev" data-ic="chev"></i></button>
-      <div class="nav-body nav-sub">
-        <button type="button" class="nav-item" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS</small></button>
-        <button type="button" class="nav-item" data-export="kml"><b>KML</b><small>Google Earth</small></button>
-        <button type="button" class="nav-item" data-export="csv"><b>CSV</b><small>Excel, Lambert-93</small></button>
-        <button type="button" class="nav-item" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV</small></button>
-      </div>
-    </section>
-    </div>
-    <section class="nav-sec nav-settings" id="navSettings">
-      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="gear"></span><span class="ne-t">Paramètres</span><i class="chev" data-ic="chev"></i></button>
-      <div class="nav-body">
-        <label><input type="checkbox" id="optAddr" checked> Chercher l’adresse des photos (envoie la position à l’IGN)</label>
-        <button type="button" class="nav-item" data-nav-go="themeBtn"><span data-ic="moon"></span>Mode clair ou sombre</button>
-        <button type="button" class="nav-item" data-nav-go="tutoBtn"><span data-ic="help"></span>Visite guidée</button>
-        <button type="button" class="nav-item" data-nav-go="helpBtn"><span data-ic="info"></span>Aide et raccourcis</button>
-      </div>
-    </section>
-  </aside>
-
-  <section class="mapwrap" aria-label="Carte">
-    <div id="map"></div>
-
-    <div class="map-top">
-      <button class="nav-toggle" id="navToggle" type="button" aria-label="Afficher ou masquer la navigation" title="Navigation" data-ic="navtog"></button>
-      <div class="filter">
-        <span class="si" data-ic="search"></span>
-        <input id="q" type="search" placeholder="Rechercher une photo" autocomplete="off" aria-label="Filtrer les photos">
-      </div>
-    </div>
-
-    <div class="tools" role="toolbar" aria-label="Outils de carte">
-      <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
-      <button class="tool" id="measureBtn" type="button" aria-label="Mesurer (M)" title="Mesurer (M)" aria-pressed="false" data-ic="ruler"></button>
-      <button class="tool" id="locateBtn" type="button" aria-label="Ma position" title="Ma position" data-ic="locate"></button>
-    </div>
-
-    <div id="measure" hidden>
-      <div class="m-read" id="mRead">Cliquez sur la carte pour tracer.</div>
-      <button type="button" class="link" id="mUndo">Annuler le point</button>
-      <button type="button" class="link" id="mClear">Effacer</button>
-      <button type="button" class="link" id="mDone">Terminer</button>
-    </div>
-
-    <div id="coords" aria-live="off"></div>
-
+    <section class="nav-sec gt nav-panel" id="navChantier">
+      <button type="button" class="nav-entry" id="navChBtn" aria-expanded="false"><span data-ic="zone"></span><span class="ne-t">Chantier</span><i class="chev" data-ic="chev"></i></button>
     <section id="chPanel" hidden aria-label="Chantier">
       <div class="ch-head"><b>Chantier</b><button class="icon-btn" id="chClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
       <div class="ch-tabs" id="chTabs" role="tablist" aria-label="Rubriques du chantier">
@@ -295,11 +270,9 @@
         <small>Équipe : Maquette 3D › Exporter le calage</small>
       </div>
     </section>
-    <div id="ntDraw" class="ch-draw" hidden><span id="ntDrawTxt"></span><button type="button" class="link" id="ntDrawBack">Retirer le dernier point</button><button type="button" class="link" id="ntDrawOk">Terminer</button><button type="button" class="link" id="ntDrawNo">Annuler</button></div>
-    <div id="dvDraw" class="ch-draw" hidden><span id="dvDrawTxt"></span><button type="button" class="link" id="dvDrawBack">Retirer le dernier point</button><button type="button" class="link" id="dvDrawOk">Terminer</button><button type="button" class="link" id="dvDrawNo">Annuler</button></div>
-    <div id="chDraw" class="ch-draw" hidden><span id="chDrawTxt"></span><button type="button" class="link" id="chDrawBack">Retirer le dernier point</button><button type="button" class="link" id="chDrawOk">Terminer</button><button type="button" class="link" id="chDrawNo">Annuler</button></div>
-    <div id="egDraw" class="ch-draw" hidden><span id="egDrawTxt"></span><button type="button" class="link" id="egDrawNo">Annuler</button></div>
-
+    </section>
+    <section class="nav-sec gt nav-panel" id="navMaq">
+      <button type="button" class="nav-entry" id="navMaqBtn" aria-expanded="false"><span data-ic="cube"></span><span class="ne-t">Maquette 3D</span><i class="chev" data-ic="chev"></i></button>
     <section id="maqPanel" hidden aria-label="Maquette 3D">
       <div class="mq-head"><b>Maquette 3D</b><button class="icon-btn" id="maqClose" type="button" aria-label="Fermer" data-ic="close"></button></div>
 
@@ -352,6 +325,62 @@
       </div>
       <span class="err" id="maqErr" hidden></span>
     </section>
+    </section>
+    <section class="nav-sec gt nav-toggle-sec" id="nav3d">
+      <button type="button" class="nav-entry" data-nav-go="vue3dBtn"><span data-ic="eye"></span><span class="ne-t">Photos en 3D</span></button>
+    </section>
+    <section class="nav-sec gt" id="navExport">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="download"></span><span class="ne-t">Exporter</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body nav-sub">
+        <button type="button" class="nav-item" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS</small></button>
+        <button type="button" class="nav-item" data-export="kml"><b>KML</b><small>Google Earth</small></button>
+        <button type="button" class="nav-item" data-export="csv"><b>CSV</b><small>Excel, Lambert-93</small></button>
+        <button type="button" class="nav-item" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV</small></button>
+      </div>
+    </section>
+    </div>
+    <section class="nav-sec nav-settings" id="navSettings">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="gear"></span><span class="ne-t">Paramètres</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <label><input type="checkbox" id="optAddr" checked> Chercher l’adresse des photos (envoie la position à l’IGN)</label>
+        <button type="button" class="nav-item" data-nav-go="themeBtn"><span data-ic="moon"></span>Mode clair ou sombre</button>
+        <button type="button" class="nav-item" data-nav-go="tutoBtn"><span data-ic="help"></span>Visite guidée</button>
+        <button type="button" class="nav-item" data-nav-go="helpBtn"><span data-ic="info"></span>Aide et raccourcis</button>
+      </div>
+    </section>
+  </aside>
+
+  <section class="mapwrap" aria-label="Carte">
+    <div id="map"></div>
+
+    <div class="map-top">
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Afficher ou masquer la navigation" title="Navigation" data-ic="navtog"></button>
+      <div class="filter">
+        <span class="si" data-ic="search"></span>
+        <input id="q" type="search" placeholder="Rechercher une photo" autocomplete="off" aria-label="Filtrer les photos">
+      </div>
+    </div>
+
+    <div class="tools" role="toolbar" aria-label="Outils de carte">
+      <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
+      <button class="tool" id="measureBtn" type="button" aria-label="Mesurer (M)" title="Mesurer (M)" aria-pressed="false" data-ic="ruler"></button>
+      <button class="tool" id="locateBtn" type="button" aria-label="Ma position" title="Ma position" data-ic="locate"></button>
+    </div>
+
+    <div id="measure" hidden>
+      <div class="m-read" id="mRead">Cliquez sur la carte pour tracer.</div>
+      <button type="button" class="link" id="mUndo">Annuler le point</button>
+      <button type="button" class="link" id="mClear">Effacer</button>
+      <button type="button" class="link" id="mDone">Terminer</button>
+    </div>
+
+    <div id="coords" aria-live="off"></div>
+
+    <div id="ntDraw" class="ch-draw" hidden><span id="ntDrawTxt"></span><button type="button" class="link" id="ntDrawBack">Retirer le dernier point</button><button type="button" class="link" id="ntDrawOk">Terminer</button><button type="button" class="link" id="ntDrawNo">Annuler</button></div>
+    <div id="dvDraw" class="ch-draw" hidden><span id="dvDrawTxt"></span><button type="button" class="link" id="dvDrawBack">Retirer le dernier point</button><button type="button" class="link" id="dvDrawOk">Terminer</button><button type="button" class="link" id="dvDrawNo">Annuler</button></div>
+    <div id="chDraw" class="ch-draw" hidden><span id="chDrawTxt"></span><button type="button" class="link" id="chDrawBack">Retirer le dernier point</button><button type="button" class="link" id="chDrawOk">Terminer</button><button type="button" class="link" id="chDrawNo">Annuler</button></div>
+    <div id="egDraw" class="ch-draw" hidden><span id="egDrawTxt"></span><button type="button" class="link" id="egDrawNo">Annuler</button></div>
+
 
     <div id="maqPlan" hidden>
       <div class="mp-head"><span id="maqPlanMsg"></span><button class="btn small" type="button" id="maqPlanDone">Terminer</button></div>
