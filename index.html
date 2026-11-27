@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GeoTrace – Carte des photos de chantier</title>
 <meta name="description" content="GeoTrace place sur la carte les photos de chantier géolocalisées, avec la direction de prise de vue. Tout est traité dans le navigateur.">
-<meta name="theme-color" content="#04264b">
+<meta name="theme-color" content="#1c325f">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="vendor/leaflet/MarkerCluster.css">
 <link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/nc.css">
 <script src="assets/boot.js"></script>
 </head>
 <body class="on-welcome">
@@ -34,59 +35,37 @@
 <noscript><p style="padding:24px">GeoTrace a besoin de JavaScript pour fonctionner.</p></noscript>
 
 <header id="top">
-  <a class="brand" href="./" aria-label="GeoTrace, accueil">
+  <a class="brand" href="./" aria-label="GeoTrace, accueil" title="GeoTrace">
     <img class="sym" src="assets/symbol.png" alt="" width="31" height="36">
-    <img class="wm wm-l" src="assets/wordmark.svg" alt="GeoTrace" width="116" height="23"><img class="wm wm-d" src="assets/wordmark-dark.svg" alt="" width="116" height="23">
   </a>
-  <button class="btn primary" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir<span class="lbl-x"> des photos</span></span></button>
-  <button class="btn" id="panelToggle" type="button" title="Afficher ou masquer la liste des photos" aria-label="Liste des photos" aria-expanded="true"><span data-ic="list"></span><span class="lbl">Photos</span></button>
-  <div class="pop-wrap">
-    <button class="btn" id="layersBtn" type="button" title="Changer le fond de carte et les calques" aria-expanded="false" aria-controls="layersMenu"><span data-ic="layers"></span>Fond<span class="lbl-x"> de carte</span></button>
-    <div class="menu" id="layersMenu" hidden>
-      <fieldset>
-        <legend>Fond de carte</legend>
-        <label><input type="radio" name="base" value="ortho"> Photo aérienne IGN</label>
-        <label><input type="radio" name="base" value="plan"> Plan IGN</label>
-      </fieldset>
-      <fieldset>
-        <legend>Calques</legend>
-        <label><input type="checkbox" id="optCadastre"> Parcelles cadastrales</label>
-        <label><input type="checkbox" id="optThumbs"> Vignettes sur les repères</label>
-        <label><input type="checkbox" id="optCones" checked> Direction de prise de vue</label>
-        <label><input type="checkbox" id="optTrack"> Parcours dans l’ordre des prises</label>
-        <label><input type="checkbox" id="optCluster" checked> Regrouper les photos proches</label>
-      </fieldset>
-      <fieldset>
-        <legend>Fiche photo</legend>
-        <label><input type="checkbox" id="optAddr" checked> Chercher l’adresse (envoie la position à l’IGN)</label>
-      </fieldset>
+  <nav class="appmenu" aria-label="Outils GeoTrace">
+    <button class="am" id="sourceBtn" type="button" title="Ouvrir un dossier, des photos ou un ZIP"><span data-ic="folder"></span><span class="lbl">Ouvrir</span></button>
+    <button class="am" id="panelToggle" type="button" title="Afficher ou masquer la navigation" aria-label="Navigation" aria-expanded="true"><span data-ic="image"></span><span class="lbl">Photos</span></button>
+    <button class="am" id="layersBtn" type="button" title="Fond de carte et calques" aria-expanded="false"><span data-ic="layers"></span><span class="lbl">Fond</span></button>
+    <button class="am" id="chBtn" type="button" title="Installations, déviations, réseaux, phases et engins" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span><span class="lbl">Chantier</span></button>
+    <div class="pop-wrap">
+      <button class="am" id="d3Btn" type="button" title="Maquette, photos en 3D, calage des photos" aria-expanded="false" aria-controls="d3Menu"><span data-ic="cube"></span><span class="lbl">3D</span></button>
+      <div class="menu" id="d3Menu" hidden>
+        <button type="button" data-go="vue3dBtn"><b>Photos en 3D</b><small>Les photos dans la maquette</small></button>
+        <button type="button" data-go="maqBtn"><b>Maquette Revit</b><small>Importer et placer un fichier IFC</small></button>
+      </div>
     </div>
-  </div>
-
-  <button class="btn" id="chBtn" type="button" title="Dessiner les installations de chantier et les déviations" aria-expanded="false" aria-controls="chPanel"><span data-ic="zone"></span>Chantier</button>
-  <div class="pop-wrap">
-    <button class="btn" id="d3Btn" type="button" title="Maquette, photos en 3D, calage des photos" aria-expanded="false" aria-controls="d3Menu"><span data-ic="cube"></span>3D</button>
-    <div class="menu" id="d3Menu" hidden>
-      <button type="button" data-go="vue3dBtn"><b>Photos en 3D</b><small>Les photos dans la maquette</small></button>
-      <button type="button" data-go="maqBtn"><b>Maquette Revit</b><small>Importer et placer un fichier IFC</small></button>
+    <div class="pop-wrap">
+      <button class="am" id="exportBtn" type="button" title="Exporter les photos affichées (ouvrez d’abord des photos)" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span><span class="lbl">Exporter</span></button>
+      <div class="menu" id="exportMenu" hidden>
+        <button type="button" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS, outils web</small></button>
+        <button type="button" data-export="kml"><b>KML</b><small>Google Earth</small></button>
+        <button type="button" data-export="csv"><b>CSV</b><small>Excel, avec coordonnées Lambert-93</small></button>
+        <button type="button" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV de la sélection</small></button>
+      </div>
     </div>
-  </div>
+  </nav>
   <button class="btn vh" id="maqBtn" type="button" aria-expanded="false" aria-controls="maqPanel">Maquette 3D</button>
   <button class="btn vh" id="vue3dBtn" type="button">Photos en 3D</button>
-
-  <div class="pop-wrap">
-    <button class="btn" id="exportBtn" type="button" title="Exporter les photos affichées (ouvrez d’abord des photos)" aria-expanded="false" aria-controls="exportMenu" disabled><span data-ic="download"></span>Exporter</button>
-    <div class="menu right" id="exportMenu" hidden>
-      <button type="button" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS, outils web</small></button>
-      <button type="button" data-export="kml"><b>KML</b><small>Google Earth</small></button>
-      <button type="button" data-export="csv"><b>CSV</b><small>Excel, avec coordonnées Lambert-93</small></button>
-      <button type="button" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV de la sélection</small></button>
-    </div>
-  </div>
   <span class="grow"></span>
-  <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" data-ic="moon"></button>
+  <button class="icon-btn" id="themeBtn" type="button" aria-label="Changer de thème" title="Mode clair ou sombre" data-ic="moon"></button>
   <div class="pop-wrap">
-    <button class="icon-btn" id="hmBtn" type="button" aria-label="Aide" aria-expanded="false" aria-controls="hmMenu" data-ic="help"></button>
+    <button class="icon-btn" id="hmBtn" type="button" aria-label="Aide" title="Aide" aria-expanded="false" aria-controls="hmMenu" data-ic="help"></button>
     <div class="menu right" id="hmMenu" hidden>
       <button type="button" data-go="tutoBtn"><b>Visite guidée</b><small>Comment fonctionne GeoTrace</small></button>
       <button type="button" data-go="helpBtn"><b>Aide et raccourcis</b><small>Touches du clavier, version</small></button>
@@ -94,24 +73,23 @@
   </div>
   <button class="btn vh" id="tutoBtn" type="button">Tuto</button>
   <button class="icon-btn vh" id="helpBtn" type="button" aria-label="Aide et raccourcis" data-ic="help"></button>
-  <a class="sturno" href="https://www.sturno.com" target="_blank" rel="noopener" aria-label="Application STURNO">
+  <a class="sturno" href="https://www.sturno.com" target="_blank" rel="noopener" aria-label="Application STURNO" title="STURNO">
     <img class="st-logo" src="assets/sturno-emblem.png" alt="" width="30" height="30">
-    <b>STURNO</b>
   </a>
 </header>
 
 <main id="app">
-  <aside id="panel" aria-label="Liste des photos">
+  <aside id="panel" class="app-nav" aria-label="Navigation GeoTrace">
+    <div class="nav-scroll">
+    <section class="nav-sec open" id="navPhotos">
+      <button type="button" class="nav-entry" data-sec aria-expanded="true"><span data-ic="image"></span><span class="ne-t">Mes photos</span><b class="nav-count" id="navCount" hidden>0</b><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
     <div class="p-head">
       <div class="src-row">
         <span class="src" id="srcName">Aucune photo ouverte</span>
         <button class="btn small" id="addBtn" type="button" disabled>Ajouter</button>
       </div>
       <span class="sub" id="sub" aria-live="polite"></span>
-      <div class="filter">
-        <span class="si" data-ic="search"></span>
-        <input id="q" type="search" placeholder="Filtrer par nom, dossier ou note" autocomplete="off" aria-label="Filtrer les photos">
-      </div>
       <div class="chips" id="chips" role="group" aria-label="Appareils">
         <button type="button" class="chip on" data-dev="phone" aria-pressed="true"><i></i>Téléphone<b>0</b></button>
         <button type="button" class="chip on" data-dev="tab" aria-pressed="true"><i></i>Tablette<b>0</b></button>
@@ -126,10 +104,74 @@
     </div>
     <ul id="list"></ul>
     <div class="empty" id="emptyList" hidden></div>
+      </div>
+    </section>
+    <section class="nav-sec" id="navFond">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="layers"></span><span class="ne-t">Fond de carte</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body" id="layersMenu">
+        <fieldset>
+          <legend>Fond de carte</legend>
+          <label><input type="radio" name="base" value="ortho"> Photo aérienne IGN</label>
+          <label><input type="radio" name="base" value="plan"> Plan IGN</label>
+        </fieldset>
+        <fieldset>
+          <legend>Calques</legend>
+          <label><input type="checkbox" id="optCadastre"> Parcelles cadastrales</label>
+          <label><input type="checkbox" id="optThumbs"> Vignettes sur les repères</label>
+          <label><input type="checkbox" id="optCones" checked> Direction de prise de vue</label>
+          <label><input type="checkbox" id="optTrack"> Parcours dans l’ordre des prises</label>
+          <label><input type="checkbox" id="optCluster" checked> Regrouper les photos proches</label>
+        </fieldset>
+      </div>
+    </section>
+    <section class="nav-sec" id="navChantier">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="zone"></span><span class="ne-t">Chantier</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body nav-sub">
+        <button type="button" class="nav-item" data-chtab="z"><span data-ic="zone"></span>Zones d’installation</button>
+        <button type="button" class="nav-item" data-chtab="d"><span data-ic="road"></span>Déviations</button>
+        <button type="button" class="nav-item" data-chtab="n"><span data-ic="pipe"></span>Réseaux</button>
+        <button type="button" class="nav-item" data-chtab="p"><span data-ic="cal"></span>Phases</button>
+        <button type="button" class="nav-item" data-chtab="e"><span data-ic="truck"></span>Engins</button>
+      </div>
+    </section>
+    <section class="nav-sec" id="nav3d">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="cube"></span><span class="ne-t">Maquette et 3D</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body nav-sub">
+        <button type="button" class="nav-item" data-nav-go="maqBtn"><span data-ic="cube"></span>Maquette Revit</button>
+        <button type="button" class="nav-item" data-nav-go="vue3dBtn"><span data-ic="eye"></span>Photos en 3D</button>
+      </div>
+    </section>
+    <section class="nav-sec" id="navExport">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="download"></span><span class="ne-t">Exporter</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body nav-sub">
+        <button type="button" class="nav-item" data-export="geojson"><b>GeoJSON</b><small>QGIS, ArcGIS</small></button>
+        <button type="button" class="nav-item" data-export="kml"><b>KML</b><small>Google Earth</small></button>
+        <button type="button" class="nav-item" data-export="csv"><b>CSV</b><small>Excel, Lambert-93</small></button>
+        <button type="button" class="nav-item" data-export="zip"><b>ZIP</b><small>Photos, GeoJSON et CSV</small></button>
+      </div>
+    </section>
+    </div>
+    <section class="nav-sec nav-settings" id="navSettings">
+      <button type="button" class="nav-entry" data-sec aria-expanded="false"><span data-ic="gear"></span><span class="ne-t">Paramètres</span><i class="chev" data-ic="chev"></i></button>
+      <div class="nav-body">
+        <label><input type="checkbox" id="optAddr" checked> Chercher l’adresse des photos (envoie la position à l’IGN)</label>
+        <button type="button" class="nav-item" data-nav-go="themeBtn"><span data-ic="moon"></span>Mode clair ou sombre</button>
+        <button type="button" class="nav-item" data-nav-go="tutoBtn"><span data-ic="help"></span>Visite guidée</button>
+        <button type="button" class="nav-item" data-nav-go="helpBtn"><span data-ic="info"></span>Aide et raccourcis</button>
+      </div>
+    </section>
   </aside>
 
   <section class="mapwrap" aria-label="Carte">
     <div id="map"></div>
+
+    <div class="map-top">
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Afficher ou masquer la navigation" title="Navigation" data-ic="navtog"></button>
+      <div class="filter">
+        <span class="si" data-ic="search"></span>
+        <input id="q" type="search" placeholder="Rechercher une photo" autocomplete="off" aria-label="Filtrer les photos">
+      </div>
+    </div>
 
     <div class="tools" role="toolbar" aria-label="Outils de carte">
       <button class="tool" id="fitBtn" type="button" aria-label="Tout voir (F)" title="Tout voir (F)" data-ic="fit"></button>
@@ -538,5 +580,6 @@
 <script src="vendor/leaflet/leaflet.markercluster.js"></script>
 <script src="vendor/exifr.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/nav.js"></script>
 </body>
 </html>

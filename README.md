@@ -228,6 +228,19 @@ Les photos sans position ou sans direction se repèrent toujours, mais ne peuven
 
 Le bouton « Repérer » n'est plus dans la visionneuse : on choisit la photo dans Chantier › Réseaux › Repérage sur photos (liste filtrable). Les annotations restent affichables sur les photos.
 
+## Version 3.0.0 : interface Nextcloud
+
+GeoTrace reprend l'interface de l'application Cartes du Nextcloud de STURNO (buildingnext.sturno.fr), pour passer de l'un à l'autre sans changer d'habitudes.
+
+- **En-tête Nextcloud** : logo à gauche, outils en icônes (Ouvrir, Photos, Fond, Chantier, 3D, Exporter) dont le nom apparaît au survol, petit trait sous l'outil ouvert. Thème, aide et STURNO à droite.
+- **Contenu en carte arrondie** posée sur le fond bleu STURNO, comme dans Nextcloud.
+- **Navigation à gauche, rubriques repliables** : Fond de carte (fond et calques), Chantier (Zones d'installation, Déviations, Réseaux, Phases, Engins), Maquette et 3D (Maquette Revit, Photos en 3D), Exporter (GeoJSON, KML, CSV, ZIP), Mes photos (avec le nombre de photos), et Paramètres en bas (adresse des photos, thème, visite guidée, aide). Les rubriques ouvertes sont mémorisées.
+- **Sur la carte** : bouton rond pour masquer la navigation et champ « Rechercher une photo » en haut à gauche ; recadrage, mesure, position et zoom en colonne en bas à droite.
+- **Panneaux Chantier et Maquette** en barre latérale à droite, sur toute la hauteur, avec des onglets soulignés.
+- **Couleurs et formes de Nextcloud** en clair et en sombre (bleu primaire, boutons secondaires bleutés, rayons de 8 px, police du système). L'outil actif n'est plus jaune mais bleu.
+- Sur téléphone : en-tête à icônes défilant, navigation et panneaux en feuille depuis le bas.
+- Aucun changement des fonctions, des fichiers de calage ni des données gardées dans le navigateur. Nouveaux fichiers : `assets/nc.css` (habillage) et `assets/nav.js` (navigation).
+
 ## Version 2.6.0 : banque de points de repère géoréférencés
 
 - Dès qu'une photo est calée (automatiquement, ou avec au moins 4 points), GeoTrace relève ses contours nets au sol (hors végétation) et les enregistre avec leur position réelle (latitude, longitude) : c'est la banque de repères du chantier, jusqu'à 260 points par photo.
