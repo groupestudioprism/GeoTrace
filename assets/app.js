@@ -3,7 +3,7 @@
 (() => {
 'use strict';
 
-const VERSION = '2.9.4';
+const VERSION = '3.0.0';
 const CFG = Object.assign({ nextcloud: '', maquette: '', maquetteLien: '', maxDepth: 3, concurrency: 4 }, window.GEOTRACE_CONFIG || {});
 
 /* ================= Utilitaires ================= */
@@ -64,9 +64,21 @@ const IC = {
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-9.5h.01"/>',
   eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   cube: '<path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m12 12 8-4.5M12 12v9M12 12 4 7.5"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+  route: '<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  out: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  chev: '<path d="m6 9 6 6 6-6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
+  navtog: '<path d="M4 6h11M4 12h9M4 18h11"/><path d="m20 9-3 3 3 3"/>',
+  road: '<path d="M7 21 10 3M17 21 14 3"/><path d="M12 6v2m0 4v2m0 4v2"/>',
+  pipe: '<path d="M3 8h10a4 4 0 0 1 4 4v9"/><path d="M3 14h6a2 2 0 0 1 2 2v5"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4m8-4v4M7 14h4m2 3h4"/>',
+  truck: '<path d="M2 7h11v9H2zM13 10h4l4 3v3h-8"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
 };
 const icon = (n, size) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"${size ? ` style="width:${size}px;height:${size}px"` : ''}>${IC[n]}</svg>`;
+window.GTIcon = icon; // utilisé par la navigation (nav.js)
 function paintIcons(root = document) { root.querySelectorAll('[data-ic]').forEach(el => { if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.ic)); }); }
 paintIcons();
 
@@ -128,7 +140,7 @@ const showWelcome = on => { document.body.classList.toggle('on-welcome', !!on); 
 /* ================= Carte ================= */
 const map = L.map('map', { zoomControl: true, zoomSnap: 0.5, worldCopyJump: false }).setView([47.2, 2.4], 6);
 L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
-map.zoomControl.setPosition('topleft');
+map.zoomControl.setPosition('bottomright');
 
 const WMTS = (layer, fmtImg, style = 'normal') => `https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=${style}&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=${fmtImg}`;
 const BASES = {
@@ -945,7 +957,7 @@ function popover(btnId, menuId) {
   m.addEventListener('click', e => e.stopPropagation());
 }
 function closeMenus() { document.querySelectorAll('.menu').forEach(m => { m.hidden = true; }); document.querySelectorAll('[aria-controls$=Menu]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
-popover('layersBtn', 'layersMenu'); popover('exportBtn', 'exportMenu'); popover('d3Btn', 'd3Menu'); popover('hmBtn', 'hmMenu'); popover('vOvl', 'vOvlMenu');
+popover('exportBtn', 'exportMenu'); popover('d3Btn', 'd3Menu'); popover('hmBtn', 'hmMenu'); popover('vOvl', 'vOvlMenu');
 // Les entrées des menus 3D et aide déclenchent les boutons d'origine (cachés), dont tout le reste du code dépend
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { closeMenus(); const t = $(b.dataset.go); if (t) t.click(); }));
 document.addEventListener('click', closeMenus);
@@ -968,7 +980,7 @@ function refreshIcons() { markers.forEach((m, id) => { const p = photos.find(x =
 function setTheme(t) {
   document.documentElement.dataset.theme = t; prefs.theme = t; savePrefs();
   const b = $('themeBtn'); b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon');
-  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = t === 'dark' ? '#0d1b2e' : '#04264b';
+  const meta = document.querySelector('meta[name=theme-color]'); if (meta) meta.content = t === 'dark' ? '#171717' : '#1c325f';
 }
 $('themeBtn').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
 
@@ -1543,7 +1555,7 @@ window.GeoTrace = { version: VERSION, maquette: () => Maq, map }; // accès pour
     { sel: '#panel .p-head', t: 'Chercher et filtrer', x: 'Tapez un nom, un dossier ou une note dans la zone de recherche (touche /). Les pastilles Téléphone, Tablette et Drone masquent un type d’appareil ; Favoris garde les photos marquées d’une étoile ; Du / au limite la période.' },
     { sel: '#timeline', t: 'La chronologie', x: 'Les barres comptent les photos par heure. Faites glisser sur la frise pour ne garder qu’une période. « Tout afficher » rétablit la liste complète.', note: 'Elle apparaît dès que les photos sont datées.' },
     { sel: '.tools', t: 'Les outils de la carte', x: 'De haut en bas : « Tout voir » (F) cadre toutes les photos, « Mesurer » (M) trace une longueur puis une surface dès trois points, « Ma position » centre la carte sur vous.' },
-    { sel: ['#layersBtn', '#layersMenu'], t: 'Fond de carte et calques', x: 'Choisissez entre la photo aérienne et le plan de l’IGN. En dessous : parcelles cadastrales, vignettes sur les repères, direction de prise de vue, parcours dans l’ordre des prises.', pre: () => { closeMenus(); $('layersMenu').hidden = false; $('layersBtn').setAttribute('aria-expanded', 'true'); }, post: () => closeMenus() },
+    { sel: ['#layersBtn', '#layersMenu'], t: 'Fond de carte et calques', x: 'Choisissez entre la photo aérienne et le plan de l’IGN. En dessous : parcelles cadastrales, vignettes sur les repères, direction de prise de vue, parcours dans l’ordre des prises.', pre: () => { closeMenus(); if (window.GTNav) GTNav.open('navFond'); }, post: () => closeMenus() },
     { sel: ['#chBtn', '#chPanel'], t: 'Installations de chantier', x: 'Dessinez sur la carte les zones d’installation : base vie, dépôt, décharge, stockage, parking, accès. Choisissez un type, puis tracez un rectangle (deux clics) ou un polygone. Vous pouvez les renommer, les modifier ou les supprimer dans la liste. En vue 3D, chaque zone devient un ensemble d’objets réels : cabines, conteneurs, bennes, tuyaux, véhicules, clôture.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } }, post: () => { if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Déviations', x: 'Dans « Chantier », l’onglet Déviations : choisissez le type (véhicules, piétons, alternat, route barrée), cliquez les points du parcours, double-clic pour finir. Réglez la largeur, inversez le sens ou déplacez les points. En 3D : chaussée provisoire, flèches, panneaux, cônes, barrières ou feux.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=d]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
     { sel: ['#chBtn', '#chPanel'], t: 'Phases', x: 'L’onglet Phases découpe le chantier : dates, installations et déviations présentes, éléments de la maquette construits pendant la phase, et page du planning PDF (trouvé dans le dossier ou choisi à la main). « Afficher cette phase » filtre la carte ; en vue 3D, le sélecteur Phase montre l’avancement, et un clic sur un élément permet de l’ajouter à une phase.', pre: () => { if ($('chPanel').hidden) { $('chBtn').click(); tourOpened.ch = true; } document.querySelector('#chTabs button[data-tab=p]').click(); }, post: () => { document.querySelector('#chTabs button[data-tab=z]').click(); if (tourOpened.ch) { $('chClose').click(); tourOpened.ch = false; } } },
